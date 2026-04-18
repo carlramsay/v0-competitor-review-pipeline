@@ -547,7 +547,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
 
     // Load presenter avatar video if available in IndexedDB
     let avatarVideo: HTMLVideoElement | null = null
-    const avatarBase64 = await getVideoAsset("avatar-video")
+    const avatarBase64 = await getVideoAsset(`avatar-video-${record.id}`)
     if (avatarBase64) {
       avatarVideo = document.createElement("video")
       avatarVideo.muted = true
