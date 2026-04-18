@@ -69,12 +69,13 @@ function QueueManager() {
     refresh()
   }, [])
 
-  function refresh() {
-    setQueue(getSortedQueue())
+  async function refresh() {
+    const queue = await getSortedQueue()
+    setQueue(queue)
   }
 
-  function handleStartReview(item: QueueItem) {
-    updateQueueItemStatus(item.id, "In Progress")
+  async function handleStartReview(item: QueueItem) {
+    await updateQueueItemStatus(item.id, "In Progress")
     sessionStorage.setItem("queueUrl", item.url)
     if (item.name) sessionStorage.setItem("queueName", item.name)
     router.push("/")
@@ -120,7 +121,7 @@ function QueueManager() {
     return raw.startsWith("http") ? raw.trim() : `https://${raw.trim()}`
   }
 
-  function handleAdd() {
+  async function handleAdd() {
     setError(null)
     const trimmed = newUrl.trim()
     if (!trimmed) return
@@ -128,14 +129,14 @@ function QueueManager() {
       setError("Please enter a valid URL.")
       return
     }
-    addToQueue(normalise(trimmed), newName.trim())
+    await addToQueue(normalise(trimmed), newName.trim())
     setNewUrl("")
     setNewName("")
-    refresh()
+    await refresh()
     inputRef.current?.focus()
   }
 
-  function handleBulkAdd() {
+  async function handleBulkAdd() {
     setError(null)
     const lines = bulkText
       .split("\n")
@@ -148,34 +149,37 @@ function QueueManager() {
       return
     }
 
-    lines.forEach((l) => addToQueue(normalise(l)))
+    for (const l of lines) {
+      await addToQueue(normalise(l))
+    }
     setBulkText("")
     setShowBulk(false)
-    refresh()
+    await refresh()
   }
 
-  function handleNameChange(id: string, name: string) {
-    updateQueueItemName(id, name)
+  async function handleNameChange(id: string, name: string) {
+    await updateQueueItemName(id, name)
     // Refresh only the local state without re-sorting so the row doesn't jump
     setQueue((prev) =>
       prev.map((item) => (item.id === id ? { ...item, name } : item))
     )
   }
 
-  function handleStatusChange(id: string, status: QueueStatus) {
-    updateQueueItemStatus(id, status)
-    refresh()
+  async function handleStatusChange(id: string, status: QueueStatus) {
+    await updateQueueItemStatus(id, status)
+    await refresh()
   }
 
-  function handleRemove(id: string) {
-    removeFromQueue(id)
-    refresh()
+  async function handleRemove(id: string) {
+    await removeFromQueue(id)
+    await refresh()
   }
 
-  function handleClearCompleted() {
-    const remaining = getQueue().filter((q) => q.status !== "Completed")
-    saveQueue(remaining)
-    refresh()
+  async function handleClearCompleted() {
+    const allQueue = await getQueue()
+    const remaining = allQueue.filter((q) => q.status !== "Completed")
+    await saveQueue(remaining)
+    await refresh()
   }
 
   const displayed = sorted(queue)

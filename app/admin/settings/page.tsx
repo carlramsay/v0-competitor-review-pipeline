@@ -6,8 +6,7 @@ import { useEffect, useState } from "react"
 import { AdminGuard } from "@/components/admin-guard"
 import { AdminNav } from "@/components/admin-nav"
 import { AppSettings, ThumbnailImage } from "@/lib/types"
-import { getSettings, saveSettings, getThumbnailLibrary, saveThumbnailLibrary } from "@/lib/store"
-import { saveVideoAsset, getVideoAsset, deleteVideoAsset } from "@/lib/indexed-db"
+import { getSettings, saveSettings, getThumbnailLibrary, saveThumbnailLibrary, saveVideoAsset, getVideoAsset, deleteVideoAsset } from "@/lib/store"
 import { Eye, EyeOff, Check, Trash2, Video } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -83,9 +82,9 @@ function AdminSettingsContent() {
   const [avatarVideoLoaded, setAvatarVideoLoaded] = useState(false)
 
   useEffect(() => {
-    setSettings(getSettings())
-    setLibrary(getThumbnailLibrary())
-    // Load video asset states from IndexedDB
+    getSettings().then(setSettings)
+    getThumbnailLibrary().then(setLibrary)
+    // Load video asset states from Supabase
     getVideoAsset("logo-video").then((exists) => setLogoVideoLoaded(!!exists))
     getVideoAsset("avatar-video").then((exists) => setAvatarVideoLoaded(!!exists))
   }, [])
@@ -95,7 +94,7 @@ function AdminSettingsContent() {
     const reader = new FileReader()
     reader.onloadend = () => {
       const img = new Image()
-      img.onload = () => {
+      img.onload = async () => {
         const maxWidth = 1280
         const maxHeight = 720
         let { width, height } = img
@@ -117,7 +116,7 @@ function AdminSettingsContent() {
             dataUrl,
           }
           const updated = [newImage, ...library]
-          saveThumbnailLibrary(updated)
+          await saveThumbnailLibrary(updated)
           setLibrary(updated)
         }
         setUploadingImage(false)
@@ -127,9 +126,9 @@ function AdminSettingsContent() {
     reader.readAsDataURL(file)
   }
 
-  function handleDeleteImage(id: string) {
+  async function handleDeleteImage(id: string) {
     const updated = library.filter((img) => img.id !== id)
-    saveThumbnailLibrary(updated)
+    await saveThumbnailLibrary(updated)
     setLibrary(updated)
   }
 
@@ -192,12 +191,12 @@ function AdminSettingsContent() {
     setSettings((prev) => ({ ...prev, [key]: value }))
   }
 
-  function handleSave(e: React.FormEvent) {
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     try {
-      // Don't save video base64s to localStorage - they're in IndexedDB
+      // Don't save video base64s to settings table - they're stored separately
       const settingsToSave = { ...settings, logoVideoBase64: "", avatarVideoBase64: "" }
-      saveSettings(settingsToSave)
+      await saveSettings(settingsToSave)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     } catch (err) {

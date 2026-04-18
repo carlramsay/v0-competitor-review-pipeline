@@ -196,10 +196,10 @@ export default function SeedPage() {
   const [status, setStatus] = useState<"idle" | "done">("idle")
 
   useEffect(() => {
-    saveReview(MOCK_REVIEW)
-    setStatus("done")
-    const t = setTimeout(() => router.push("/reviews"), 1500)
-    return () => clearTimeout(t)
+    saveReview(MOCK_REVIEW).then(() => {
+      setStatus("done")
+      setTimeout(() => router.push("/reviews"), 1500)
+    })
   }, [router])
 
   return (
