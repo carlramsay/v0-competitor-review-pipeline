@@ -159,6 +159,16 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     }
   }, [initialRecord.generated.thumbnailDataUrl, initialRecord.generated.thumbnailVerticalDataUrl])
 
+  // Hydrate saved videos from Cloudinary on mount
+  useEffect(() => {
+    if (initialRecord.generated.videoDataUrl) {
+      setVideoUrl(initialRecord.generated.videoDataUrl)
+    }
+    if (initialRecord.generated.videoVerticalDataUrl) {
+      setVideoUrlVertical(initialRecord.generated.videoVerticalDataUrl)
+    }
+  }, [initialRecord.generated.videoDataUrl, initialRecord.generated.videoVerticalDataUrl])
+
   // Hydrate saved avatar video from Supabase on mount
   useEffect(() => {
     async function loadAvatarVideo() {
@@ -928,13 +938,43 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
 
+      // Upload horizontal video to Cloudinary
+      setVideoProgress("Uploading horizontal video\u2026")
+      const horizontalFormData = new FormData()
+      horizontalFormData.append("file", horizontalBlob, `horizontal-${record.id}.webm`)
+      horizontalFormData.append("filename", `horizontal-${record.id}`)
+      const horizontalRes = await fetch("/api/cloudinary-upload", {
+        method: "POST",
+        body: horizontalFormData,
+      })
+      const horizontalData = await horizontalRes.json()
+      if (!horizontalRes.ok) throw new Error(horizontalData.error || "Failed to upload horizontal video")
+
       // Generate vertical video (1080x1920)
       setVideoProgress("Rendering vertical video\u2026")
       const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical (1080x1920)", captionGroups)
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
 
-      // Videos are kept in browser memory - download them before leaving the page
+      // Upload vertical video to Cloudinary
+      setVideoProgress("Uploading vertical video\u2026")
+      const verticalFormData = new FormData()
+      verticalFormData.append("file", verticalBlob, `vertical-${record.id}.webm`)
+      verticalFormData.append("filename", `vertical-${record.id}`)
+      const verticalRes = await fetch("/api/cloudinary-upload", {
+        method: "POST",
+        body: verticalFormData,
+      })
+      const verticalData = await verticalRes.json()
+      if (!verticalRes.ok) throw new Error(verticalData.error || "Failed to upload vertical video")
+
+      // Save video URLs to record for persistence
+      const updated = await updateGeneratedContent(record.id, {
+        videoDataUrl: horizontalData.url,
+        videoVerticalDataUrl: verticalData.url,
+      })
+      if (updated) setRecord(updated)
+
       setVideoProgress(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
