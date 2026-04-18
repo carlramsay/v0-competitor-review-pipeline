@@ -18,12 +18,13 @@ export default function ReviewDetailPage() {
   const [record, setRecord] = useState<ReviewRecord | null>(null)
 
   useEffect(() => {
-    const r = getReviewById(id)
-    if (!r) {
-      router.replace("/reviews")
-      return
-    }
-    setRecord(r)
+    getReviewById(id).then((r) => {
+      if (!r) {
+        router.replace("/reviews")
+        return
+      }
+      setRecord(r)
+    })
   }, [id, router])
 
   if (!record) {

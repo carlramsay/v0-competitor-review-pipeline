@@ -22,13 +22,14 @@ export default function SetupPage() {
   const [alreadySet, setAlreadySet] = useState(false)
 
   useEffect(() => {
-    const settings = getSettings()
-    if (settings.adminPassword) {
-      setAlreadySet(true)
-    }
+    getSettings().then((settings) => {
+      if (settings.adminPassword) {
+        setAlreadySet(true)
+      }
+    })
   }, [])
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
 
@@ -45,8 +46,8 @@ export default function SetupPage() {
       return
     }
 
-    const settings = getSettings()
-    saveSettings({ ...settings, adminPassword: password })
+    const settings = await getSettings()
+    await saveSettings({ ...settings, adminPassword: password })
     setSaved(true)
     setTimeout(() => {
       router.push("/admin")

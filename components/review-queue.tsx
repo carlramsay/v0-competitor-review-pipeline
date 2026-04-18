@@ -13,16 +13,17 @@ export function ReviewQueue() {
   const [queue, setQueue] = useState<QueueItem[]>([])
 
   useEffect(() => {
-    setQueue(getSortedQueue())
+    getSortedQueue().then(setQueue)
   }, [])
 
-  function handleStatusChange(id: string, newStatus: QueueStatus) {
-    updateQueueItemStatus(id, newStatus)
-    setQueue(getSortedQueue())
+  async function handleStatusChange(id: string, newStatus: QueueStatus) {
+    await updateQueueItemStatus(id, newStatus)
+    const updated = await getSortedQueue()
+    setQueue(updated)
   }
 
-  function handleStartReview(item: QueueItem) {
-    updateQueueItemStatus(item.id, "In Progress")
+  async function handleStartReview(item: QueueItem) {
+    await updateQueueItemStatus(item.id, "In Progress")
     sessionStorage.setItem("queueUrl", item.url)
     if (item.name) sessionStorage.setItem("queueName", item.name)
     router.push("/")

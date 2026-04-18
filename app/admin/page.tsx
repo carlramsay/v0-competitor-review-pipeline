@@ -29,10 +29,10 @@ export default function AdminLoginPage() {
     }
   }, [router])
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
-    const settings = getSettings()
+    const settings = await getSettings()
     const stored = settings.adminPassword
 
     if (!stored) {

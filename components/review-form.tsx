@@ -57,8 +57,9 @@ export function ReviewForm({ initialData, reviewId }: Props) {
   // Detect saved draft on mount (only for new forms, not edits)
   useEffect(() => {
     if (!initialData) {
-      const draft = getDraft()
-      if (draft) setSavedDraft(draft)
+      getDraft().then((draft) => {
+        if (draft) setSavedDraft(draft)
+      })
     }
   }, [initialData])
 
@@ -85,8 +86,8 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     }
   }, [searchParams])
 
-  function handleSaveProgress() {
-    saveDraft(form)
+  async function handleSaveProgress() {
+    await saveDraft(form)
     setSaveConfirmed(true)
     setTimeout(() => setSaveConfirmed(false), 2000)
   }
@@ -98,8 +99,8 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     }
   }
 
-  function handleDismissDraft() {
-    clearDraft()
+  async function handleDismissDraft() {
+    await clearDraft()
     setSavedDraft(null)
   }
 
@@ -120,12 +121,12 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     })
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
     const id = reviewId ?? crypto.randomUUID()
-    saveReview({ id, submittedAt: new Date().toISOString(), formData: form, generated: {} })
-    clearDraft()
+    await saveReview({ id, submittedAt: new Date().toISOString(), formData: form, generated: {} })
+    await clearDraft()
     router.push(`/generate/${id}`)
   }
 

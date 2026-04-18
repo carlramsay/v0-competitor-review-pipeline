@@ -48,12 +48,13 @@ function AdminReviewDetailContent() {
   const [record, setRecord] = useState<ReviewRecord | null>(null)
 
   useEffect(() => {
-    const r = getReviewById(id)
-    if (!r) {
-      router.replace("/admin/reviews")
-      return
-    }
-    setRecord(r)
+    getReviewById(id).then((r) => {
+      if (!r) {
+        router.replace("/admin/reviews")
+        return
+      }
+      setRecord(r)
+    })
   }, [id, router])
 
   if (!record) {

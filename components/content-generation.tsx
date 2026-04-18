@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
 import { ReviewRecord, ThumbnailImage } from "@/lib/types"
-import { getSettings, updateGeneratedContent, getThumbnailLibrary } from "@/lib/store"
-import { getVideoAsset, saveVideoAsset } from "@/lib/indexed-db"
+import { getSettings, updateGeneratedContent, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { generateHeyGenAvatarVideo } from "@/lib/heygen-service"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
@@ -147,7 +146,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
 
   // Load background image library on mount
   useEffect(() => {
-    setBackgroundLibrary(getThumbnailLibrary())
+    getThumbnailLibrary().then(setBackgroundLibrary)
   }, [])
 
   // Hydrate saved avatar video from IndexedDB on mount (fixes localStorage quota error)
@@ -180,7 +179,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   async function callGenerate(type: "blog" | "video" | "social") {
     setError(null)
     setLoading(type)
-    const settings = getSettings()
+    const settings = await getSettings()
     if (!settings.openaiApiKey) {
       setError("No OpenAI API key found. Please add it in Settings.")
       setLoading(null)
@@ -231,7 +230,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   async function generateLinkedInPost() {
     setError(null)
     setLoading("linkedin")
-    const settings = getSettings()
+    const settings = await getSettings()
 
     if (!settings.openaiApiKey) {
       setError("OpenAI API key is missing. Add it in Admin Settings.")
@@ -293,7 +292,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   async function generateAvatarVideo() {
     setError(null)
     setLoading("avatar")
-    const settings = getSettings()
+    const settings = await getSettings()
 
     if (!record.generated.videoScript) {
       setError("Generate a video script first before creating an avatar video.")
@@ -364,7 +363,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
 
     const competitorName = record.formData.competitorName || "Competitor"
     const reviewerName = record.formData.reviewerName || "Reviewer"
-    const settings = getSettings()
+    const settings = await getSettings()
 
     try {
       const canvas = document.createElement("canvas")
@@ -460,7 +459,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
 
   // Fetch word-level captions from OpenAI Whisper
   async function fetchWhisperCaptions(blob: Blob): Promise<WhisperWord[]> {
-    const settings = getSettings()
+    const settings = await getSettings()
     if (!settings.openaiApiKey) return []
 
     const form = new FormData()
@@ -504,7 +503,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     formatLabel: string,
     captionGroups: Array<{ text: string; start: number; end: number }>
   ): Promise<Blob> {
-    const settings = getSettings()
+    const settings = await getSettings()
     const CROSSFADE_DURATION = 0.5 // seconds
     const IMAGE_CYCLE_INTERVAL = 6 // seconds
     const LOGO_DURATION = 3 // seconds
@@ -929,7 +928,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   async function pushToWordPress() {
     setError(null)
     setLoading("wp")
-    const settings = getSettings()
+    const settings = await getSettings()
     if (!settings.wpSiteUrl || !settings.wpUsername || !settings.wpAppPassword) {
       setError("WordPress credentials are missing. Please configure them in Settings.")
       setLoading(null)
