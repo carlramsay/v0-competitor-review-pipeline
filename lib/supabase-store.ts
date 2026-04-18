@@ -1,5 +1,6 @@
 "use client"
 
+// Supabase-backed store - migrated from localStorage for persistent storage
 import { createClient } from "@/lib/supabase/client"
 import { ReviewRecord, AppSettings, GeneratedContent, ThumbnailImage, QueueItem, ReviewFormData } from "./types"
 
