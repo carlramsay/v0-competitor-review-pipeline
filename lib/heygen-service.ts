@@ -39,14 +39,24 @@ async function getAvatarLooks(apiKey: string, avatarId: string): Promise<string>
       headers: { "X-Api-Key": apiKey },
     })
     if (!res.ok) {
-      console.warn(`Failed to fetch avatar details: ${res.status}`)
+      console.warn(`[v0] Failed to fetch avatar details: ${res.status}`)
       return ""
     }
     const data = await res.json()
-    // Return the first available look_id, or empty string if none found
-    return data.data?.looks?.[0]?.look_id || ""
+    console.log("[v0] Avatar details response:", data)
+    
+    // Try multiple possible response structures
+    const lookId = 
+      data.data?.looks?.[0]?.look_id ||
+      data.looks?.[0]?.look_id ||
+      data.data?.default_look_id ||
+      data.default_look_id ||
+      ""
+    
+    console.log("[v0] Extracted look_id:", lookId)
+    return lookId
   } catch (err) {
-    console.warn("Error fetching avatar looks:", err)
+    console.warn("[v0] Error fetching avatar looks:", err)
     return ""
   }
 }
@@ -87,6 +97,7 @@ export async function generateHeyGenAvatarVideo(
   }
 
   // Submit video generation request
+  console.log("[v0] Sending HeyGen payload:", JSON.stringify(payload, null, 2))
   const generateRes = await fetch("https://api.heygen.com/v2/video/generate", {
     method: "POST",
     headers: {
@@ -98,6 +109,7 @@ export async function generateHeyGenAvatarVideo(
 
   if (!generateRes.ok) {
     const errData = await generateRes.json()
+    console.error("[v0] HeyGen error:", errData)
     throw new Error(`HeyGen error (${generateRes.status}): ${errData.error?.message || "Unknown error"}`)
   }
 
