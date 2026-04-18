@@ -134,6 +134,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [videoUrlVertical, setVideoUrlVertical] = useState<string | null>(null)
   const [videoProgress, setVideoProgress] = useState<string | null>(null)
   const [backgroundLibrary, setBackgroundLibrary] = useState<ThumbnailImage[]>([])
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null)
@@ -368,121 +369,291 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     }
   }
 
+  // Core video generation function that supports both formats
+  async function generateVideoWithFormat(
+    width: number,
+    height: number,
+    formatLabel: string
+  ): Promise<Blob> {
+    const settings = getSettings()
+    const CROSSFADE_DURATION = 0.5 // seconds
+    const IMAGE_CYCLE_INTERVAL = 6 // seconds
+    const LOGO_DURATION = 3 // seconds
+
+    // Load all background images
+    const images: HTMLImageElement[] = []
+    for (const bgImg of backgroundLibrary) {
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error("Failed to load background image"))
+        img.src = bgImg.dataUrl
+      })
+      images.push(img)
+    }
+
+    if (images.length === 0) {
+      throw new Error("No background images available")
+    }
+
+    // Load logo video if available
+    let logoVideo: HTMLVideoElement | null = null
+    if (settings.logoVideoBase64) {
+      logoVideo = document.createElement("video")
+      logoVideo.muted = true
+      logoVideo.playsInline = true
+      logoVideo.crossOrigin = "anonymous"
+      const logoBlob = new Blob(
+        [Uint8Array.from(atob(settings.logoVideoBase64), (c) => c.charCodeAt(0))],
+        { type: "video/mp4" }
+      )
+      logoVideo.src = URL.createObjectURL(logoBlob)
+      await new Promise<void>((resolve, reject) => {
+        logoVideo!.onloadeddata = () => resolve()
+        logoVideo!.onerror = () => reject(new Error("Failed to load logo video"))
+        logoVideo!.load()
+      })
+    }
+
+    const canvas = document.createElement("canvas")
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext("2d")
+    if (!ctx) throw new Error("Failed to create canvas context")
+
+    // Create audio context and decode audio
+    const audioContext = new AudioContext()
+    const arrayBuffer = await audioBlob!.arrayBuffer()
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+    const audioDuration = audioBuffer.duration
+    const totalDuration = audioDuration + LOGO_DURATION
+
+    // Create audio source
+    const audioDestination = audioContext.createMediaStreamDestination()
+    const audioSource = audioContext.createBufferSource()
+    audioSource.buffer = audioBuffer
+    audioSource.connect(audioDestination)
+
+    // Create video stream
+    const videoStream = canvas.captureStream(60)
+
+    // Combine streams
+    const combinedStream = new MediaStream([
+      ...videoStream.getVideoTracks(),
+      ...audioDestination.stream.getAudioTracks(),
+    ])
+
+    // Set up MediaRecorder
+    const chunks: Blob[] = []
+    let mimeType = "video/webm"
+    const codecsToTry = [
+      "video/webm;codecs=vp9,opus",
+      "video/webm;codecs=vp8,opus",
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+    ]
+    for (const codec of codecsToTry) {
+      if (MediaRecorder.isTypeSupported(codec)) {
+        mimeType = codec
+        break
+      }
+    }
+
+    const mediaRecorder = new MediaRecorder(combinedStream, {
+      mimeType,
+      videoBitsPerSecond: 8000000, // 8 Mbps for high quality
+    })
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data)
+    }
+
+    const recordingPromise = new Promise<Blob>((resolve, reject) => {
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: "video/webm" })
+        resolve(blob)
+      }
+      mediaRecorder.onerror = (e) => reject(e)
+    })
+
+    // Helper to draw image covering canvas
+    function drawImageCover(img: HTMLImageElement, alpha = 1) {
+      ctx!.globalAlpha = alpha
+      const scale = Math.max(width / img.width, height / img.height)
+      const x = (width - img.width * scale) / 2
+      const y = (height - img.height * scale) / 2
+      ctx!.drawImage(img, x, y, img.width * scale, img.height * scale)
+      ctx!.globalAlpha = 1
+    }
+
+    // Helper to draw text overlay
+    function drawTextOverlay() {
+      const competitorName = record.formData.competitorName || "Competitor"
+      const reviewerName = record.formData.reviewerName || "Reviewer"
+      const siteName = settings.thumbnailSiteName || "Arousr"
+
+      // Semi-transparent dark overlay
+      ctx!.fillStyle = "rgba(0, 0, 0, 0.55)"
+      ctx!.fillRect(0, 0, width, height)
+
+      // Title text
+      const titleSize = Math.round(width * 0.056)
+      ctx!.fillStyle = "#ffffff"
+      ctx!.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`
+      ctx!.textAlign = "center"
+      ctx!.textBaseline = "middle"
+      ctx!.fillText(`Review: ${competitorName}`, width / 2, height / 2 - titleSize * 0.6)
+
+      // Subtitle
+      const subtitleSize = Math.round(width * 0.028)
+      ctx!.font = `${subtitleSize}px system-ui, -apple-system, sans-serif`
+      ctx!.fillStyle = "#cccccc"
+      ctx!.fillText(`Tested by ${reviewerName}`, width / 2, height / 2 + subtitleSize * 1.5)
+
+      // Site name
+      const siteSize = Math.round(width * 0.022)
+      ctx!.font = `bold ${siteSize}px system-ui, -apple-system, sans-serif`
+      ctx!.fillStyle = "#ffffff"
+      ctx!.fillText(siteName, width / 2, height - siteSize * 2)
+    }
+
+    // Animation loop variables
+    let animationFrameId: number
+    let isRecording = true
+    const startTime = performance.now()
+    let logoStarted = false
+
+    function render() {
+      if (!isRecording) return
+
+      const elapsed = (performance.now() - startTime) / 1000
+
+      if (elapsed >= audioDuration) {
+        // Logo ending screen
+        const logoElapsed = elapsed - audioDuration
+
+        // Fade to black
+        const fadeProgress = Math.min(1, logoElapsed / 0.5)
+        ctx!.fillStyle = "#000000"
+        ctx!.fillRect(0, 0, width, height)
+
+        if (logoVideo && logoElapsed >= 0.5) {
+          // Start logo video playback
+          if (!logoStarted) {
+            logoVideo.currentTime = 0
+            logoVideo.play().catch(() => {})
+            logoStarted = true
+          }
+
+          // Draw logo video centered
+          const videoAspect = logoVideo.videoWidth / logoVideo.videoHeight
+          const canvasAspect = width / height
+          let drawWidth: number, drawHeight: number, drawX: number, drawY: number
+
+          if (videoAspect > canvasAspect) {
+            drawWidth = width * 0.6
+            drawHeight = drawWidth / videoAspect
+          } else {
+            drawHeight = height * 0.6
+            drawWidth = drawHeight * videoAspect
+          }
+          drawX = (width - drawWidth) / 2
+          drawY = (height - drawHeight) / 2
+
+          // Fade in logo
+          const logoFadeIn = Math.min(1, (logoElapsed - 0.5) / 0.3)
+          ctx!.globalAlpha = logoFadeIn
+          ctx!.drawImage(logoVideo, drawX, drawY, drawWidth, drawHeight)
+          ctx!.globalAlpha = 1
+        }
+      } else {
+        // Main content with cycling backgrounds
+        const cycleTime = elapsed % (IMAGE_CYCLE_INTERVAL * images.length)
+        const currentImageIndex = Math.floor(cycleTime / IMAGE_CYCLE_INTERVAL) % images.length
+        const timeInCurrentImage = cycleTime % IMAGE_CYCLE_INTERVAL
+
+        // Draw current image
+        drawImageCover(images[currentImageIndex])
+
+        // Handle crossfade
+        if (images.length > 1 && timeInCurrentImage >= IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION) {
+          const nextImageIndex = (currentImageIndex + 1) % images.length
+          const fadeProgress = (timeInCurrentImage - (IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION)) / CROSSFADE_DURATION
+          drawImageCover(images[nextImageIndex], fadeProgress)
+        }
+
+        // Draw text overlay
+        drawTextOverlay()
+      }
+
+      animationFrameId = requestAnimationFrame(render)
+    }
+
+    // Start recording and audio
+    mediaRecorder.start(100)
+    audioSource.start()
+    render()
+
+    // Progress tracking
+    const progressInterval = setInterval(() => {
+      const elapsed = (performance.now() - startTime) / 1000
+      const percent = Math.min(100, Math.round((elapsed / totalDuration) * 100))
+      setVideoProgress(`${formatLabel}: ${percent}%`)
+    }, 500)
+
+    // Wait for total duration
+    await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        isRecording = false
+        cancelAnimationFrame(animationFrameId)
+        clearInterval(progressInterval)
+        resolve()
+      }, totalDuration * 1000)
+    })
+
+    // Cleanup
+    mediaRecorder.stop()
+    await audioContext.close()
+    if (logoVideo) {
+      logoVideo.pause()
+      URL.revokeObjectURL(logoVideo.src)
+    }
+
+    return recordingPromise
+  }
+
   async function generateVideo() {
-    if (!thumbnailUrl || !audioBlob) {
-      setError("Generate both thumbnail and voiceover first.")
+    if (!audioBlob) {
+      setError("Generate voiceover first.")
+      return
+    }
+
+    if (backgroundLibrary.length === 0) {
+      setError("Please add background images in Settings first.")
       return
     }
 
     setError(null)
     setLoading("video")
     setVideoUrl(null)
-    setVideoProgress("Preparing video...")
+    setVideoUrlVertical(null)
+    setVideoProgress("Preparing videos...")
 
     try {
-      // Create a canvas from the thumbnail image
-      const img = new Image()
-      img.crossOrigin = "anonymous"
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve()
-        img.onerror = () => reject(new Error("Failed to load thumbnail"))
-        img.src = thumbnailUrl
-      })
+      // Generate horizontal video (1920x1080)
+      setVideoProgress("Generating horizontal video...")
+      const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal")
+      const horizontalUrl = URL.createObjectURL(horizontalBlob)
+      setVideoUrl(horizontalUrl)
 
-      const canvas = document.createElement("canvas")
-      canvas.width = 1280
-      canvas.height = 720
-      const ctx = canvas.getContext("2d")
-      if (!ctx) throw new Error("Failed to create canvas context")
+      // Generate vertical video (1080x1920)
+      setVideoProgress("Generating vertical video...")
+      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical")
+      const verticalUrl = URL.createObjectURL(verticalBlob)
+      setVideoUrlVertical(verticalUrl)
 
-      // Draw the thumbnail on the canvas
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-
-      // Create video stream from canvas (60 fps for better quality)
-      const videoStream = canvas.captureStream(60)
-
-      // Create audio context and source from the audio blob
-      const audioContext = new AudioContext()
-      const arrayBuffer = await audioBlob.arrayBuffer()
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-
-      // Create a media stream destination for audio
-      const audioDestination = audioContext.createMediaStreamDestination()
-      const audioSource = audioContext.createBufferSource()
-      audioSource.buffer = audioBuffer
-      audioSource.connect(audioDestination)
-
-      // Combine video and audio streams
-      const combinedStream = new MediaStream([
-        ...videoStream.getVideoTracks(),
-        ...audioDestination.stream.getAudioTracks(),
-      ])
-
-      // Set up MediaRecorder with higher bitrate for better quality
-      // Check for supported codecs in order of preference
-      const chunks: Blob[] = []
-      let mimeType = "video/webm"
-      const codecsToTry = [
-        "video/webm;codecs=vp9,opus",
-        "video/webm;codecs=vp8,opus",
-        "video/webm;codecs=vp9",
-        "video/webm;codecs=vp8",
-        "video/webm",
-      ]
-      for (const codec of codecsToTry) {
-        if (MediaRecorder.isTypeSupported(codec)) {
-          mimeType = codec
-          break
-        }
-      }
-
-      const mediaRecorder = new MediaRecorder(combinedStream, {
-        mimeType,
-        videoBitsPerSecond: 5000000, // 5 Mbps for high quality
-      })
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data)
-      }
-
-      const recordingPromise = new Promise<Blob>((resolve, reject) => {
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(chunks, { type: "video/webm" })
-          resolve(blob)
-        }
-        mediaRecorder.onerror = (e) => reject(e)
-      })
-
-      // Start recording
-      setVideoProgress("Recording video...")
-      mediaRecorder.start(100) // Collect data every 100ms
-      audioSource.start()
-
-      // Track progress
-      const audioDuration = audioBuffer.duration
-      const startTime = Date.now()
-      const progressInterval = setInterval(() => {
-        const elapsed = (Date.now() - startTime) / 1000
-        const percent = Math.min(100, Math.round((elapsed / audioDuration) * 100))
-        setVideoProgress(`Recording video... ${percent}%`)
-      }, 500)
-
-      // Wait for audio to finish
-      await new Promise<void>((resolve) => {
-        audioSource.onended = () => resolve()
-      })
-
-      clearInterval(progressInterval)
-      setVideoProgress("Finalizing video...")
-
-      // Stop recording
-      mediaRecorder.stop()
-      await audioContext.close()
-
-      // Get the final video blob
-      const videoBlob = await recordingPromise
-      const url = URL.createObjectURL(videoBlob)
-      setVideoUrl(url)
       setVideoProgress(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
@@ -620,7 +791,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
             {loading === "thumbnail" ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
             Generate Thumbnail
           </button>
-          {thumbnailUrl && audioBlob && (
+          {audioBlob && backgroundLibrary.length > 0 && (
             <button
               type="button"
               onClick={generateVideo}
@@ -628,7 +799,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
               className={actionBtn}
             >
               {loading === "video" ? <Loader2 size={15} className="animate-spin" /> : <Video size={15} />}
-              Generate Video
+              Generate Videos
             </button>
           )}
           <button
@@ -749,23 +920,48 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         </div>
       )}
 
-      {/* Generated Video */}
-      {videoUrl && (
+      {/* Generated Videos */}
+      {(videoUrl || videoUrlVertical) && (
         <div className="rounded-lg border border-border bg-card p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Generated Video
-            </span>
-            <a
-              href={videoUrl}
-              download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review.webm`}
-              className="flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60"
-            >
-              <Download size={12} />
-              Download Video
-            </a>
+          <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Generated Videos
+          </h3>
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Horizontal Video */}
+            {videoUrl && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">Horizontal (1920x1080)</span>
+                  <a
+                    href={videoUrl}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-horizontal.webm`}
+                    className="flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60"
+                  >
+                    <Download size={12} />
+                    Download
+                  </a>
+                </div>
+                <video controls src={videoUrl} className="w-full rounded-md" />
+              </div>
+            )}
+            {/* Vertical Video */}
+            {videoUrlVertical && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">Vertical (1080x1920)</span>
+                  <a
+                    href={videoUrlVertical}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-vertical.webm`}
+                    className="flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60"
+                  >
+                    <Download size={12} />
+                    Download
+                  </a>
+                </div>
+                <video controls src={videoUrlVertical} className="aspect-[9/16] max-h-[400px] w-auto self-center rounded-md" />
+              </div>
+            )}
           </div>
-          <video controls src={videoUrl} className="w-full rounded-md" />
         </div>
       )}
 
