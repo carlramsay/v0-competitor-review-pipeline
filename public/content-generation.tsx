@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { upload } from "@vercel/blob/client"
 import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { generateHeyGenAvatarVideo } from "@/lib/heygen-service"
@@ -939,18 +940,14 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
 
-      // Upload horizontal video to Vercel Blob
+      // Upload horizontal video to Vercel Blob using client upload
       setVideoProgress("Uploading horizontal video\u2026")
-      const horizontalFormData = new FormData()
-      horizontalFormData.append("file", horizontalBlob, `video-horizontal-${record.id}.webm`)
-      horizontalFormData.append("filename", `videos/horizontal-${record.id}.webm`)
-      const horizontalUploadRes = await fetch("/api/video-upload", {
-        method: "POST",
-        body: horizontalFormData,
+      const horizontalFile = new File([horizontalBlob], `video-horizontal-${record.id}.webm`, { type: "video/webm" })
+      const horizontalUpload = await upload(horizontalFile.name, horizontalFile, {
+        access: "public",
+        handleUploadUrl: "/api/video-upload",
       })
-      const horizontalUploadData = await horizontalUploadRes.json()
-      if (!horizontalUploadRes.ok) throw new Error(horizontalUploadData.error || "Failed to upload horizontal video")
-      const horizontalBlobUrl = horizontalUploadData.url
+      const horizontalBlobUrl = horizontalUpload.url
 
       // Generate vertical video (1080x1920)
       setVideoProgress("Rendering vertical video\u2026")
@@ -958,18 +955,14 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
 
-      // Upload vertical video to Vercel Blob
+      // Upload vertical video to Vercel Blob using client upload
       setVideoProgress("Uploading vertical video\u2026")
-      const verticalFormData = new FormData()
-      verticalFormData.append("file", verticalBlob, `video-vertical-${record.id}.webm`)
-      verticalFormData.append("filename", `videos/vertical-${record.id}.webm`)
-      const verticalUploadRes = await fetch("/api/video-upload", {
-        method: "POST",
-        body: verticalFormData,
+      const verticalFile = new File([verticalBlob], `video-vertical-${record.id}.webm`, { type: "video/webm" })
+      const verticalUpload = await upload(verticalFile.name, verticalFile, {
+        access: "public",
+        handleUploadUrl: "/api/video-upload",
       })
-      const verticalUploadData = await verticalUploadRes.json()
-      if (!verticalUploadRes.ok) throw new Error(verticalUploadData.error || "Failed to upload vertical video")
-      const verticalBlobUrl = verticalUploadData.url
+      const verticalBlobUrl = verticalUpload.url
 
       // Save video URLs to record for persistence
       const updated = await updateGeneratedContent(record.id, {
