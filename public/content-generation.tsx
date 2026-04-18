@@ -683,8 +683,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const videoH = avatarVideo.videoHeight
       if (videoW === 0 || videoH === 0) return
       
-      // Crop black bars: assume person is in center 60% width of video
-      const cropPercent = 0.20 // crop 20% from each side
+      // Crop black bars: assume person is in center 40% width of video
+      const cropPercent = 0.30 // crop 30% from each side
       const srcX = Math.round(videoW * cropPercent)
       const srcW = Math.round(videoW * (1 - 2 * cropPercent))
       const srcY = 0
