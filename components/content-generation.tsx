@@ -887,11 +887,15 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         // After title fades: show avatar PiP and captions (title holds 4s, fades 0.5s)
         const TITLE_GONE = 4.0 // Avatar appears as title starts fading
         if (elapsed >= TITLE_GONE) {
-          // Start avatar loop on first eligible frame
+          // Sync avatar video to audio time (avatar video contains the same audio)
           if (avatarVideo && !avatarStarted) {
-            avatarVideo.currentTime = 0
+            avatarVideo.currentTime = elapsed // Start at current audio position
             avatarVideo.play().catch(() => {})
             avatarStarted = true
+          }
+          // Keep avatar synced (prevent drift)
+          if (avatarVideo && avatarStarted && Math.abs(avatarVideo.currentTime - elapsed) > 0.2) {
+            avatarVideo.currentTime = elapsed
           }
           drawAvatar()
           drawCaption(elapsed)
