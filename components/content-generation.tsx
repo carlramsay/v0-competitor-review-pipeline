@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react"
 import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, getThumbnailLibrary } from "@/lib/store"
+import { getVideoAsset } from "@/lib/indexed-db"
+import { generateHeyGenAvatarVideo } from "@/lib/heygen-service"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { cn } from "@/lib/utils"
 import { Download, ImageIcon, Save, Check } from "lucide-react"
 import { CopyButton } from "./copy-button"
-import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Mic, Eye, EyeOff, Linkedin } from "lucide-react"
+import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Eye, EyeOff, Linkedin } from "lucide-react"
 
 interface OutputBlockProps {
   label: string
@@ -148,14 +150,14 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     setBackgroundLibrary(getThumbnailLibrary())
   }, [])
 
-  // Hydrate saved voiceover from localStorage on mount
+  // Hydrate saved avatar video from localStorage on mount
   useEffect(() => {
     if (initialRecord.generated.voiceoverBase64) {
       try {
         const binary = atob(initialRecord.generated.voiceoverBase64)
         const bytes = new Uint8Array(binary.length)
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-        const blob = new Blob([bytes], { type: "audio/mpeg" })
+        const blob = new Blob([bytes], { type: "video/mp4" })
         const url = URL.createObjectURL(blob)
         setAudioBlob(blob)
         setAudioUrl(url)
@@ -280,63 +282,61 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     URL.revokeObjectURL(url)
   }
 
-  async function generateVoiceover() {
+  async function generateAvatarVideo() {
     setError(null)
-    setLoading("voiceover")
+    setLoading("avatar")
     const settings = getSettings()
 
     if (!record.generated.videoScript) {
-      setError("Generate a video script first before creating a voiceover.")
+      setError("Generate a video script first before creating an avatar video.")
       setLoading(null)
       return
     }
-    if (!settings.elevenlabsApiKey) {
-      setError("ElevenLabs API key is missing. Add it in Admin Settings.")
+    if (!settings.heygenApiKey) {
+      setError("HeyGen API key is missing. Add it in Admin Settings.")
       setLoading(null)
       return
     }
-    if (!settings.elevenlabsVoiceId) {
-      setError("ElevenLabs Voice ID is missing. Add it in Admin Settings.")
+    if (!settings.heygenAvatarId) {
+      setError("HeyGen Avatar ID is missing. Add it in Admin Settings.")
+      setLoading(null)
+      return
+    }
+    if (!settings.heygenVoiceId) {
+      setError("HeyGen Voice ID is missing. Add it in Admin Settings.")
       setLoading(null)
       return
     }
 
     try {
-      const res = await fetch("/api/voiceover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          script: record.generated.videoScript,
-          apiKey: settings.elevenlabsApiKey,
-          voiceId: settings.elevenlabsVoiceId,
-        }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error ?? "Voiceover generation failed")
-      }
-
-      const blob = await res.blob()
-
-      // Convert to base64 and persist in localStorage so it survives page reloads
-      const arrayBuffer = await blob.arrayBuffer()
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+      setVideoProgress("Generating avatar video… usually takes 1–2 minutes.")
+      const base64 = await generateHeyGenAvatarVideo(
+        settings.heygenApiKey,
+        settings.heygenAvatarId,
+        settings.heygenVoiceId,
+        record.generated.videoScript
       )
+
+      // Save as voiceoverBase64 so it's used as the audio source
       const updated = updateGeneratedContent(record.id, {
         voiceoverBase64: base64,
         voiceoverScriptHash: record.generated.videoScript ?? "",
       })
-      if (updated) setRecord(updated)
-
-      // Revoke previous object URL to avoid memory leaks
-      if (audioUrl) URL.revokeObjectURL(audioUrl)
-
-      setAudioUrl(URL.createObjectURL(blob))
-      setAudioBlob(blob)
+      if (updated) {
+        setRecord(updated)
+        // Convert base64 to blob for playback
+        const binary = atob(base64)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+        const blob = new Blob([bytes], { type: "video/mp4" })
+        const url = URL.createObjectURL(blob)
+        setAudioBlob(blob)
+        setAudioUrl(url)
+      }
+      setVideoProgress(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
+      setVideoProgress(null)
     } finally {
       setLoading(null)
     }
@@ -514,15 +514,16 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       throw new Error("No background images available")
     }
 
-    // Load logo video if available
+    // Load logo video if available in IndexedDB
     let logoVideo: HTMLVideoElement | null = null
-    if (settings.logoVideoBase64) {
+    const logoBase64 = await getVideoAsset("logo-video")
+    if (logoBase64) {
       logoVideo = document.createElement("video")
       logoVideo.muted = true
       logoVideo.playsInline = true
       logoVideo.crossOrigin = "anonymous"
       const logoBlob = new Blob(
-        [Uint8Array.from(atob(settings.logoVideoBase64), (c) => c.charCodeAt(0))],
+        [Uint8Array.from(atob(logoBase64), (c) => c.charCodeAt(0))],
         { type: "video/mp4" }
       )
       logoVideo.src = URL.createObjectURL(logoBlob)
@@ -533,16 +534,17 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       })
     }
 
-    // Load presenter avatar video if available
+    // Load presenter avatar video if available in IndexedDB
     let avatarVideo: HTMLVideoElement | null = null
-    if (settings.avatarVideoBase64) {
+    const avatarBase64 = await getVideoAsset("avatar-video")
+    if (avatarBase64) {
       avatarVideo = document.createElement("video")
       avatarVideo.muted = true
       avatarVideo.loop = true
       avatarVideo.playsInline = true
       avatarVideo.crossOrigin = "anonymous"
       const avatarBlob = new Blob(
-        [Uint8Array.from(atob(settings.avatarVideoBase64), (c) => c.charCodeAt(0))],
+        [Uint8Array.from(atob(avatarBase64), (c) => c.charCodeAt(0))],
         { type: "video/mp4" }
       )
       avatarVideo.src = URL.createObjectURL(avatarBlob)
@@ -993,13 +995,13 @@ export function ContentGeneration({ record: initialRecord }: Props) {
           </button>
           <button
             type="button"
-            onClick={generateVoiceover}
+            onClick={generateAvatarVideo}
             disabled={loading !== null || !record.generated.videoScript}
             className={actionBtn}
-            title={!record.generated.videoScript ? "Generate a video script first" : audioUrl ? "Re-generate voiceover (uses ElevenLabs credits)" : undefined}
+            title={!record.generated.videoScript ? "Generate a video script first" : audioUrl ? "Re-generate avatar video" : undefined}
           >
-            {loading === "voiceover" ? <Loader2 size={15} className="animate-spin" /> : <Mic size={15} />}
-            {audioUrl ? "Re-generate Voiceover" : "Generate Voiceover"}
+            {loading === "avatar" ? <Loader2 size={15} className="animate-spin" /> : <Video size={15} />}
+            {audioUrl ? "Re-generate Avatar Video" : "Generate Avatar Video"}
           </button>
           {/* Background image picker */}
           {backgroundLibrary.length > 0 && (

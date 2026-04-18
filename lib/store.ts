@@ -48,9 +48,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   wpAppPassword: "",
   openaiApiKey: "",
   adminPassword: "",
-  elevenlabsApiKey: "",
-  elevenlabsVoiceId: "21m00Tcm4TlvDq8ikWAM",
   thumbnailSiteName: "Arousr",
+  heygenApiKey: "",
+  heygenAvatarId: "",
+  heygenVoiceId: "",
+  logoVideoBase64: "",
+  avatarVideoBase64: "",
 }
 
 export function getThumbnailLibrary(): ThumbnailImage[] {

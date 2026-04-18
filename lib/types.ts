@@ -101,9 +101,10 @@ export interface AppSettings {
   wpAppPassword: string
   openaiApiKey: string
   adminPassword: string
-  elevenlabsApiKey: string
-  elevenlabsVoiceId: string
   thumbnailSiteName: string // site name or logo text for bottom of thumbnail
+  heygenApiKey: string
+  heygenAvatarId: string
+  heygenVoiceId: string
   logoVideoBase64?: string // base64 encoded MP4 for video ending screen
   avatarVideoBase64?: string // base64 encoded MP4 for presenter avatar PiP
 }

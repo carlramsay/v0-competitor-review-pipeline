@@ -1,11 +1,14 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState } from "react"
 import { AdminGuard } from "@/components/admin-guard"
 import { AdminNav } from "@/components/admin-nav"
 import { AppSettings, ThumbnailImage } from "@/lib/types"
 import { getSettings, saveSettings, getThumbnailLibrary, saveThumbnailLibrary } from "@/lib/store"
-import { Eye, EyeOff, Check, Trash2, Video } from "lucide-react"
+import { saveVideoAsset, getVideoAsset, deleteVideoAsset } from "@/lib/indexed-db"
+import { Eye, EyeOff, Check, Trash2, Video, Loader2, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const inputClass =
@@ -64,9 +67,10 @@ function AdminSettingsContent() {
     wpAppPassword: "",
     openaiApiKey: "",
     adminPassword: "",
-    elevenlabsApiKey: "",
-    elevenlabsVoiceId: "",
     thumbnailSiteName: "",
+    heygenApiKey: "",
+    heygenAvatarId: "",
+    heygenVoiceId: "",
     logoVideoBase64: "",
     avatarVideoBase64: "",
   })
@@ -75,10 +79,19 @@ function AdminSettingsContent() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadingVideo, setUploadingVideo] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [logoVideoLoaded, setLogoVideoLoaded] = useState(false)
+  const [avatarVideoLoaded, setAvatarVideoLoaded] = useState(false)
+  const [heygenAvatars, setHeygenAvatars] = useState<{ talking_photo_id: string; talking_photo_name: string }[]>([])
+  const [heygenVoices, setHeygenVoices] = useState<{ voice_id: string; display_name: string }[]>([])
+  const [fetchingHeyGen, setFetchingHeyGen] = useState(false)
+  const [heygenFetchError, setHeygenFetchError] = useState<string | null>(null)
 
   useEffect(() => {
     setSettings(getSettings())
     setLibrary(getThumbnailLibrary())
+    // Load video asset states from IndexedDB
+    getVideoAsset("logo-video").then((exists) => setLogoVideoLoaded(!!exists))
+    getVideoAsset("avatar-video").then((exists) => setAvatarVideoLoaded(!!exists))
   }, [])
 
   function handleImageUpload(file: File) {
@@ -129,8 +142,15 @@ function AdminSettingsContent() {
     const reader = new FileReader()
     reader.onloadend = () => {
       const base64 = (reader.result as string).split(",")[1]
-      setSettings((prev) => ({ ...prev, logoVideoBase64: base64 }))
-      setUploadingVideo(false)
+      saveVideoAsset("logo-video", base64)
+        .then(() => {
+          setLogoVideoLoaded(true)
+          setUploadingVideo(false)
+        })
+        .catch((err) => {
+          console.error("[v0] Failed to save logo video to IndexedDB:", err)
+          setUploadingVideo(false)
+        })
     }
     reader.onerror = () => {
       setUploadingVideo(false)
@@ -139,7 +159,9 @@ function AdminSettingsContent() {
   }
 
   function handleRemoveLogoVideo() {
-    setSettings((prev) => ({ ...prev, logoVideoBase64: "" }))
+    deleteVideoAsset("logo-video")
+      .then(() => setLogoVideoLoaded(false))
+      .catch((err) => console.error("[v0] Failed to delete logo video:", err))
   }
 
   function handleAvatarVideoUpload(file: File) {
@@ -147,17 +169,63 @@ function AdminSettingsContent() {
     const reader = new FileReader()
     reader.onloadend = () => {
       const base64 = (reader.result as string).split(",")[1]
-      setSettings((prev) => ({ ...prev, avatarVideoBase64: base64 }))
-      setUploadingAvatar(false)
+      saveVideoAsset("avatar-video", base64)
+        .then(() => {
+          setAvatarVideoLoaded(true)
+          setUploadingAvatar(false)
+        })
+        .catch((err) => {
+          console.error("[v0] Failed to save avatar video to IndexedDB:", err)
+          setUploadingAvatar(false)
+        })
     }
     reader.onerror = () => {
+      console.error("[v0] Avatar upload failed")
       setUploadingAvatar(false)
     }
     reader.readAsDataURL(file)
   }
 
   function handleRemoveAvatarVideo() {
-    setSettings((prev) => ({ ...prev, avatarVideoBase64: "" }))
+    deleteVideoAsset("avatar-video")
+      .then(() => setAvatarVideoLoaded(false))
+      .catch((err) => console.error("[v0] Failed to delete avatar video:", err))
+  }
+
+  async function fetchHeyGenData() {
+    if (!settings.heygenApiKey) {
+      setHeygenFetchError("Enter your HeyGen API key first.")
+      return
+    }
+    setFetchingHeyGen(true)
+    setHeygenFetchError(null)
+    try {
+      const [avatarsRes, voicesRes] = await Promise.all([
+        fetch("https://api.heygen.com/v2/avatars", {
+          headers: { "X-Api-Key": settings.heygenApiKey },
+        }),
+        fetch("https://api.heygen.com/v2/voices", {
+          headers: { "X-Api-Key": settings.heygenApiKey },
+        }),
+      ])
+      if (!avatarsRes.ok) throw new Error(`Avatars fetch failed: ${avatarsRes.status}`)
+      if (!voicesRes.ok) throw new Error(`Voices fetch failed: ${voicesRes.status}`)
+
+      const avatarsData = await avatarsRes.json()
+      const voicesData = await voicesRes.json()
+
+      const avatars: { talking_photo_id: string; talking_photo_name: string }[] =
+        avatarsData?.data?.talking_photos ?? avatarsData?.talking_photos ?? []
+      const voices: { voice_id: string; display_name: string }[] =
+        voicesData?.data?.voices ?? voicesData?.voices ?? []
+
+      setHeygenAvatars(avatars)
+      setHeygenVoices(voices)
+    } catch (err) {
+      setHeygenFetchError(err instanceof Error ? err.message : "Failed to fetch HeyGen data")
+    } finally {
+      setFetchingHeyGen(false)
+    }
   }
 
   function set(key: keyof AppSettings, value: string) {
@@ -166,9 +234,15 @@ function AdminSettingsContent() {
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    saveSettings(settings)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+    try {
+      // Don't save video base64s to localStorage - they're in IndexedDB
+      const settingsToSave = { ...settings, logoVideoBase64: "", avatarVideoBase64: "" }
+      saveSettings(settingsToSave)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err) {
+      console.error("[v0] Failed to save settings:", err)
+    }
   }
 
   return (
@@ -255,34 +329,97 @@ function AdminSettingsContent() {
             />
           </div>
 
-          {/* ElevenLabs */}
+          {/* HeyGen */}
           <div className="rounded-lg border border-border bg-card p-5">
             <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              ElevenLabs
+              HeyGen
             </h2>
             <div className="flex flex-col gap-4">
               <PasswordField
                 label="API Key"
-                id="el-key"
-                value={settings.elevenlabsApiKey}
-                onChange={(v) => set("elevenlabsApiKey", v)}
-                placeholder="Your ElevenLabs API key"
+                id="heygen-key"
+                value={settings.heygenApiKey}
+                onChange={(v) => set("heygenApiKey", v)}
+                placeholder="Your HeyGen API key"
               />
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="el-voice" className="text-xs font-medium text-muted-foreground">
-                  Voice ID
-                </label>
-                <input
-                  id="el-voice"
-                  className={inputClass}
-                  value={settings.elevenlabsVoiceId}
-                  onChange={(e) => set("elevenlabsVoiceId", e.target.value)}
-                  placeholder="21m00Tcm4TlvDq8ikWAM"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Default: 21m00Tcm4TlvDq8ikWAM (Rachel — works well for conversational content). Find more voices in your ElevenLabs dashboard.
-                </p>
+              <div>
+                <button
+                  type="button"
+                  onClick={fetchHeyGenData}
+                  disabled={fetchingHeyGen}
+                  className="flex items-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-secondary/70 disabled:opacity-50"
+                >
+                  {fetchingHeyGen
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <RefreshCw size={13} />}
+                  {fetchingHeyGen ? "Fetching..." : "Fetch HeyGen Avatars and Voices"}
+                </button>
+                {heygenFetchError && (
+                  <p className="mt-1.5 text-xs text-red-400">{heygenFetchError}</p>
+                )}
               </div>
+
+              {heygenAvatars.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="heygen-avatar" className="text-xs font-medium text-muted-foreground">
+                    Talking Photo / Avatar
+                  </label>
+                  <select
+                    id="heygen-avatar"
+                    className={inputClass}
+                    value={settings.heygenAvatarId}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setSettings((prev) => {
+                        const next = { ...prev, heygenAvatarId: val }
+                        saveSettings({ ...next, logoVideoBase64: "", avatarVideoBase64: "" })
+                        return next
+                      })
+                    }}
+                  >
+                    <option value="">-- Select a talking photo --</option>
+                    {heygenAvatars.map((a) => (
+                      <option key={a.talking_photo_id} value={a.talking_photo_id}>
+                        {a.talking_photo_name} ({a.talking_photo_id})
+                      </option>
+                    ))}
+                  </select>
+                  {settings.heygenAvatarId && (
+                    <p className="text-xs text-muted-foreground">Selected: {settings.heygenAvatarId}</p>
+                  )}
+                </div>
+              )}
+
+              {heygenVoices.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="heygen-voice" className="text-xs font-medium text-muted-foreground">
+                    Voice
+                  </label>
+                  <select
+                    id="heygen-voice"
+                    className={inputClass}
+                    value={settings.heygenVoiceId}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setSettings((prev) => {
+                        const next = { ...prev, heygenVoiceId: val }
+                        saveSettings({ ...next, logoVideoBase64: "", avatarVideoBase64: "" })
+                        return next
+                      })
+                    }}
+                  >
+                    <option value="">-- Select a voice --</option>
+                    {heygenVoices.map((v) => (
+                      <option key={v.voice_id} value={v.voice_id}>
+                        {v.display_name} ({v.voice_id})
+                      </option>
+                    ))}
+                  </select>
+                  {settings.heygenVoiceId && (
+                    <p className="text-xs text-muted-foreground">Selected: {settings.heygenVoiceId}</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -314,7 +451,7 @@ function AdminSettingsContent() {
                   <label className="text-xs font-medium text-muted-foreground">
                     Logo Video (Ending Screen)
                   </label>
-                  {!settings.logoVideoBase64 && (
+                  {!logoVideoLoaded && (
                     <label
                       htmlFor="logo-video-upload"
                       className={cn(
@@ -341,7 +478,7 @@ function AdminSettingsContent() {
                   Upload an MP4 logo animation for the final 3 seconds of generated videos.
                 </p>
 
-                {settings.logoVideoBase64 ? (
+                {logoVideoLoaded ? (
                   <div className="relative rounded-md border border-border bg-black/20 p-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
@@ -349,9 +486,7 @@ function AdminSettingsContent() {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-foreground">Logo video uploaded</p>
-                        <p className="text-xs text-muted-foreground">
-                          {Math.round(settings.logoVideoBase64.length * 0.75 / 1024)} KB
-                        </p>
+                        <p className="text-xs text-muted-foreground">Stored in browser IndexedDB</p>
                       </div>
                       <button
                         type="button"
@@ -376,7 +511,7 @@ function AdminSettingsContent() {
                   <label className="text-xs font-medium text-muted-foreground">
                     Presenter Avatar MP4
                   </label>
-                  {!settings.avatarVideoBase64 && (
+                  {!avatarVideoLoaded && (
                     <label
                       htmlFor="avatar-video-upload"
                       className={cn(
@@ -403,7 +538,7 @@ function AdminSettingsContent() {
                   Looping presenter avatar shown in the bottom-right corner of generated videos.
                 </p>
 
-                {settings.avatarVideoBase64 ? (
+                {avatarVideoLoaded ? (
                   <div className="relative rounded-md border border-border bg-black/20 p-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
@@ -411,9 +546,7 @@ function AdminSettingsContent() {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-foreground">Avatar video uploaded</p>
-                        <p className="text-xs text-muted-foreground">
-                          {Math.round(settings.avatarVideoBase64.length * 0.75 / 1024)} KB
-                        </p>
+                        <p className="text-xs text-muted-foreground">Stored in browser IndexedDB</p>
                       </div>
                       <button
                         type="button"
