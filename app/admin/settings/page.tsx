@@ -79,7 +79,7 @@ function AdminSettingsContent() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [logoVideoLoaded, setLogoVideoLoaded] = useState(false)
   const [avatarVideoLoaded, setAvatarVideoLoaded] = useState(false)
-  const [heygenAvatars, setHeygenAvatars] = useState<{ avatar_id: string; avatar_name: string }[]>([])
+  const [heygenAvatars, setHeygenAvatars] = useState<{ talking_photo_id: string; talking_photo_name: string }[]>([])
   const [heygenVoices, setHeygenVoices] = useState<{ voice_id: string; display_name: string }[]>([])
   const [fetchingHeyGen, setFetchingHeyGen] = useState(false)
   const [heygenFetchError, setHeygenFetchError] = useState<string | null>(null)
@@ -212,8 +212,8 @@ function AdminSettingsContent() {
       const avatarsData = await avatarsRes.json()
       const voicesData = await voicesRes.json()
 
-      const avatars: { avatar_id: string; avatar_name: string }[] =
-        avatarsData?.data?.avatars ?? avatarsData?.avatars ?? []
+      const avatars: { talking_photo_id: string; talking_photo_name: string }[] =
+        avatarsData?.data?.talking_photos ?? avatarsData?.talking_photos ?? []
       const voices: { voice_id: string; display_name: string }[] =
         voicesData?.data?.voices ?? voicesData?.voices ?? []
 
@@ -360,7 +360,7 @@ function AdminSettingsContent() {
               {heygenAvatars.length > 0 && (
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="heygen-avatar" className="text-xs font-medium text-muted-foreground">
-                    Avatar
+                    Talking Photo / Avatar
                   </label>
                   <select
                     id="heygen-avatar"
@@ -375,10 +375,10 @@ function AdminSettingsContent() {
                       })
                     }}
                   >
-                    <option value="">-- Select an avatar --</option>
+                    <option value="">-- Select a talking photo --</option>
                     {heygenAvatars.map((a) => (
-                      <option key={a.avatar_id} value={a.avatar_id}>
-                        {a.avatar_name} ({a.avatar_id})
+                      <option key={a.talking_photo_id} value={a.talking_photo_id}>
+                        {a.talking_photo_name} ({a.talking_photo_id})
                       </option>
                     ))}
                   </select>
