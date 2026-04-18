@@ -8,7 +8,7 @@ import { saveReview } from "@/lib/store"
 import { ReviewRecord } from "@/lib/types"
 
 const MOCK_REVIEW: ReviewRecord = {
-  id: "mock-001",
+  id: "00000000-0000-0000-0000-000000000001",
   submittedAt: "2025-04-10T14:32:00.000Z",
   formData: {
     reviewerName: "Jamie H.",
