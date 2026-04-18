@@ -3,10 +3,8 @@
 interface HeyGenGenerateRequest {
   video_inputs: Array<{
     character: {
-      type: "avatar"
-      avatar_id: string
-      avatar_style: "normal"
-      look_id?: string
+      type: "talking_photo"
+      talking_photo_id: string
     }
     voice: {
       type: "text"
@@ -29,6 +27,23 @@ interface HeyGenStatusResponse {
     status: "pending" | "processing" | "completed" | "failed"
     video_url?: string
     error?: string
+  }
+}
+
+// Fetch avatars and log full raw API response
+async function logAvatarsList(apiKey: string): Promise<void> {
+  try {
+    const res = await fetch("https://api.heygen.com/v2/avatars", {
+      headers: { "X-Api-Key": apiKey },
+    })
+    if (!res.ok) {
+      console.warn(`[v0] Failed to fetch avatars list: ${res.status}`)
+      return
+    }
+    const data = await res.json()
+    console.log("[v0] FULL AVATARS API RESPONSE:", JSON.stringify(data, null, 2))
+  } catch (err) {
+    console.warn("[v0] Error fetching avatars list:", err)
   }
 }
 
@@ -67,17 +82,15 @@ export async function generateHeyGenAvatarVideo(
   voiceId: string,
   script: string
 ): Promise<string> {
-  // Fetch the default look for this avatar
-  const lookId = await getAvatarLooks(apiKey, avatarId)
+  // Log full avatars list for debugging
+  await logAvatarsList(apiKey)
 
   const payload: HeyGenGenerateRequest = {
     video_inputs: [
       {
         character: {
-          type: "avatar",
-          avatar_id: avatarId,
-          avatar_style: "normal",
-          ...(lookId && { look_id: lookId }),
+          type: "talking_photo",
+          talking_photo_id: avatarId,
         },
         voice: {
           type: "text",
