@@ -1,3 +1,4 @@
+// Supabase migration
 "use client"
 
 // Re-export everything from supabase-store for backward compatibility
