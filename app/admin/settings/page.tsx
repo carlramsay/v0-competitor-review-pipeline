@@ -300,20 +300,30 @@ function AdminSettingsContent() {
                 onChange={(v) => set("heygenApiKey", v)}
                 placeholder="Your HeyGen API key"
               />
-              <TextField
-                label="Avatar ID"
-                id="heygen-avatar"
-                value={settings.heygenAvatarId}
-                onChange={(v) => set("heygenAvatarId", v)}
-                placeholder="e.g., Avatar_123abc"
-              />
-              <TextField
-                label="Voice ID"
-                id="heygen-voice"
-                value={settings.heygenVoiceId}
-                onChange={(v) => set("heygenVoiceId", v)}
-                placeholder="e.g., 14d3c4f6-ac56-4cae-9431-9cc0b75e17c5"
-              />
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="heygen-avatar" className="text-xs font-medium text-muted-foreground">
+                  Avatar ID
+                </label>
+                <input
+                  id="heygen-avatar"
+                  className={inputClass}
+                  value={settings.heygenAvatarId}
+                  onChange={(e) => set("heygenAvatarId", e.target.value)}
+                  placeholder="e.g., Avatar_123abc"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="heygen-voice" className="text-xs font-medium text-muted-foreground">
+                  Voice ID
+                </label>
+                <input
+                  id="heygen-voice"
+                  className={inputClass}
+                  value={settings.heygenVoiceId}
+                  onChange={(e) => set("heygenVoiceId", e.target.value)}
+                  placeholder="e.g., 14d3c4f6-ac56-4cae-9431-9cc0b75e17c5"
+                />
+              </div>
             </div>
           </div>
 
