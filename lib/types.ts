@@ -80,6 +80,10 @@ export interface GeneratedContent {
   redditSnippet?: string
   linkedinPost?: string
   wordpressDraftUrl?: string
+  thumbnailDataUrl?: string
+  thumbnailVerticalDataUrl?: string
+  videoDataUrl?: string
+  videoVerticalDataUrl?: string
 }
 
 export interface ReviewRecord {
