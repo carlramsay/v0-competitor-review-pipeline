@@ -369,11 +369,58 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     }
   }
 
+  // --- Whisper caption types ---
+  interface WhisperWord {
+    word: string
+    start: number
+    end: number
+  }
+
+  // Fetch word-level captions from OpenAI Whisper
+  async function fetchWhisperCaptions(blob: Blob): Promise<WhisperWord[]> {
+    const settings = getSettings()
+    if (!settings.openaiApiKey) return []
+
+    const form = new FormData()
+    form.append("file", new File([blob], "audio.mp3", { type: blob.type }))
+    form.append("model", "whisper-1")
+    form.append("response_format", "verbose_json")
+    form.append("timestamp_granularities[]", "word")
+
+    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${settings.openaiApiKey}` },
+      body: form,
+    })
+
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.words as WhisperWord[]) ?? []
+  }
+
+  // Group flat word list into caption chunks of 4-5 words
+  function buildCaptionGroups(
+    words: WhisperWord[]
+  ): Array<{ text: string; start: number; end: number }> {
+    const WORDS_PER_GROUP = 4
+    const groups: Array<{ text: string; start: number; end: number }> = []
+    for (let i = 0; i < words.length; i += WORDS_PER_GROUP) {
+      const chunk = words.slice(i, i + WORDS_PER_GROUP)
+      groups.push({
+        text: chunk.map((w) => w.word).join(" "),
+        start: chunk[0].start,
+        end: chunk[chunk.length - 1].end,
+      })
+    }
+    return groups
+  }
+
   // Core video generation function that supports both formats
   async function generateVideoWithFormat(
     width: number,
     height: number,
-    formatLabel: string
+    formatLabel: string,
+    captionGroups: Array<{ text: string; start: number; end: number }>
   ): Promise<Blob> {
     const settings = getSettings()
     const CROSSFADE_DURATION = 0.5 // seconds
@@ -488,35 +535,101 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       ctx!.globalAlpha = 1
     }
 
-    // Helper to draw text overlay
-    function drawTextOverlay() {
+    // Caption font size: 38px for horizontal, 52px for vertical
+    const captionFontSize = width >= height ? 38 : 52
+
+    // Helper: draw title overlay at top (fades out after 4s, gone by 4.5s)
+    function drawTitle(elapsed: number) {
+      const TITLE_HOLD = 4.0
+      const TITLE_FADE = 0.5
+      if (elapsed >= TITLE_HOLD + TITLE_FADE) return
+
+      const alpha =
+        elapsed < TITLE_HOLD
+          ? 1
+          : 1 - (elapsed - TITLE_HOLD) / TITLE_FADE
+
       const competitorName = record.formData.competitorName || "Competitor"
-      const reviewerName = record.formData.reviewerName || "Reviewer"
-      const siteName = settings.thumbnailSiteName || "Arousr"
+      const titleText = `Review: ${competitorName}`
+      const titleSize = Math.round(Math.min(width, height) * 0.042)
+      const padding = Math.round(titleSize * 0.7)
+      const topY = Math.round(height * 0.055)
 
-      // Semi-transparent dark overlay
-      ctx!.fillStyle = "rgba(0, 0, 0, 0.55)"
-      ctx!.fillRect(0, 0, width, height)
-
-      // Title text
-      const titleSize = Math.round(width * 0.056)
-      ctx!.fillStyle = "#ffffff"
       ctx!.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`
       ctx!.textAlign = "center"
       ctx!.textBaseline = "middle"
-      ctx!.fillText(`Review: ${competitorName}`, width / 2, height / 2 - titleSize * 0.6)
+      const textW = ctx!.measureText(titleText).width
 
-      // Subtitle
-      const subtitleSize = Math.round(width * 0.028)
-      ctx!.font = `${subtitleSize}px system-ui, -apple-system, sans-serif`
-      ctx!.fillStyle = "#cccccc"
-      ctx!.fillText(`Tested by ${reviewerName}`, width / 2, height / 2 + subtitleSize * 1.5)
+      // Pill background
+      ctx!.globalAlpha = alpha * 0.72
+      ctx!.fillStyle = "#000000"
+      const pillW = textW + padding * 2
+      const pillH = titleSize + padding
+      const pillX = width / 2 - pillW / 2
+      const pillY = topY - pillH / 2
+      const r = pillH / 2
+      ctx!.beginPath()
+      ctx!.moveTo(pillX + r, pillY)
+      ctx!.lineTo(pillX + pillW - r, pillY)
+      ctx!.arcTo(pillX + pillW, pillY, pillX + pillW, pillY + pillH, r)
+      ctx!.lineTo(pillX + pillW, pillY + pillH)
+      ctx!.arcTo(pillX + pillW, pillY + pillH, pillX, pillY + pillH, r)
+      ctx!.lineTo(pillX + r, pillY + pillH)
+      ctx!.arcTo(pillX, pillY + pillH, pillX, pillY, r)
+      ctx!.lineTo(pillX, pillY + r)
+      ctx!.arcTo(pillX, pillY, pillX + pillW, pillY, r)
+      ctx!.closePath()
+      ctx!.fill()
 
-      // Site name
-      const siteSize = Math.round(width * 0.022)
-      ctx!.font = `bold ${siteSize}px system-ui, -apple-system, sans-serif`
+      // Title text
+      ctx!.globalAlpha = alpha
       ctx!.fillStyle = "#ffffff"
-      ctx!.fillText(siteName, width / 2, height - siteSize * 2)
+      ctx!.fillText(titleText, width / 2, topY)
+      ctx!.globalAlpha = 1
+    }
+
+    // Helper: draw active caption at bottom
+    function drawCaption(elapsed: number) {
+      if (captionGroups.length === 0) return
+      // Find the caption group active at this timestamp
+      const group = captionGroups.find(
+        (g) => elapsed >= g.start && elapsed <= g.end + 0.25
+      )
+      if (!group) return
+
+      const padding = Math.round(captionFontSize * 0.55)
+      const bottomY = height - Math.round(height * 0.075)
+
+      ctx!.font = `bold ${captionFontSize}px system-ui, -apple-system, sans-serif`
+      ctx!.textAlign = "center"
+      ctx!.textBaseline = "middle"
+      const textW = ctx!.measureText(group.text).width
+
+      // Pill background
+      const pillW = textW + padding * 2
+      const pillH = captionFontSize + padding
+      const pillX = width / 2 - pillW / 2
+      const pillY = bottomY - pillH / 2
+      const r = pillH / 2
+
+      ctx!.globalAlpha = 0.68
+      ctx!.fillStyle = "#000000"
+      ctx!.beginPath()
+      ctx!.moveTo(pillX + r, pillY)
+      ctx!.lineTo(pillX + pillW - r, pillY)
+      ctx!.arcTo(pillX + pillW, pillY, pillX + pillW, pillY + pillH, r)
+      ctx!.lineTo(pillX + pillW, pillY + pillH)
+      ctx!.arcTo(pillX + pillW, pillY + pillH, pillX, pillY + pillH, r)
+      ctx!.lineTo(pillX + r, pillY + pillH)
+      ctx!.arcTo(pillX, pillY + pillH, pillX, pillY, r)
+      ctx!.lineTo(pillX, pillY + r)
+      ctx!.arcTo(pillX, pillY, pillX + pillW, pillY, r)
+      ctx!.closePath()
+      ctx!.fill()
+
+      ctx!.globalAlpha = 1
+      ctx!.fillStyle = "#ffffff"
+      ctx!.fillText(group.text, width / 2, bottomY)
     }
 
     // Animation loop variables
@@ -531,23 +644,19 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const elapsed = (performance.now() - startTime) / 1000
 
       if (elapsed >= audioDuration) {
-        // Logo ending screen
+        // --- Logo ending screen ---
         const logoElapsed = elapsed - audioDuration
 
-        // Fade to black
-        const fadeProgress = Math.min(1, logoElapsed / 0.5)
         ctx!.fillStyle = "#000000"
         ctx!.fillRect(0, 0, width, height)
 
         if (logoVideo && logoElapsed >= 0.5) {
-          // Start logo video playback
           if (!logoStarted) {
             logoVideo.currentTime = 0
             logoVideo.play().catch(() => {})
             logoStarted = true
           }
 
-          // Draw logo video centered
           const videoAspect = logoVideo.videoWidth / logoVideo.videoHeight
           const canvasAspect = width / height
           let drawWidth: number, drawHeight: number, drawX: number, drawY: number
@@ -562,30 +671,34 @@ export function ContentGeneration({ record: initialRecord }: Props) {
           drawX = (width - drawWidth) / 2
           drawY = (height - drawHeight) / 2
 
-          // Fade in logo
           const logoFadeIn = Math.min(1, (logoElapsed - 0.5) / 0.3)
           ctx!.globalAlpha = logoFadeIn
           ctx!.drawImage(logoVideo, drawX, drawY, drawWidth, drawHeight)
           ctx!.globalAlpha = 1
         }
       } else {
-        // Main content with cycling backgrounds
+        // --- Main content: cycling backgrounds ---
         const cycleTime = elapsed % (IMAGE_CYCLE_INTERVAL * images.length)
         const currentImageIndex = Math.floor(cycleTime / IMAGE_CYCLE_INTERVAL) % images.length
         const timeInCurrentImage = cycleTime % IMAGE_CYCLE_INTERVAL
 
-        // Draw current image
         drawImageCover(images[currentImageIndex])
 
-        // Handle crossfade
         if (images.length > 1 && timeInCurrentImage >= IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION) {
           const nextImageIndex = (currentImageIndex + 1) % images.length
-          const fadeProgress = (timeInCurrentImage - (IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION)) / CROSSFADE_DURATION
-          drawImageCover(images[nextImageIndex], fadeProgress)
+          const crossAlpha =
+            (timeInCurrentImage - (IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION)) / CROSSFADE_DURATION
+          drawImageCover(images[nextImageIndex], crossAlpha)
         }
 
-        // Draw text overlay
-        drawTextOverlay()
+        // Title (top, first 4–4.5 s only)
+        drawTitle(elapsed)
+
+        // Captions (bottom, after title has fully faded)
+        const TITLE_GONE = 4.5
+        if (elapsed >= TITLE_GONE) {
+          drawCaption(elapsed)
+        }
       }
 
       animationFrameId = requestAnimationFrame(render)
@@ -639,18 +752,22 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     setLoading("video")
     setVideoUrl(null)
     setVideoUrlVertical(null)
-    setVideoProgress("Preparing videos...")
+    setVideoProgress("Generating captions\u2026 then rendering video. This takes about 60 seconds.")
 
     try {
+      // Fetch Whisper word-level captions
+      const whisperWords = await fetchWhisperCaptions(audioBlob)
+      const captionGroups = buildCaptionGroups(whisperWords)
+
       // Generate horizontal video (1920x1080)
-      setVideoProgress("Generating horizontal video...")
-      const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal")
+      setVideoProgress("Rendering horizontal video\u2026")
+      const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal (1920x1080)", captionGroups)
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
 
       // Generate vertical video (1080x1920)
-      setVideoProgress("Generating vertical video...")
-      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical")
+      setVideoProgress("Rendering vertical video\u2026")
+      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical (1080x1920)", captionGroups)
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
 
