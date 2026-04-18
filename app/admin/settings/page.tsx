@@ -68,6 +68,7 @@ function AdminSettingsContent() {
     elevenlabsApiKey: "",
     elevenlabsVoiceId: "",
     thumbnailSiteName: "",
+    heygenApiKey: "",
     logoVideoBase64: "",
     avatarVideoBase64: "",
   })
@@ -315,6 +316,20 @@ function AdminSettingsContent() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* HeyGen */}
+          <div className="rounded-lg border border-border bg-card p-5">
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              HeyGen
+            </h2>
+            <PasswordField
+              label="API Key"
+              id="heygen-key"
+              value={settings.heygenApiKey}
+              onChange={(v) => set("heygenApiKey", v)}
+              placeholder="Your HeyGen API key"
+            />
           </div>
 
           {/* Video Generator */}
