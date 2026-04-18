@@ -487,10 +487,18 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   // Fetch word-level captions from OpenAI Whisper
   async function fetchWhisperCaptions(blob: Blob): Promise<WhisperWord[]> {
     const settings = await getSettings()
-    if (!settings.openaiApiKey) return []
+    if (!settings.openaiApiKey) {
+      console.log("[v0] No OpenAI API key - skipping captions")
+      return []
+    }
+
+    // Determine file extension based on blob type
+    const ext = blob.type.includes("mp4") ? "mp4" : blob.type.includes("webm") ? "webm" : "mp3"
+    const filename = `audio.${ext}`
+    console.log("[v0] Sending to Whisper:", filename, "type:", blob.type, "size:", blob.size)
 
     const form = new FormData()
-    form.append("file", new File([blob], "audio.mp3", { type: blob.type }))
+    form.append("file", new File([blob], filename, { type: blob.type }))
     form.append("model", "whisper-1")
     form.append("response_format", "verbose_json")
     form.append("timestamp_granularities[]", "word")
@@ -501,8 +509,13 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       body: form,
     })
 
-    if (!res.ok) return []
+    if (!res.ok) {
+      const errText = await res.text()
+      console.log("[v0] Whisper API error:", res.status, errText)
+      return []
+    }
     const data = await res.json()
+    console.log("[v0] Whisper response - words count:", data.words?.length ?? 0)
     return (data.words as WhisperWord[]) ?? []
   }
 
@@ -683,8 +696,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const videoH = avatarVideo.videoHeight
       if (videoW === 0 || videoH === 0) return
       
-      // Crop black bars: assume person is in center 60% width of video
-      const cropPercent = 0.20 // crop 20% from each side
+      // Crop black bars: assume person is in center 40% width of video
+      const cropPercent = 0.30 // crop 30% from each side
       const srcX = Math.round(videoW * cropPercent)
       const srcW = Math.round(videoW * (1 - 2 * cropPercent))
       const srcY = 0
@@ -887,11 +900,15 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         // After title fades: show avatar PiP and captions (title holds 4s, fades 0.5s)
         const TITLE_GONE = 4.0 // Avatar appears as title starts fading
         if (elapsed >= TITLE_GONE) {
-          // Start avatar loop on first eligible frame
+          // Sync avatar video to audio time (avatar video contains the same audio)
           if (avatarVideo && !avatarStarted) {
-            avatarVideo.currentTime = 0
+            avatarVideo.currentTime = elapsed // Start at current audio position
             avatarVideo.play().catch(() => {})
             avatarStarted = true
+          }
+          // Keep avatar synced (prevent drift)
+          if (avatarVideo && avatarStarted && Math.abs(avatarVideo.currentTime - elapsed) > 0.2) {
+            avatarVideo.currentTime = elapsed
           }
           drawAvatar()
           drawCaption(elapsed)
