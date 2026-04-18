@@ -46,9 +46,19 @@ export default function SetupPage() {
       return
     }
 
-    const settings = await getSettings()
-    await saveSettings({ ...settings, adminPassword: password })
-    setSaved(true)
+    try {
+      console.log("[v0] Getting settings...")
+      const settings = await getSettings()
+      console.log("[v0] Settings retrieved:", settings)
+      console.log("[v0] Saving settings with password...")
+      await saveSettings({ ...settings, adminPassword: password })
+      console.log("[v0] Settings saved successfully")
+      setSaved(true)
+    } catch (err) {
+      console.error("[v0] Error saving settings:", err)
+      setError(err instanceof Error ? err.message : "Failed to save settings")
+      return
+    }
     setTimeout(() => {
       router.push("/admin")
     }, 1500)
