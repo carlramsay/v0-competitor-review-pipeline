@@ -6,7 +6,7 @@ import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { cn } from "@/lib/utils"
 import { Download, ImageIcon, Save, Check } from "lucide-react"
 import { CopyButton } from "./copy-button"
-import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Mic, Eye, EyeOff } from "lucide-react"
+import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Mic, Eye, EyeOff, Linkedin } from "lucide-react"
 
 interface OutputBlockProps {
   label: string
@@ -210,6 +210,55 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         })
         if (updated) setRecord(updated)
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function generateLinkedInPost() {
+    setError(null)
+    setLoading("linkedin")
+    const settings = getSettings()
+
+    if (!settings.openaiApiKey) {
+      setError("OpenAI API key is missing. Add it in Admin Settings.")
+      setLoading(null)
+      return
+    }
+
+    const competitorName = record.formData.competitorName || "Competitor"
+    const systemPrompt = `Write a LinkedIn post based on this competitor review of ${competitorName}. Tone: professional, analytical, business-appropriate. Frame it as an industry insight — not as promotion. Position the findings as useful intelligence for anyone evaluating adult entertainment platforms or digital subscription services. Structure: one opening hook sentence, 3–4 short paragraphs covering the key findings (signup experience, chat quality, pricing transparency, human vs AI question), one closing paragraph that naturally mentions Arousr as a platform that addresses the shortcomings found. End with 3–5 relevant professional hashtags. Length: 250–350 words. Do not use salesy language. Write as if sharing a genuine professional observation.`
+
+    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent },
+          ],
+          max_tokens: 1000,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error?.message ?? "LinkedIn post generation failed")
+      }
+
+      const data = await res.json()
+      const content = data.choices?.[0]?.message?.content?.trim() || ""
+      const updated = updateGeneratedContent(record.id, { linkedinPost: content })
+      if (updated) setRecord(updated)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
     } finally {
@@ -932,6 +981,15 @@ export function ContentGeneration({ record: initialRecord }: Props) {
           </button>
           <button
             type="button"
+            onClick={generateLinkedInPost}
+            disabled={loading !== null}
+            className={actionBtn}
+          >
+            {loading === "linkedin" ? <Loader2 size={15} className="animate-spin" /> : <Linkedin size={15} />}
+            Generate LinkedIn Post
+          </button>
+          <button
+            type="button"
             onClick={pushToWordPress}
             disabled={loading !== null}
             className={actionBtn}
@@ -1133,6 +1191,20 @@ export function ContentGeneration({ record: initialRecord }: Props) {
               />
             )}
           </div>
+        </div>
+      )}
+
+      {/* LinkedIn Post */}
+      {record.generated.linkedinPost && (
+        <div className="rounded-lg border border-border bg-card p-5">
+          <OutputBlock
+            label="LinkedIn Post"
+            content={record.generated.linkedinPost}
+            onSave={(v) => {
+              const updated = updateGeneratedContent(record.id, { linkedinPost: v })
+              if (updated) setRecord(updated)
+            }}
+          />
         </div>
       )}
     </div>

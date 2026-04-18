@@ -78,6 +78,7 @@ export interface GeneratedContent {
   tweetSnippet?: string
   instagramSnippet?: string
   redditSnippet?: string
+  linkedinPost?: string
   wordpressDraftUrl?: string
 }
 
