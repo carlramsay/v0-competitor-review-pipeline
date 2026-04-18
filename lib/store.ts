@@ -51,6 +51,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   elevenlabsApiKey: "",
   elevenlabsVoiceId: "21m00Tcm4TlvDq8ikWAM",
   thumbnailSiteName: "Arousr",
+  logoVideoBase64: "",
+  avatarVideoBase64: "",
 }
 
 export function getThumbnailLibrary(): ThumbnailImage[] {

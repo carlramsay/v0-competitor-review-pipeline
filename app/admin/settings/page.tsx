@@ -147,10 +147,12 @@ function AdminSettingsContent() {
     const reader = new FileReader()
     reader.onloadend = () => {
       const base64 = (reader.result as string).split(",")[1]
+      console.log("[v0] Avatar video uploaded, base64 length:", base64?.length || 0)
       setSettings((prev) => ({ ...prev, avatarVideoBase64: base64 }))
       setUploadingAvatar(false)
     }
     reader.onerror = () => {
+      console.error("[v0] Avatar upload failed")
       setUploadingAvatar(false)
     }
     reader.readAsDataURL(file)
@@ -166,9 +168,14 @@ function AdminSettingsContent() {
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    saveSettings(settings)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+    try {
+      saveSettings(settings)
+      console.log("[v0] Settings saved:", settings)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err) {
+      console.error("[v0] Failed to save settings:", err)
+    }
   }
 
   return (
