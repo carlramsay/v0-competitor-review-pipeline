@@ -198,12 +198,12 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const content = data.content as string
 
       if (type === "blog") {
-        const updated = updateGeneratedContent(record.id, { blogPost: content })
+        const updated = await updateGeneratedContent(record.id, { blogPost: content })
         if (updated) setRecord(updated)
       } else if (type === "video") {
         // Replace Arousr with Arouser for voice script pronunciation
         const videoScript = content.replace(/Arousr/g, "Arouser")
-        const updated = updateGeneratedContent(record.id, { videoScript })
+        const updated = await updateGeneratedContent(record.id, { videoScript })
         if (updated) setRecord(updated)
       } else {
         // Parse social snippets
@@ -213,7 +213,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         const tweet = tweetMatch?.[1]?.trim() ?? ""
         const ig = igMatch?.[1]?.trim() ?? ""
         const reddit = redditMatch?.[1]?.trim() ?? ""
-        const updated = updateGeneratedContent(record.id, {
+        const updated = await updateGeneratedContent(record.id, {
           tweetSnippet: tweet,
           instagramSnippet: ig,
           redditSnippet: reddit,
@@ -267,7 +267,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
 
       const data = await res.json()
       const content = data.choices?.[0]?.message?.content?.trim() || ""
-      const updated = updateGeneratedContent(record.id, { linkedinPost: content })
+      const updated = await updateGeneratedContent(record.id, { linkedinPost: content })
       if (updated) setRecord(updated)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
@@ -329,7 +329,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       await saveVideoAsset(avatarVideoKey, base64)
 
       // Update record to mark that avatar video exists (store key reference, not the data)
-      const updated = updateGeneratedContent(record.id, {
+      const updated = await updateGeneratedContent(record.id, {
         voiceoverBase64: avatarVideoKey, // Store the key, not the actual base64
         voiceoverScriptHash: record.generated.videoScript ?? "",
       })
@@ -966,7 +966,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "WordPress push failed")
       setWpStatus({ url: data.link, editUrl: data.editUrl })
-      const updated = updateGeneratedContent(record.id, { wordpressDraftUrl: data.editUrl })
+      const updated = await updateGeneratedContent(record.id, { wordpressDraftUrl: data.editUrl })
       if (updated) setRecord(updated)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
@@ -1154,8 +1154,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
           <OutputBlock
             label="Video Script"
             content={record.generated.videoScript}
-            onSave={(v) => {
-              const updated = updateGeneratedContent(record.id, { videoScript: v })
+            onSave={async (v) => {
+              const updated = await updateGeneratedContent(record.id, { videoScript: v })
               if (updated) setRecord(updated)
             }}
           />
@@ -1283,8 +1283,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
               <OutputBlock
                 label="Tweet (X)"
                 content={record.generated.tweetSnippet}
-                onSave={(v) => {
-                  const updated = updateGeneratedContent(record.id, { tweetSnippet: v })
+                onSave={async (v) => {
+                  const updated = await updateGeneratedContent(record.id, { tweetSnippet: v })
                   if (updated) setRecord(updated)
                 }}
               />
@@ -1293,8 +1293,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
               <OutputBlock
                 label="Instagram Caption"
                 content={record.generated.instagramSnippet}
-                onSave={(v) => {
-                  const updated = updateGeneratedContent(record.id, { instagramSnippet: v })
+                onSave={async (v) => {
+                  const updated = await updateGeneratedContent(record.id, { instagramSnippet: v })
                   if (updated) setRecord(updated)
                 }}
               />
@@ -1303,8 +1303,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
               <OutputBlock
                 label="Reddit Comment"
                 content={record.generated.redditSnippet}
-                onSave={(v) => {
-                  const updated = updateGeneratedContent(record.id, { redditSnippet: v })
+                onSave={async (v) => {
+                  const updated = await updateGeneratedContent(record.id, { redditSnippet: v })
                   if (updated) setRecord(updated)
                 }}
               />
@@ -1319,8 +1319,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
           <OutputBlock
             label="LinkedIn Post"
             content={record.generated.linkedinPost}
-            onSave={(v) => {
-              const updated = updateGeneratedContent(record.id, { linkedinPost: v })
+            onSave={async (v) => {
+              const updated = await updateGeneratedContent(record.id, { linkedinPost: v })
               if (updated) setRecord(updated)
             }}
           />
