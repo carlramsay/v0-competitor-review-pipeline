@@ -1,6 +1,8 @@
 import { TopNav } from "@/components/top-nav"
 import { ReviewQueue } from "@/components/review-queue"
 
+export const dynamic = "force-dynamic"
+
 export default function QueuePage() {
   return (
     <div className="min-h-screen bg-background">
