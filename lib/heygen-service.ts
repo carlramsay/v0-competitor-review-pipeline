@@ -6,6 +6,7 @@ interface HeyGenGenerateRequest {
       type: "avatar"
       avatar_id: string
       avatar_style: "normal"
+      look_id?: string
     }
     voice: {
       type: "text"
@@ -31,12 +32,34 @@ interface HeyGenStatusResponse {
   }
 }
 
+// Fetch available looks for an avatar
+async function getAvatarLooks(apiKey: string, avatarId: string): Promise<string> {
+  try {
+    const res = await fetch(`https://api.heygen.com/v2/avatars/${avatarId}`, {
+      headers: { "X-Api-Key": apiKey },
+    })
+    if (!res.ok) {
+      console.warn(`Failed to fetch avatar details: ${res.status}`)
+      return ""
+    }
+    const data = await res.json()
+    // Return the first available look_id, or empty string if none found
+    return data.data?.looks?.[0]?.look_id || ""
+  } catch (err) {
+    console.warn("Error fetching avatar looks:", err)
+    return ""
+  }
+}
+
 export async function generateHeyGenAvatarVideo(
   apiKey: string,
   avatarId: string,
   voiceId: string,
   script: string
 ): Promise<string> {
+  // Fetch the default look for this avatar
+  const lookId = await getAvatarLooks(apiKey, avatarId)
+
   const payload: HeyGenGenerateRequest = {
     video_inputs: [
       {
@@ -44,6 +67,7 @@ export async function generateHeyGenAvatarVideo(
           type: "avatar",
           avatar_id: avatarId,
           avatar_style: "normal",
+          ...(lookId && { look_id: lookId }),
         },
         voice: {
           type: "text",
