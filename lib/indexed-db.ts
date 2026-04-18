@@ -3,6 +3,9 @@ const STORE_NAME = "VideoAssets"
 const DB_VERSION = 1
 
 async function openDB(): Promise<IDBDatabase> {
+  if (typeof window === "undefined" || typeof indexedDB === "undefined") {
+    throw new Error("IndexedDB is not available in this environment")
+  }
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
     request.onerror = () => reject(request.error)
@@ -17,6 +20,7 @@ async function openDB(): Promise<IDBDatabase> {
 }
 
 export async function saveVideoAsset(key: string, base64: string): Promise<void> {
+  if (typeof window === "undefined") return
   const db = await openDB()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite")
@@ -28,6 +32,7 @@ export async function saveVideoAsset(key: string, base64: string): Promise<void>
 }
 
 export async function getVideoAsset(key: string): Promise<string | null> {
+  if (typeof window === "undefined") return null
   const db = await openDB()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly")
@@ -39,6 +44,7 @@ export async function getVideoAsset(key: string): Promise<string | null> {
 }
 
 export async function deleteVideoAsset(key: string): Promise<void> {
+  if (typeof window === "undefined") return
   const db = await openDB()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite")
