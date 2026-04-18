@@ -1,0 +1,361 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { AdminGuard } from "@/components/admin-guard"
+import { AdminNav } from "@/components/admin-nav"
+import { AppSettings, ThumbnailImage } from "@/lib/types"
+import { getSettings, saveSettings, getThumbnailLibrary, saveThumbnailLibrary } from "@/lib/store"
+import { Eye, EyeOff, Check, Trash2 } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+const inputClass =
+  "w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+
+function PasswordField({
+  label,
+  id,
+  value,
+  onChange,
+  placeholder,
+  hint,
+}: {
+  label: string
+  id: string
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  hint?: string
+}) {
+  const [show, setShow] = useState(false)
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          id={id}
+          type={show ? "text" : "password"}
+          className={cn(inputClass, "pr-10")}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete="off"
+        />
+        <button
+          type="button"
+          onClick={() => setShow((v) => !v)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+          aria-label={show ? "Hide" : "Show"}
+        >
+          {show ? <EyeOff size={14} /> : <Eye size={14} />}
+        </button>
+      </div>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+function AdminSettingsContent() {
+  const [settings, setSettings] = useState<AppSettings>({
+    wpSiteUrl: "",
+    wpUsername: "",
+    wpAppPassword: "",
+    openaiApiKey: "",
+    adminPassword: "",
+    elevenlabsApiKey: "",
+    elevenlabsVoiceId: "",
+    thumbnailSiteName: "",
+  })
+  const [saved, setSaved] = useState(false)
+  const [library, setLibrary] = useState<ThumbnailImage[]>([])
+  const [uploadingImage, setUploadingImage] = useState(false)
+
+  useEffect(() => {
+    setSettings(getSettings())
+    setLibrary(getThumbnailLibrary())
+  }, [])
+
+  function handleImageUpload(file: File) {
+    setUploadingImage(true)
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const img = new Image()
+      img.onload = () => {
+        const maxWidth = 1280
+        const maxHeight = 720
+        let { width, height } = img
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height)
+          width = Math.round(width * ratio)
+          height = Math.round(height * ratio)
+        }
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height)
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85)
+          const newImage: ThumbnailImage = {
+            id: crypto.randomUUID(),
+            label: file.name.replace(/\.[^.]+$/, ""),
+            dataUrl,
+          }
+          const updated = [newImage, ...library]
+          saveThumbnailLibrary(updated)
+          setLibrary(updated)
+        }
+        setUploadingImage(false)
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+  }
+
+  function handleDeleteImage(id: string) {
+    const updated = library.filter((img) => img.id !== id)
+    saveThumbnailLibrary(updated)
+    setLibrary(updated)
+  }
+
+  function set(key: keyof AppSettings, value: string) {
+    setSettings((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    saveSettings(settings)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <AdminNav />
+      <main className="mx-auto max-w-2xl px-4 py-8">
+        <div className="mb-6">
+          <h1 className="text-xl font-bold text-foreground">Settings</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Configure API credentials and admin access. All values are stored in your browser&apos;s localStorage.
+          </p>
+        </div>
+
+        <form onSubmit={handleSave} className="flex flex-col gap-6">
+          {/* Admin */}
+          <div className="rounded-lg border border-border bg-card p-5">
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Admin Access
+            </h2>
+            <PasswordField
+              label="Admin Password"
+              id="admin-password"
+              value={settings.adminPassword}
+              onChange={(v) => set("adminPassword", v)}
+              placeholder="Set a password for /admin"
+              hint="This password protects the admin section. Leave blank to disable admin access."
+            />
+          </div>
+
+          {/* WordPress */}
+          <div className="rounded-lg border border-border bg-card p-5">
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              WordPress
+            </h2>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="wp-url" className="text-xs font-medium text-muted-foreground">
+                  Site URL
+                </label>
+                <input
+                  id="wp-url"
+                  className={inputClass}
+                  value={settings.wpSiteUrl}
+                  onChange={(e) => set("wpSiteUrl", e.target.value)}
+                  placeholder="https://arousr.com"
+                  type="url"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="wp-user" className="text-xs font-medium text-muted-foreground">
+                  Username
+                </label>
+                <input
+                  id="wp-user"
+                  className={inputClass}
+                  value={settings.wpUsername}
+                  onChange={(e) => set("wpUsername", e.target.value)}
+                  placeholder="admin"
+                  autoComplete="off"
+                />
+              </div>
+              <PasswordField
+                label="Application Password"
+                id="wp-app-pass"
+                value={settings.wpAppPassword}
+                onChange={(v) => set("wpAppPassword", v)}
+                placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
+                hint="Generate under WordPress: Users → Profile → Application Passwords."
+              />
+            </div>
+          </div>
+
+          {/* OpenAI */}
+          <div className="rounded-lg border border-border bg-card p-5">
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              OpenAI
+            </h2>
+            <PasswordField
+              label="API Key"
+              id="openai-key"
+              value={settings.openaiApiKey}
+              onChange={(v) => set("openaiApiKey", v)}
+              placeholder="sk-..."
+            />
+          </div>
+
+          {/* ElevenLabs */}
+          <div className="rounded-lg border border-border bg-card p-5">
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              ElevenLabs
+            </h2>
+            <div className="flex flex-col gap-4">
+              <PasswordField
+                label="API Key"
+                id="el-key"
+                value={settings.elevenlabsApiKey}
+                onChange={(v) => set("elevenlabsApiKey", v)}
+                placeholder="Your ElevenLabs API key"
+              />
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="el-voice" className="text-xs font-medium text-muted-foreground">
+                  Voice ID
+                </label>
+                <input
+                  id="el-voice"
+                  className={inputClass}
+                  value={settings.elevenlabsVoiceId}
+                  onChange={(e) => set("elevenlabsVoiceId", e.target.value)}
+                  placeholder="21m00Tcm4TlvDq8ikWAM"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Default: 21m00Tcm4TlvDq8ikWAM (Rachel — works well for conversational content). Find more voices in your ElevenLabs dashboard.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Thumbnail Generator */}
+          <div className="rounded-lg border border-border bg-card p-5">
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Thumbnail Generator
+            </h2>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="thumb-site" className="text-xs font-medium text-muted-foreground">
+                  Site Name
+                </label>
+                <input
+                  id="thumb-site"
+                  className={inputClass}
+                  value={settings.thumbnailSiteName}
+                  onChange={(e) => set("thumbnailSiteName", e.target.value)}
+                  placeholder="Arousr"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Displayed at the bottom of generated thumbnails.
+                </p>
+              </div>
+
+              {/* Background Image Library */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Background Image Library
+                  </label>
+                  <label
+                    htmlFor="thumb-bg-upload"
+                    className={cn(
+                      "cursor-pointer rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/70",
+                      uploadingImage && "pointer-events-none opacity-50"
+                    )}
+                  >
+                    {uploadingImage ? "Uploading..." : "+ Add Image"}
+                  </label>
+                  <input
+                    id="thumb-bg-upload"
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleImageUpload(file)
+                      e.target.value = ""
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Upload reviewer photos or styled backgrounds. Images are resized and stored locally.
+                </p>
+
+                {library.length === 0 ? (
+                  <p className="rounded-md border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
+                    No images yet. Click &quot;+ Add Image&quot; to upload.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {library.map((img) => (
+                      <div key={img.id} className="group relative">
+                        <img
+                          src={img.dataUrl}
+                          alt={img.label}
+                          className="aspect-video w-full rounded-md border border-border object-cover"
+                        />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-md bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
+                          <span className="max-w-full truncate px-1 text-center text-xs text-white">
+                            {img.label}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteImage(img.id)}
+                            className="flex items-center gap-1 rounded bg-red-500/80 px-2 py-0.5 text-xs text-white hover:bg-red-500"
+                          >
+                            <Trash2 size={10} />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="flex items-center justify-center gap-2 rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            {saved ? (
+              <>
+                <Check size={15} />
+                Saved
+              </>
+            ) : (
+              "Save Settings"
+            )}
+          </button>
+        </form>
+      </main>
+    </div>
+  )
+}
+
+export default function AdminSettingsPage() {
+  return (
+    <AdminGuard>
+      <AdminSettingsContent />
+    </AdminGuard>
+  )
+}
