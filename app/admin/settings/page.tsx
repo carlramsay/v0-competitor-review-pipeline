@@ -65,10 +65,10 @@ function AdminSettingsContent() {
     wpAppPassword: "",
     openaiApiKey: "",
     adminPassword: "",
-    elevenlabsApiKey: "",
-    elevenlabsVoiceId: "",
     thumbnailSiteName: "",
     heygenApiKey: "",
+    heygenAvatarId: "",
+    heygenVoiceId: "",
     logoVideoBase64: "",
     avatarVideoBase64: "",
   })
@@ -287,49 +287,34 @@ function AdminSettingsContent() {
             />
           </div>
 
-          {/* ElevenLabs */}
-          <div className="rounded-lg border border-border bg-card p-5">
-            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              ElevenLabs
-            </h2>
-            <div className="flex flex-col gap-4">
-              <PasswordField
-                label="API Key"
-                id="el-key"
-                value={settings.elevenlabsApiKey}
-                onChange={(v) => set("elevenlabsApiKey", v)}
-                placeholder="Your ElevenLabs API key"
-              />
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="el-voice" className="text-xs font-medium text-muted-foreground">
-                  Voice ID
-                </label>
-                <input
-                  id="el-voice"
-                  className={inputClass}
-                  value={settings.elevenlabsVoiceId}
-                  onChange={(e) => set("elevenlabsVoiceId", e.target.value)}
-                  placeholder="21m00Tcm4TlvDq8ikWAM"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Default: 21m00Tcm4TlvDq8ikWAM (Rachel — works well for conversational content). Find more voices in your ElevenLabs dashboard.
-                </p>
-              </div>
-            </div>
-          </div>
-
           {/* HeyGen */}
           <div className="rounded-lg border border-border bg-card p-5">
             <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               HeyGen
             </h2>
-            <PasswordField
-              label="API Key"
-              id="heygen-key"
-              value={settings.heygenApiKey}
-              onChange={(v) => set("heygenApiKey", v)}
-              placeholder="Your HeyGen API key"
-            />
+            <div className="flex flex-col gap-4">
+              <PasswordField
+                label="API Key"
+                id="heygen-key"
+                value={settings.heygenApiKey}
+                onChange={(v) => set("heygenApiKey", v)}
+                placeholder="Your HeyGen API key"
+              />
+              <TextField
+                label="Avatar ID"
+                id="heygen-avatar"
+                value={settings.heygenAvatarId}
+                onChange={(v) => set("heygenAvatarId", v)}
+                placeholder="e.g., Avatar_123abc"
+              />
+              <TextField
+                label="Voice ID"
+                id="heygen-voice"
+                value={settings.heygenVoiceId}
+                onChange={(v) => set("heygenVoiceId", v)}
+                placeholder="e.g., 14d3c4f6-ac56-4cae-9431-9cc0b75e17c5"
+              />
+            </div>
           </div>
 
           {/* Video Generator */}
