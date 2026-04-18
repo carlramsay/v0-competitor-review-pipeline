@@ -487,10 +487,18 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   // Fetch word-level captions from OpenAI Whisper
   async function fetchWhisperCaptions(blob: Blob): Promise<WhisperWord[]> {
     const settings = await getSettings()
-    if (!settings.openaiApiKey) return []
+    if (!settings.openaiApiKey) {
+      console.log("[v0] No OpenAI API key - skipping captions")
+      return []
+    }
+
+    // Determine file extension based on blob type
+    const ext = blob.type.includes("mp4") ? "mp4" : blob.type.includes("webm") ? "webm" : "mp3"
+    const filename = `audio.${ext}`
+    console.log("[v0] Sending to Whisper:", filename, "type:", blob.type, "size:", blob.size)
 
     const form = new FormData()
-    form.append("file", new File([blob], "audio.mp3", { type: blob.type }))
+    form.append("file", new File([blob], filename, { type: blob.type }))
     form.append("model", "whisper-1")
     form.append("response_format", "verbose_json")
     form.append("timestamp_granularities[]", "word")
@@ -501,8 +509,13 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       body: form,
     })
 
-    if (!res.ok) return []
+    if (!res.ok) {
+      const errText = await res.text()
+      console.log("[v0] Whisper API error:", res.status, errText)
+      return []
+    }
     const data = await res.json()
+    console.log("[v0] Whisper response - words count:", data.words?.length ?? 0)
     return (data.words as WhisperWord[]) ?? []
   }
 
