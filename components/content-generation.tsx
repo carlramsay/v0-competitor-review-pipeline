@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react"
-import { upload } from "@vercel/blob/client"
 import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { generateHeyGenAvatarVideo } from "@/lib/heygen-service"
@@ -159,17 +158,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       setThumbnailUrlVertical(initialRecord.generated.thumbnailVerticalDataUrl)
     }
   }, [initialRecord.generated.thumbnailDataUrl, initialRecord.generated.thumbnailVerticalDataUrl])
-
-  // Hydrate saved videos from Vercel Blob on mount
-  useEffect(() => {
-    // Videos are now stored as Blob URLs, so just set them directly
-    if (initialRecord.generated.videoDataUrl) {
-      setVideoUrl(initialRecord.generated.videoDataUrl)
-    }
-    if (initialRecord.generated.videoVerticalDataUrl) {
-      setVideoUrlVertical(initialRecord.generated.videoVerticalDataUrl)
-    }
-  }, [initialRecord.generated.videoDataUrl, initialRecord.generated.videoVerticalDataUrl])
 
   // Hydrate saved avatar video from Supabase on mount
   useEffect(() => {
@@ -940,37 +928,13 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
 
-      // Upload horizontal video to Vercel Blob using client upload
-      setVideoProgress("Uploading horizontal video\u2026")
-      const horizontalFile = new File([horizontalBlob], `video-horizontal-${record.id}.webm`, { type: "video/webm" })
-      const horizontalUpload = await upload(horizontalFile.name, horizontalFile, {
-        access: "public",
-        handleUploadUrl: "/api/video-upload",
-      })
-      const horizontalBlobUrl = horizontalUpload.url
-
       // Generate vertical video (1080x1920)
       setVideoProgress("Rendering vertical video\u2026")
       const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical (1080x1920)", captionGroups)
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
 
-      // Upload vertical video to Vercel Blob using client upload
-      setVideoProgress("Uploading vertical video\u2026")
-      const verticalFile = new File([verticalBlob], `video-vertical-${record.id}.webm`, { type: "video/webm" })
-      const verticalUpload = await upload(verticalFile.name, verticalFile, {
-        access: "public",
-        handleUploadUrl: "/api/video-upload",
-      })
-      const verticalBlobUrl = verticalUpload.url
-
-      // Save video URLs to record for persistence
-      const updated = await updateGeneratedContent(record.id, {
-        videoDataUrl: horizontalBlobUrl,
-        videoVerticalDataUrl: verticalBlobUrl,
-      })
-      if (updated) setRecord(updated)
-
+      // Videos are kept in browser memory - download them before leaving the page
       setVideoProgress(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
