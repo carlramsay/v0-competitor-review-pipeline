@@ -5,6 +5,7 @@ import { AdminGuard } from "@/components/admin-guard"
 import { AdminNav } from "@/components/admin-nav"
 import { AppSettings, ThumbnailImage } from "@/lib/types"
 import { getSettings, saveSettings, getThumbnailLibrary, saveThumbnailLibrary } from "@/lib/store"
+import { saveVideoAsset, getVideoAsset, deleteVideoAsset } from "@/lib/indexed-db"
 import { Eye, EyeOff, Check, Trash2, Video } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -75,10 +76,15 @@ function AdminSettingsContent() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadingVideo, setUploadingVideo] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [logoVideoLoaded, setLogoVideoLoaded] = useState(false)
+  const [avatarVideoLoaded, setAvatarVideoLoaded] = useState(false)
 
   useEffect(() => {
     setSettings(getSettings())
     setLibrary(getThumbnailLibrary())
+    // Load video asset states from IndexedDB
+    getVideoAsset("logo-video").then((exists) => setLogoVideoLoaded(!!exists))
+    getVideoAsset("avatar-video").then((exists) => setAvatarVideoLoaded(!!exists))
   }, [])
 
   function handleImageUpload(file: File) {
@@ -129,8 +135,15 @@ function AdminSettingsContent() {
     const reader = new FileReader()
     reader.onloadend = () => {
       const base64 = (reader.result as string).split(",")[1]
-      setSettings((prev) => ({ ...prev, logoVideoBase64: base64 }))
-      setUploadingVideo(false)
+      saveVideoAsset("logo-video", base64)
+        .then(() => {
+          setLogoVideoLoaded(true)
+          setUploadingVideo(false)
+        })
+        .catch((err) => {
+          console.error("[v0] Failed to save logo video to IndexedDB:", err)
+          setUploadingVideo(false)
+        })
     }
     reader.onerror = () => {
       setUploadingVideo(false)
@@ -139,7 +152,9 @@ function AdminSettingsContent() {
   }
 
   function handleRemoveLogoVideo() {
-    setSettings((prev) => ({ ...prev, logoVideoBase64: "" }))
+    deleteVideoAsset("logo-video")
+      .then(() => setLogoVideoLoaded(false))
+      .catch((err) => console.error("[v0] Failed to delete logo video:", err))
   }
 
   function handleAvatarVideoUpload(file: File) {
@@ -147,9 +162,15 @@ function AdminSettingsContent() {
     const reader = new FileReader()
     reader.onloadend = () => {
       const base64 = (reader.result as string).split(",")[1]
-      console.log("[v0] Avatar video uploaded, base64 length:", base64?.length || 0)
-      setSettings((prev) => ({ ...prev, avatarVideoBase64: base64 }))
-      setUploadingAvatar(false)
+      saveVideoAsset("avatar-video", base64)
+        .then(() => {
+          setAvatarVideoLoaded(true)
+          setUploadingAvatar(false)
+        })
+        .catch((err) => {
+          console.error("[v0] Failed to save avatar video to IndexedDB:", err)
+          setUploadingAvatar(false)
+        })
     }
     reader.onerror = () => {
       console.error("[v0] Avatar upload failed")
@@ -159,7 +180,9 @@ function AdminSettingsContent() {
   }
 
   function handleRemoveAvatarVideo() {
-    setSettings((prev) => ({ ...prev, avatarVideoBase64: "" }))
+    deleteVideoAsset("avatar-video")
+      .then(() => setAvatarVideoLoaded(false))
+      .catch((err) => console.error("[v0] Failed to delete avatar video:", err))
   }
 
   function set(key: keyof AppSettings, value: string) {
@@ -169,8 +192,9 @@ function AdminSettingsContent() {
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
     try {
-      saveSettings(settings)
-      console.log("[v0] Settings saved:", settings)
+      // Don't save video base64s to localStorage - they're in IndexedDB
+      const settingsToSave = { ...settings, logoVideoBase64: "", avatarVideoBase64: "" }
+      saveSettings(settingsToSave)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     } catch (err) {
@@ -321,7 +345,7 @@ function AdminSettingsContent() {
                   <label className="text-xs font-medium text-muted-foreground">
                     Logo Video (Ending Screen)
                   </label>
-                  {!settings.logoVideoBase64 && (
+                  {!logoVideoLoaded && (
                     <label
                       htmlFor="logo-video-upload"
                       className={cn(
@@ -348,7 +372,7 @@ function AdminSettingsContent() {
                   Upload an MP4 logo animation for the final 3 seconds of generated videos.
                 </p>
 
-                {settings.logoVideoBase64 ? (
+                {logoVideoLoaded ? (
                   <div className="relative rounded-md border border-border bg-black/20 p-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
@@ -356,9 +380,7 @@ function AdminSettingsContent() {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-foreground">Logo video uploaded</p>
-                        <p className="text-xs text-muted-foreground">
-                          {Math.round(settings.logoVideoBase64.length * 0.75 / 1024)} KB
-                        </p>
+                        <p className="text-xs text-muted-foreground">Stored in browser IndexedDB</p>
                       </div>
                       <button
                         type="button"
@@ -383,7 +405,7 @@ function AdminSettingsContent() {
                   <label className="text-xs font-medium text-muted-foreground">
                     Presenter Avatar MP4
                   </label>
-                  {!settings.avatarVideoBase64 && (
+                  {!avatarVideoLoaded && (
                     <label
                       htmlFor="avatar-video-upload"
                       className={cn(
@@ -410,7 +432,7 @@ function AdminSettingsContent() {
                   Looping presenter avatar shown in the bottom-right corner of generated videos.
                 </p>
 
-                {settings.avatarVideoBase64 ? (
+                {avatarVideoLoaded ? (
                   <div className="relative rounded-md border border-border bg-black/20 p-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
@@ -418,9 +440,7 @@ function AdminSettingsContent() {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-foreground">Avatar video uploaded</p>
-                        <p className="text-xs text-muted-foreground">
-                          {Math.round(settings.avatarVideoBase64.length * 0.75 / 1024)} KB
-                        </p>
+                        <p className="text-xs text-muted-foreground">Stored in browser IndexedDB</p>
                       </div>
                       <button
                         type="button"

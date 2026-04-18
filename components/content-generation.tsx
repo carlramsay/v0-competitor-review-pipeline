@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, getThumbnailLibrary } from "@/lib/store"
+import { getVideoAsset } from "@/lib/indexed-db"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { cn } from "@/lib/utils"
@@ -514,15 +515,16 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       throw new Error("No background images available")
     }
 
-    // Load logo video if available
+    // Load logo video if available in IndexedDB
     let logoVideo: HTMLVideoElement | null = null
-    if (settings.logoVideoBase64) {
+    const logoBase64 = await getVideoAsset("logo-video")
+    if (logoBase64) {
       logoVideo = document.createElement("video")
       logoVideo.muted = true
       logoVideo.playsInline = true
       logoVideo.crossOrigin = "anonymous"
       const logoBlob = new Blob(
-        [Uint8Array.from(atob(settings.logoVideoBase64), (c) => c.charCodeAt(0))],
+        [Uint8Array.from(atob(logoBase64), (c) => c.charCodeAt(0))],
         { type: "video/mp4" }
       )
       logoVideo.src = URL.createObjectURL(logoBlob)
@@ -533,16 +535,17 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       })
     }
 
-    // Load presenter avatar video if available
+    // Load presenter avatar video if available in IndexedDB
     let avatarVideo: HTMLVideoElement | null = null
-    if (settings.avatarVideoBase64) {
+    const avatarBase64 = await getVideoAsset("avatar-video")
+    if (avatarBase64) {
       avatarVideo = document.createElement("video")
       avatarVideo.muted = true
       avatarVideo.loop = true
       avatarVideo.playsInline = true
       avatarVideo.crossOrigin = "anonymous"
       const avatarBlob = new Blob(
-        [Uint8Array.from(atob(settings.avatarVideoBase64), (c) => c.charCodeAt(0))],
+        [Uint8Array.from(atob(avatarBase64), (c) => c.charCodeAt(0))],
         { type: "video/mp4" }
       )
       avatarVideo.src = URL.createObjectURL(avatarBlob)
