@@ -575,6 +575,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     // Load presenter avatar video if available in Supabase
     let avatarVideo: HTMLVideoElement | null = null
     const avatarBase64 = await getVideoAsset(`avatar-video-${record.id}`)
+    console.log("[v0] Avatar video key:", `avatar-video-${record.id}`, "Found:", !!avatarBase64)
     if (avatarBase64) {
       avatarVideo = document.createElement("video")
       avatarVideo.muted = true
@@ -591,6 +592,9 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         avatarVideo!.onerror = () => reject(new Error("Failed to load avatar video"))
         avatarVideo!.load()
       })
+      console.log("[v0] Avatar video loaded, dimensions:", avatarVideo.videoWidth, "x", avatarVideo.videoHeight)
+    } else {
+      console.log("[v0] No avatar video found - avatar will not appear in video")
     }
 
     const canvas = document.createElement("canvas")
@@ -665,20 +669,36 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       ctx!.globalAlpha = 1
     }
 
-    // Avatar dimensions and position - maintain proper aspect ratio
+    // Avatar dimensions - calculated dynamically based on actual video aspect ratio
     const isHorizontal = width >= height
-    // Avatar video is typically 9:16 (portrait), so height = width * 16/9
-    const avatarW = isHorizontal ? 180 : 160
-    const avatarH = isHorizontal ? 320 : 284
-    const avatarRight = isHorizontal ? 30 : 20
-    const avatarBottom = isHorizontal ? 80 : 140
-    const avatarX = width - avatarRight - avatarW
-    const avatarY = height - avatarBottom - avatarH
     const avatarRadius = 12
+    const avatarRight = isHorizontal ? 40 : 30
+    const avatarBottom = isHorizontal ? 100 : 160
 
-    // Helper: draw avatar with rounded-rect clip mask
+    // Helper: draw avatar with rounded-rect clip mask (using actual video dimensions)
     function drawAvatar() {
       if (!avatarVideo || avatarVideo.readyState < 2) return
+      
+      // Get actual video dimensions to maintain aspect ratio
+      const videoW = avatarVideo.videoWidth
+      const videoH = avatarVideo.videoHeight
+      if (videoW === 0 || videoH === 0) return
+      
+      const aspectRatio = videoW / videoH
+      
+      // Size avatar based on canvas - larger for better visibility
+      let avatarH: number, avatarW: number
+      if (isHorizontal) {
+        avatarH = Math.round(height * 0.4) // 40% of canvas height
+        avatarW = Math.round(avatarH * aspectRatio)
+      } else {
+        avatarH = Math.round(height * 0.28) // 28% for vertical
+        avatarW = Math.round(avatarH * aspectRatio)
+      }
+      
+      const avatarX = width - avatarRight - avatarW
+      const avatarY = height - avatarBottom - avatarH
+      
       ctx!.save()
       ctx!.beginPath()
       ctx!.moveTo(avatarX + avatarRadius, avatarY)
@@ -931,6 +951,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       // Fetch Whisper word-level captions
       const whisperWords = await fetchWhisperCaptions(audioBlob)
       const captionGroups = buildCaptionGroups(whisperWords)
+      console.log("[v0] Caption groups generated:", captionGroups.length, "groups")
+      console.log("[v0] First few captions:", captionGroups.slice(0, 3))
 
       // Generate horizontal video (1920x1080)
       setVideoProgress("Rendering horizontal video\u2026")
