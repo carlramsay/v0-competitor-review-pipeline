@@ -134,6 +134,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
+  const [thumbnailUrlVertical, setThumbnailUrlVertical] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [videoUrlVertical, setVideoUrlVertical] = useState<string | null>(null)
   const [videoProgress, setVideoProgress] = useState<string | null>(null)
@@ -341,27 +342,22 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     }
   }
 
-  async function generateThumbnail() {
-    setError(null)
-
+  async function generateThumbnailWithFormat(width: number, height: number) {
     const selectedImage = backgroundLibrary.find((img) => img.id === selectedBackgroundId)
 
     if (!selectedImage) {
       setError("Please select a background image first.")
-      return
+      return null
     }
-
-    setLoading("thumbnail")
-    setThumbnailUrl(null)
-    const settings = getSettings()
 
     const competitorName = record.formData.competitorName || "Competitor"
     const reviewerName = record.formData.reviewerName || "Reviewer"
+    const settings = getSettings()
 
     try {
       const canvas = document.createElement("canvas")
-      canvas.width = 1280
-      canvas.height = 720
+      canvas.width = width
+      canvas.height = height
       const ctx = canvas.getContext("2d")
       if (!ctx) throw new Error("Failed to create canvas context")
 
@@ -392,29 +388,52 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       ctx.fillStyle = "rgba(0, 0, 0, 0.55)"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
+      // Scale text sizes proportionally
+      const titleSize = Math.round(width * 0.056)
+      const subtitleSize = Math.round(width * 0.028)
+      const siteNameSize = Math.round(width * 0.022)
+
       // Title text: "Review: [Competitor Name]"
       ctx.fillStyle = "#ffffff"
-      ctx.font = "bold 72px system-ui, -apple-system, sans-serif"
+      ctx.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
-      ctx.fillText(`Review: ${competitorName}`, canvas.width / 2, canvas.height / 2 - 40)
+      ctx.fillText(`Review: ${competitorName}`, canvas.width / 2, canvas.height / 2 - titleSize * 0.55)
 
       // Subtitle text: "Tested by [Reviewer Name]"
-      ctx.font = "36px system-ui, -apple-system, sans-serif"
+      ctx.font = `${subtitleSize}px system-ui, -apple-system, sans-serif`
       ctx.fillStyle = "#cccccc"
-      ctx.fillText(`Tested by ${reviewerName}`, canvas.width / 2, canvas.height / 2 + 40)
+      ctx.fillText(`Tested by ${reviewerName}`, canvas.width / 2, canvas.height / 2 + subtitleSize * 1.4)
 
       // Site name at the bottom
       const siteName = settings.thumbnailSiteName || "Arousr"
-      ctx.font = "bold 28px system-ui, -apple-system, sans-serif"
+      ctx.font = `bold ${siteNameSize}px system-ui, -apple-system, sans-serif`
       ctx.fillStyle = "#ffffff"
-      ctx.fillText(siteName, canvas.width / 2, canvas.height - 50)
+      ctx.fillText(siteName, canvas.width / 2, canvas.height - siteNameSize * 2.3)
 
       // Export as JPG
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92)
-      setThumbnailUrl(dataUrl)
+      return dataUrl
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
+      return null
+    }
+  }
+
+  async function generateThumbnail() {
+    setError(null)
+    setLoading("thumbnail")
+    setThumbnailUrl(null)
+    setThumbnailUrlVertical(null)
+
+    try {
+      // Generate horizontal thumbnail (1280x720)
+      const horizontalUrl = await generateThumbnailWithFormat(1280, 720)
+      if (horizontalUrl) setThumbnailUrl(horizontalUrl)
+
+      // Generate vertical thumbnail (720x1280)
+      const verticalUrl = await generateThumbnailWithFormat(720, 1280)
+      if (verticalUrl) setThumbnailUrlVertical(verticalUrl)
     } finally {
       setLoading(null)
     }
@@ -1088,23 +1107,48 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         </div>
       )}
 
-      {/* Generated Thumbnail */}
-      {thumbnailUrl && (
+      {/* Generated Thumbnails */}
+      {(thumbnailUrl || thumbnailUrlVertical) && (
         <div className="rounded-lg border border-border bg-card p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Generated Thumbnail
-            </span>
-            <a
-              href={thumbnailUrl}
-              download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail.jpg`}
-              className="flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60"
-            >
-              <Download size={12} />
-              Download Thumbnail
-            </a>
+          <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Generated Thumbnails
+          </h3>
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Horizontal Thumbnail */}
+            {thumbnailUrl && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">Horizontal (1280x720)</span>
+                  <a
+                    href={thumbnailUrl}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.jpg`}
+                    className="flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60"
+                  >
+                    <Download size={12} />
+                    Download
+                  </a>
+                </div>
+                <img src={thumbnailUrl} alt="Generated horizontal thumbnail" className="w-full rounded-md" />
+              </div>
+            )}
+            {/* Vertical Thumbnail */}
+            {thumbnailUrlVertical && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">Vertical (720x1280)</span>
+                  <a
+                    href={thumbnailUrlVertical}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.jpg`}
+                    className="flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60"
+                  >
+                    <Download size={12} />
+                    Download
+                  </a>
+                </div>
+                <img src={thumbnailUrlVertical} alt="Generated vertical thumbnail" className="aspect-[9/16] max-h-[400px] w-auto self-center rounded-md" />
+              </div>
+            )}
           </div>
-          <img src={thumbnailUrl} alt="Generated thumbnail" className="w-full rounded-md" />
         </div>
       )}
 
