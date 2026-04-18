@@ -675,25 +675,32 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     const avatarRight = isHorizontal ? 40 : 30
     const avatarBottom = isHorizontal ? 100 : 160
 
-    // Helper: draw avatar with rounded-rect clip mask (using actual video dimensions)
+    // Helper: draw avatar with rounded-rect clip mask, cropping black bars
     function drawAvatar() {
       if (!avatarVideo || avatarVideo.readyState < 2) return
       
-      // Get actual video dimensions to maintain aspect ratio
       const videoW = avatarVideo.videoWidth
       const videoH = avatarVideo.videoHeight
       if (videoW === 0 || videoH === 0) return
       
-      const aspectRatio = videoW / videoH
+      // Crop black bars: assume person is in center 60% width of video
+      const cropPercent = 0.20 // crop 20% from each side
+      const srcX = Math.round(videoW * cropPercent)
+      const srcW = Math.round(videoW * (1 - 2 * cropPercent))
+      const srcY = 0
+      const srcH = videoH
+      
+      // Calculate display size based on cropped aspect ratio
+      const croppedAspect = srcW / srcH
       
       // Size avatar based on canvas - larger for better visibility
       let avatarH: number, avatarW: number
       if (isHorizontal) {
-        avatarH = Math.round(height * 0.4) // 40% of canvas height
-        avatarW = Math.round(avatarH * aspectRatio)
+        avatarH = Math.round(height * 0.45) // 45% of canvas height
+        avatarW = Math.round(avatarH * croppedAspect)
       } else {
-        avatarH = Math.round(height * 0.28) // 28% for vertical
-        avatarW = Math.round(avatarH * aspectRatio)
+        avatarH = Math.round(height * 0.32) // 32% for vertical
+        avatarW = Math.round(avatarH * croppedAspect)
       }
       
       const avatarX = width - avatarRight - avatarW
@@ -712,7 +719,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       ctx!.arcTo(avatarX, avatarY, avatarX + avatarRadius, avatarY, avatarRadius)
       ctx!.closePath()
       ctx!.clip()
-      ctx!.drawImage(avatarVideo, avatarX, avatarY, avatarW, avatarH)
+      // Draw cropped portion of video
+      ctx!.drawImage(avatarVideo, srcX, srcY, srcW, srcH, avatarX, avatarY, avatarW, avatarH)
       ctx!.restore()
     }
 
@@ -876,8 +884,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         // Title (top, first 4–4.5 s only)
         drawTitle(elapsed)
 
-        // After title fades: show avatar PiP and captions
-        const TITLE_GONE = 4.5
+        // After title fades: show avatar PiP and captions (title holds 4s, fades 0.5s)
+        const TITLE_GONE = 4.0 // Avatar appears as title starts fading
         if (elapsed >= TITLE_GONE) {
           // Start avatar loop on first eligible frame
           if (avatarVideo && !avatarStarted) {
