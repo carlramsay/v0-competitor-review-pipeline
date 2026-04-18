@@ -47,35 +47,6 @@ async function logAvatarsList(apiKey: string): Promise<void> {
   }
 }
 
-// Fetch available looks for an avatar
-async function getAvatarLooks(apiKey: string, avatarId: string): Promise<string> {
-  try {
-    const res = await fetch(`https://api.heygen.com/v2/avatars/${avatarId}`, {
-      headers: { "X-Api-Key": apiKey },
-    })
-    if (!res.ok) {
-      console.warn(`[v0] Failed to fetch avatar details: ${res.status}`)
-      return ""
-    }
-    const data = await res.json()
-    console.log("[v0] Avatar details response:", data)
-    
-    // Try multiple possible response structures
-    const lookId = 
-      data.data?.looks?.[0]?.look_id ||
-      data.looks?.[0]?.look_id ||
-      data.data?.default_look_id ||
-      data.default_look_id ||
-      ""
-    
-    console.log("[v0] Extracted look_id:", lookId)
-    return lookId
-  } catch (err) {
-    console.warn("[v0] Error fetching avatar looks:", err)
-    return ""
-  }
-}
-
 export async function generateHeyGenAvatarVideo(
   apiKey: string,
   avatarId: string,
