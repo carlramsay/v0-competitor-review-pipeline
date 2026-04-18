@@ -149,12 +149,61 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     getThumbnailLibrary().then(setBackgroundLibrary)
   }, [])
 
-  // Hydrate saved avatar video from IndexedDB on mount (fixes localStorage quota error)
+  // Hydrate saved thumbnails from record on mount
+  useEffect(() => {
+    if (initialRecord.generated.thumbnailDataUrl) {
+      setThumbnailUrl(initialRecord.generated.thumbnailDataUrl)
+    }
+    if (initialRecord.generated.thumbnailVerticalDataUrl) {
+      setThumbnailUrlVertical(initialRecord.generated.thumbnailVerticalDataUrl)
+    }
+  }, [initialRecord.generated.thumbnailDataUrl, initialRecord.generated.thumbnailVerticalDataUrl])
+
+  // Hydrate saved videos from Supabase on mount
+  useEffect(() => {
+    async function loadSavedVideos() {
+      // Load horizontal video
+      if (initialRecord.generated.videoDataUrl) {
+        try {
+          const videoKey = initialRecord.generated.videoDataUrl
+          const base64 = await getVideoAsset(videoKey)
+          if (base64) {
+            const binary = atob(base64)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+            const blob = new Blob([bytes], { type: "video/webm" })
+            setVideoUrl(URL.createObjectURL(blob))
+          }
+        } catch (err) {
+          console.error("[v0] Failed to load horizontal video:", err)
+        }
+      }
+      // Load vertical video
+      if (initialRecord.generated.videoVerticalDataUrl) {
+        try {
+          const videoKey = initialRecord.generated.videoVerticalDataUrl
+          const base64 = await getVideoAsset(videoKey)
+          if (base64) {
+            const binary = atob(base64)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+            const blob = new Blob([bytes], { type: "video/webm" })
+            setVideoUrlVertical(URL.createObjectURL(blob))
+          }
+        } catch (err) {
+          console.error("[v0] Failed to load vertical video:", err)
+        }
+      }
+    }
+    loadSavedVideos()
+  }, [initialRecord.generated.videoDataUrl, initialRecord.generated.videoVerticalDataUrl])
+
+  // Hydrate saved avatar video from Supabase on mount
   useEffect(() => {
     async function loadAvatarVideo() {
       if (initialRecord.generated.voiceoverBase64) {
         try {
-          // voiceoverBase64 now stores the IndexedDB key, not the actual data
+          // voiceoverBase64 now stores the Supabase key, not the actual data
           const avatarVideoKey = initialRecord.generated.voiceoverBase64
           const base64 = await getVideoAsset(avatarVideoKey)
           if (base64) {
@@ -445,6 +494,13 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       // Generate vertical thumbnail (720x1280)
       const verticalUrl = await generateThumbnailWithFormat(720, 1280)
       if (verticalUrl) setThumbnailUrlVertical(verticalUrl)
+
+      // Save thumbnails to record for persistence
+      const updated = await updateGeneratedContent(record.id, {
+        thumbnailDataUrl: horizontalUrl || undefined,
+        thumbnailVerticalDataUrl: verticalUrl || undefined,
+      })
+      if (updated) setRecord(updated)
     } finally {
       setLoading(null)
     }
@@ -638,15 +694,16 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       ctx!.globalAlpha = 1
     }
 
-    // Avatar dimensions and position
+    // Avatar dimensions and position - maintain proper aspect ratio
     const isHorizontal = width >= height
-    const avatarW = isHorizontal ? 320 : 280
-    const avatarH = isHorizontal ? 480 : 420
-    const avatarRight = isHorizontal ? 40 : 30
-    const avatarBottom = isHorizontal ? 120 : 180
+    // Avatar video is typically 9:16 (portrait), so height = width * 16/9
+    const avatarW = isHorizontal ? 180 : 160
+    const avatarH = isHorizontal ? 320 : 284
+    const avatarRight = isHorizontal ? 30 : 20
+    const avatarBottom = isHorizontal ? 80 : 140
     const avatarX = width - avatarRight - avatarW
     const avatarY = height - avatarBottom - avatarH
-    const avatarRadius = 16
+    const avatarRadius = 12
 
     // Helper: draw avatar with rounded-rect clip mask
     function drawAvatar() {
@@ -910,11 +967,42 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
 
+      // Save horizontal video to Supabase
+      const horizontalKey = `video-horizontal-${record.id}`
+      const horizontalBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(",")[1]
+          resolve(base64)
+        }
+        reader.readAsDataURL(horizontalBlob)
+      })
+      await saveVideoAsset(horizontalKey, horizontalBase64)
+
       // Generate vertical video (1080x1920)
       setVideoProgress("Rendering vertical video\u2026")
       const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical (1080x1920)", captionGroups)
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
+
+      // Save vertical video to Supabase
+      const verticalKey = `video-vertical-${record.id}`
+      const verticalBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(",")[1]
+          resolve(base64)
+        }
+        reader.readAsDataURL(verticalBlob)
+      })
+      await saveVideoAsset(verticalKey, verticalBase64)
+
+      // Save video keys to record for persistence
+      const updated = await updateGeneratedContent(record.id, {
+        videoDataUrl: horizontalKey,
+        videoVerticalDataUrl: verticalKey,
+      })
+      if (updated) setRecord(updated)
 
       setVideoProgress(null)
     } catch (err) {
