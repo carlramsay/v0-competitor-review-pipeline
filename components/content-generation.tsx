@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, getThumbnailLibrary } from "@/lib/store"
-import { getVideoAsset } from "@/lib/indexed-db"
+import { getVideoAsset, saveVideoAsset } from "@/lib/indexed-db"
 import { generateHeyGenAvatarVideo } from "@/lib/heygen-service"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
@@ -150,21 +150,29 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     setBackgroundLibrary(getThumbnailLibrary())
   }, [])
 
-  // Hydrate saved avatar video from localStorage on mount
+  // Hydrate saved avatar video from IndexedDB on mount
   useEffect(() => {
-    if (initialRecord.generated.voiceoverBase64) {
-      try {
-        const binary = atob(initialRecord.generated.voiceoverBase64)
-        const bytes = new Uint8Array(binary.length)
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-        const blob = new Blob([bytes], { type: "video/mp4" })
-        const url = URL.createObjectURL(blob)
-        setAudioBlob(blob)
-        setAudioUrl(url)
-      } catch (err) {
-        // Silently ignore corrupt data
+    async function loadAvatarVideo() {
+      if (initialRecord.generated.voiceoverBase64) {
+        try {
+          // voiceoverBase64 now stores the IndexedDB key, not the actual data
+          const avatarVideoKey = initialRecord.generated.voiceoverBase64
+          const base64 = await getVideoAsset(avatarVideoKey)
+          if (base64) {
+            const binary = atob(base64)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+            const blob = new Blob([bytes], { type: "video/mp4" })
+            const url = URL.createObjectURL(blob)
+            setAudioBlob(blob)
+            setAudioUrl(url)
+          }
+        } catch (err) {
+          // Silently ignore corrupt data or missing video
+        }
       }
     }
+    loadAvatarVideo()
   }, [initialRecord.generated.voiceoverBase64])
 
   const answers = buildAnswersString(record.formData)
@@ -317,9 +325,13 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         record.generated.videoScript
       )
 
-      // Save as voiceoverBase64 so it's used as the audio source
+      // Save to IndexedDB (not localStorage) to avoid quota limits
+      const avatarVideoKey = `avatar-video-${record.id}`
+      await saveVideoAsset(avatarVideoKey, base64)
+
+      // Update record to mark that avatar video exists (store key reference, not the data)
       const updated = updateGeneratedContent(record.id, {
-        voiceoverBase64: base64,
+        voiceoverBase64: avatarVideoKey, // Store the key, not the actual base64
         voiceoverScriptHash: record.generated.videoScript ?? "",
       })
       if (updated) {
