@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, getThumbnailLibrary } from "@/lib/store"
 import { buildAnswersString } from "@/lib/review-utils"
+import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { cn } from "@/lib/utils"
 import { Download, ImageIcon, Save, Check } from "lucide-react"
 import { CopyButton } from "./copy-button"
@@ -35,7 +36,7 @@ function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onT
             className="flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60"
           >
             {viewAsHtml ? <EyeOff size={12} /> : <Eye size={12} />}
-            {viewAsHtml ? "View Markdown" : "View HTML"}
+            {viewAsHtml ? "View Markdown" : "View Styled Preview"}
           </button>
           <button
             type="button"
@@ -136,6 +137,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [videoUrlVertical, setVideoUrlVertical] = useState<string | null>(null)
   const [videoProgress, setVideoProgress] = useState<string | null>(null)
+  const [blogPostViewAsHtml, setBlogPostViewAsHtml] = useState(false)
   const [backgroundLibrary, setBackgroundLibrary] = useState<ThumbnailImage[]>([])
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null)
   const [viewBlogAsHtml, setViewBlogAsHtml] = useState(true)
@@ -972,12 +974,23 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       {/* Blog post */}
       {record.generated.blogPost && (
         <div className="rounded-lg border border-border bg-card p-5">
-          <OutputBlock
+          <HTMLPreviewBlock
             label="Blog Post Draft"
-            content={record.generated.blogPost}
-            onSave={(v) => {
-              const updated = updateGeneratedContent(record.id, { blogPost: v })
-              if (updated) setRecord(updated)
+            htmlContent={convertMarkdownToStyledHTML(record.generated.blogPost)}
+            markdownContent={record.generated.blogPost}
+            viewAsHtml={blogPostViewAsHtml}
+            onToggleView={setBlogPostViewAsHtml}
+            onDownload={() => {
+              const html = convertMarkdownToStyledHTML(record.generated.blogPost!)
+              const blob = new Blob([html], { type: "text/html;charset=utf-8" })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement("a")
+              a.href = url
+              a.download = `${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "review"}-blog-post.html`
+              document.body.appendChild(a)
+              a.click()
+              document.body.removeChild(a)
+              URL.revokeObjectURL(url)
             }}
           />
         </div>
