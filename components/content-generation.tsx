@@ -341,57 +341,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       setLoading(null)
     }
   }
-    if (!settings.elevenlabsApiKey) {
-      setError("ElevenLabs API key is missing. Add it in Admin Settings.")
-      setLoading(null)
-      return
-    }
-    if (!settings.elevenlabsVoiceId) {
-      setError("ElevenLabs Voice ID is missing. Add it in Admin Settings.")
-      setLoading(null)
-      return
-    }
-
-    try {
-      const res = await fetch("/api/voiceover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          script: record.generated.videoScript,
-          apiKey: settings.elevenlabsApiKey,
-          voiceId: settings.elevenlabsVoiceId,
-        }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error ?? "Voiceover generation failed")
-      }
-
-      const blob = await res.blob()
-
-      // Convert to base64 and persist in localStorage so it survives page reloads
-      const arrayBuffer = await blob.arrayBuffer()
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-      )
-      const updated = updateGeneratedContent(record.id, {
-        voiceoverBase64: base64,
-        voiceoverScriptHash: record.generated.videoScript ?? "",
-      })
-      if (updated) setRecord(updated)
-
-      // Revoke previous object URL to avoid memory leaks
-      if (audioUrl) URL.revokeObjectURL(audioUrl)
-
-      setAudioUrl(URL.createObjectURL(blob))
-      setAudioBlob(blob)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error")
-    } finally {
-      setLoading(null)
-    }
-  }
 
   async function generateThumbnailWithFormat(width: number, height: number) {
     const selectedImage = backgroundLibrary.find((img) => img.id === selectedBackgroundId)
