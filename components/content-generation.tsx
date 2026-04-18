@@ -150,7 +150,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     setBackgroundLibrary(getThumbnailLibrary())
   }, [])
 
-  // Hydrate saved avatar video from IndexedDB on mount
+  // Hydrate saved avatar video from IndexedDB on mount (fixes localStorage quota error)
   useEffect(() => {
     async function loadAvatarVideo() {
       if (initialRecord.generated.voiceoverBase64) {
