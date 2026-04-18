@@ -533,6 +533,26 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       })
     }
 
+    // Load presenter avatar video if available
+    let avatarVideo: HTMLVideoElement | null = null
+    if (settings.avatarVideoBase64) {
+      avatarVideo = document.createElement("video")
+      avatarVideo.muted = true
+      avatarVideo.loop = true
+      avatarVideo.playsInline = true
+      avatarVideo.crossOrigin = "anonymous"
+      const avatarBlob = new Blob(
+        [Uint8Array.from(atob(settings.avatarVideoBase64), (c) => c.charCodeAt(0))],
+        { type: "video/mp4" }
+      )
+      avatarVideo.src = URL.createObjectURL(avatarBlob)
+      await new Promise<void>((resolve, reject) => {
+        avatarVideo!.onloadeddata = () => resolve()
+        avatarVideo!.onerror = () => reject(new Error("Failed to load avatar video"))
+        avatarVideo!.load()
+      })
+    }
+
     const canvas = document.createElement("canvas")
     canvas.width = width
     canvas.height = height
@@ -603,6 +623,36 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const y = (height - img.height * scale) / 2
       ctx!.drawImage(img, x, y, img.width * scale, img.height * scale)
       ctx!.globalAlpha = 1
+    }
+
+    // Avatar dimensions and position
+    const isHorizontal = width >= height
+    const avatarW = isHorizontal ? 320 : 280
+    const avatarH = isHorizontal ? 480 : 420
+    const avatarRight = isHorizontal ? 40 : 30
+    const avatarBottom = isHorizontal ? 120 : 180
+    const avatarX = width - avatarRight - avatarW
+    const avatarY = height - avatarBottom - avatarH
+    const avatarRadius = 16
+
+    // Helper: draw avatar with rounded-rect clip mask
+    function drawAvatar() {
+      if (!avatarVideo || avatarVideo.readyState < 2) return
+      ctx!.save()
+      ctx!.beginPath()
+      ctx!.moveTo(avatarX + avatarRadius, avatarY)
+      ctx!.lineTo(avatarX + avatarW - avatarRadius, avatarY)
+      ctx!.arcTo(avatarX + avatarW, avatarY, avatarX + avatarW, avatarY + avatarRadius, avatarRadius)
+      ctx!.lineTo(avatarX + avatarW, avatarY + avatarH - avatarRadius)
+      ctx!.arcTo(avatarX + avatarW, avatarY + avatarH, avatarX + avatarW - avatarRadius, avatarY + avatarH, avatarRadius)
+      ctx!.lineTo(avatarX + avatarRadius, avatarY + avatarH)
+      ctx!.arcTo(avatarX, avatarY + avatarH, avatarX, avatarY + avatarH - avatarRadius, avatarRadius)
+      ctx!.lineTo(avatarX, avatarY + avatarRadius)
+      ctx!.arcTo(avatarX, avatarY, avatarX + avatarRadius, avatarY, avatarRadius)
+      ctx!.closePath()
+      ctx!.clip()
+      ctx!.drawImage(avatarVideo, avatarX, avatarY, avatarW, avatarH)
+      ctx!.restore()
     }
 
     // Caption font size: 38px for horizontal, 52px for vertical
@@ -707,6 +757,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     let isRecording = true
     const startTime = performance.now()
     let logoStarted = false
+    let avatarStarted = false
 
     function render() {
       if (!isRecording) return
@@ -764,9 +815,16 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         // Title (top, first 4–4.5 s only)
         drawTitle(elapsed)
 
-        // Captions (bottom, after title has fully faded)
+        // After title fades: show avatar PiP and captions
         const TITLE_GONE = 4.5
         if (elapsed >= TITLE_GONE) {
+          // Start avatar loop on first eligible frame
+          if (avatarVideo && !avatarStarted) {
+            avatarVideo.currentTime = 0
+            avatarVideo.play().catch(() => {})
+            avatarStarted = true
+          }
+          drawAvatar()
           drawCaption(elapsed)
         }
       }
@@ -802,6 +860,10 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     if (logoVideo) {
       logoVideo.pause()
       URL.revokeObjectURL(logoVideo.src)
+    }
+    if (avatarVideo) {
+      avatarVideo.pause()
+      URL.revokeObjectURL(avatarVideo.src)
     }
 
     return recordingPromise

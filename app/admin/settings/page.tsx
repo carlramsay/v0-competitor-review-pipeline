@@ -68,11 +68,13 @@ function AdminSettingsContent() {
     elevenlabsVoiceId: "",
     thumbnailSiteName: "",
     logoVideoBase64: "",
+    avatarVideoBase64: "",
   })
   const [saved, setSaved] = useState(false)
   const [library, setLibrary] = useState<ThumbnailImage[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadingVideo, setUploadingVideo] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   useEffect(() => {
     setSettings(getSettings())
@@ -138,6 +140,24 @@ function AdminSettingsContent() {
 
   function handleRemoveLogoVideo() {
     setSettings((prev) => ({ ...prev, logoVideoBase64: "" }))
+  }
+
+  function handleAvatarVideoUpload(file: File) {
+    setUploadingAvatar(true)
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const base64 = (reader.result as string).split(",")[1]
+      setSettings((prev) => ({ ...prev, avatarVideoBase64: base64 }))
+      setUploadingAvatar(false)
+    }
+    reader.onerror = () => {
+      setUploadingAvatar(false)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  function handleRemoveAvatarVideo() {
+    setSettings((prev) => ({ ...prev, avatarVideoBase64: "" }))
   }
 
   function set(key: keyof AppSettings, value: string) {
@@ -346,6 +366,68 @@ function AdminSettingsContent() {
                 ) : (
                   <p className="rounded-md border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
                     No logo video uploaded. Click &quot;+ Upload MP4&quot; to add one.
+                  </p>
+                )}
+              </div>
+
+              {/* Presenter Avatar MP4 */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Presenter Avatar MP4
+                  </label>
+                  {!settings.avatarVideoBase64 && (
+                    <label
+                      htmlFor="avatar-video-upload"
+                      className={cn(
+                        "cursor-pointer rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/70",
+                        uploadingAvatar && "pointer-events-none opacity-50"
+                      )}
+                    >
+                      {uploadingAvatar ? "Uploading..." : "+ Upload MP4"}
+                    </label>
+                  )}
+                  <input
+                    id="avatar-video-upload"
+                    type="file"
+                    accept="video/mp4"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleAvatarVideoUpload(file)
+                      e.target.value = ""
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Looping presenter avatar shown in the bottom-right corner of generated videos.
+                </p>
+
+                {settings.avatarVideoBase64 ? (
+                  <div className="relative rounded-md border border-border bg-black/20 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
+                        <Video size={20} className="text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-foreground">Avatar video uploaded</p>
+                        <p className="text-xs text-muted-foreground">
+                          {Math.round(settings.avatarVideoBase64.length * 0.75 / 1024)} KB
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveAvatarVideo}
+                        className="flex items-center gap-1 rounded bg-red-500/80 px-2 py-1 text-xs text-white hover:bg-red-500"
+                      >
+                        <Trash2 size={12} />
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="rounded-md border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
+                    No avatar video uploaded. Click &quot;+ Upload MP4&quot; to add one.
                   </p>
                 )}
               </div>
