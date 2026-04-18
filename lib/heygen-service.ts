@@ -148,6 +148,12 @@ export async function generateHeyGenAvatarVideo(
   }
 
   const arrayBuffer = await videoRes.arrayBuffer()
-  const base64 = Buffer.from(arrayBuffer).toString("base64")
+  // Convert to base64 in a browser-compatible way
+  const bytes = new Uint8Array(arrayBuffer)
+  let binary = ""
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  const base64 = btoa(binary)
   return base64
 }
