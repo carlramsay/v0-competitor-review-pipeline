@@ -8,7 +8,7 @@ import { AdminNav } from "@/components/admin-nav"
 import { AppSettings, ThumbnailImage } from "@/lib/types"
 import { getSettings, saveSettings, getThumbnailLibrary, saveThumbnailLibrary } from "@/lib/store"
 import { saveVideoAsset, getVideoAsset, deleteVideoAsset } from "@/lib/indexed-db"
-import { Eye, EyeOff, Check, Trash2, Video, Loader2, RefreshCw } from "lucide-react"
+import { Eye, EyeOff, Check, Trash2, Video } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const inputClass =
@@ -81,10 +81,6 @@ function AdminSettingsContent() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [logoVideoLoaded, setLogoVideoLoaded] = useState(false)
   const [avatarVideoLoaded, setAvatarVideoLoaded] = useState(false)
-  const [heygenAvatars, setHeygenAvatars] = useState<{ talking_photo_id: string; talking_photo_name: string }[]>([])
-  const [heygenVoices, setHeygenVoices] = useState<{ voice_id: string; display_name: string }[]>([])
-  const [fetchingHeyGen, setFetchingHeyGen] = useState(false)
-  const [heygenFetchError, setHeygenFetchError] = useState<string | null>(null)
 
   useEffect(() => {
     setSettings(getSettings())
@@ -190,42 +186,6 @@ function AdminSettingsContent() {
     deleteVideoAsset("avatar-video")
       .then(() => setAvatarVideoLoaded(false))
       .catch((err) => console.error("[v0] Failed to delete avatar video:", err))
-  }
-
-  async function fetchHeyGenData() {
-    if (!settings.heygenApiKey) {
-      setHeygenFetchError("Enter your HeyGen API key first.")
-      return
-    }
-    setFetchingHeyGen(true)
-    setHeygenFetchError(null)
-    try {
-      const [avatarsRes, voicesRes] = await Promise.all([
-        fetch("https://api.heygen.com/v2/avatars", {
-          headers: { "X-Api-Key": settings.heygenApiKey },
-        }),
-        fetch("https://api.heygen.com/v2/voices", {
-          headers: { "X-Api-Key": settings.heygenApiKey },
-        }),
-      ])
-      if (!avatarsRes.ok) throw new Error(`Avatars fetch failed: ${avatarsRes.status}`)
-      if (!voicesRes.ok) throw new Error(`Voices fetch failed: ${voicesRes.status}`)
-
-      const avatarsData = await avatarsRes.json()
-      const voicesData = await voicesRes.json()
-
-      const avatars: { talking_photo_id: string; talking_photo_name: string }[] =
-        avatarsData?.data?.talking_photos ?? avatarsData?.talking_photos ?? []
-      const voices: { voice_id: string; display_name: string }[] =
-        voicesData?.data?.voices ?? voicesData?.voices ?? []
-
-      setHeygenAvatars(avatars)
-      setHeygenVoices(voices)
-    } catch (err) {
-      setHeygenFetchError(err instanceof Error ? err.message : "Failed to fetch HeyGen data")
-    } finally {
-      setFetchingHeyGen(false)
-    }
   }
 
   function set(key: keyof AppSettings, value: string) {
@@ -342,84 +302,37 @@ function AdminSettingsContent() {
                 onChange={(v) => set("heygenApiKey", v)}
                 placeholder="Your HeyGen API key"
               />
-              <div>
-                <button
-                  type="button"
-                  onClick={fetchHeyGenData}
-                  disabled={fetchingHeyGen}
-                  className="flex items-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-secondary/70 disabled:opacity-50"
-                >
-                  {fetchingHeyGen
-                    ? <Loader2 size={13} className="animate-spin" />
-                    : <RefreshCw size={13} />}
-                  {fetchingHeyGen ? "Fetching..." : "Fetch HeyGen Avatars and Voices"}
-                </button>
-                {heygenFetchError && (
-                  <p className="mt-1.5 text-xs text-red-400">{heygenFetchError}</p>
-                )}
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="heygen-avatar" className="text-xs font-medium text-muted-foreground">
+                  Avatar ID
+                </label>
+                <input
+                  id="heygen-avatar"
+                  className={inputClass}
+                  value={settings.heygenAvatarId}
+                  onChange={(e) => set("heygenAvatarId", e.target.value)}
+                  placeholder="Paste your HeyGen Avatar ID"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Find this in your HeyGen dashboard under Avatars
+                </p>
               </div>
 
-              {heygenAvatars.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="heygen-avatar" className="text-xs font-medium text-muted-foreground">
-                    Talking Photo / Avatar
-                  </label>
-                  <select
-                    id="heygen-avatar"
-                    className={inputClass}
-                    value={settings.heygenAvatarId}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setSettings((prev) => {
-                        const next = { ...prev, heygenAvatarId: val }
-                        saveSettings({ ...next, logoVideoBase64: "", avatarVideoBase64: "" })
-                        return next
-                      })
-                    }}
-                  >
-                    <option value="">-- Select a talking photo --</option>
-                    {heygenAvatars.map((a) => (
-                      <option key={a.talking_photo_id} value={a.talking_photo_id}>
-                        {a.talking_photo_name} ({a.talking_photo_id})
-                      </option>
-                    ))}
-                  </select>
-                  {settings.heygenAvatarId && (
-                    <p className="text-xs text-muted-foreground">Selected: {settings.heygenAvatarId}</p>
-                  )}
-                </div>
-              )}
-
-              {heygenVoices.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="heygen-voice" className="text-xs font-medium text-muted-foreground">
-                    Voice
-                  </label>
-                  <select
-                    id="heygen-voice"
-                    className={inputClass}
-                    value={settings.heygenVoiceId}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setSettings((prev) => {
-                        const next = { ...prev, heygenVoiceId: val }
-                        saveSettings({ ...next, logoVideoBase64: "", avatarVideoBase64: "" })
-                        return next
-                      })
-                    }}
-                  >
-                    <option value="">-- Select a voice --</option>
-                    {heygenVoices.map((v) => (
-                      <option key={v.voice_id} value={v.voice_id}>
-                        {v.display_name} ({v.voice_id})
-                      </option>
-                    ))}
-                  </select>
-                  {settings.heygenVoiceId && (
-                    <p className="text-xs text-muted-foreground">Selected: {settings.heygenVoiceId}</p>
-                  )}
-                </div>
-              )}
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="heygen-voice" className="text-xs font-medium text-muted-foreground">
+                  Voice ID
+                </label>
+                <input
+                  id="heygen-voice"
+                  className={inputClass}
+                  value={settings.heygenVoiceId}
+                  onChange={(e) => set("heygenVoiceId", e.target.value)}
+                  placeholder="Paste your HeyGen Voice ID"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Find this in your HeyGen dashboard under Voices
+                </p>
+              </div>
             </div>
           </div>
 
