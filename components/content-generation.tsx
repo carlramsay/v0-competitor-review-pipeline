@@ -159,43 +159,15 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     }
   }, [initialRecord.generated.thumbnailDataUrl, initialRecord.generated.thumbnailVerticalDataUrl])
 
-  // Hydrate saved videos from Supabase on mount
+  // Hydrate saved videos from Vercel Blob on mount
   useEffect(() => {
-    async function loadSavedVideos() {
-      // Load horizontal video
-      if (initialRecord.generated.videoDataUrl) {
-        try {
-          const videoKey = initialRecord.generated.videoDataUrl
-          const base64 = await getVideoAsset(videoKey)
-          if (base64) {
-            const binary = atob(base64)
-            const bytes = new Uint8Array(binary.length)
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-            const blob = new Blob([bytes], { type: "video/webm" })
-            setVideoUrl(URL.createObjectURL(blob))
-          }
-        } catch (err) {
-          console.error("[v0] Failed to load horizontal video:", err)
-        }
-      }
-      // Load vertical video
-      if (initialRecord.generated.videoVerticalDataUrl) {
-        try {
-          const videoKey = initialRecord.generated.videoVerticalDataUrl
-          const base64 = await getVideoAsset(videoKey)
-          if (base64) {
-            const binary = atob(base64)
-            const bytes = new Uint8Array(binary.length)
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-            const blob = new Blob([bytes], { type: "video/webm" })
-            setVideoUrlVertical(URL.createObjectURL(blob))
-          }
-        } catch (err) {
-          console.error("[v0] Failed to load vertical video:", err)
-        }
-      }
+    // Videos are now stored as Blob URLs, so just set them directly
+    if (initialRecord.generated.videoDataUrl) {
+      setVideoUrl(initialRecord.generated.videoDataUrl)
     }
-    loadSavedVideos()
+    if (initialRecord.generated.videoVerticalDataUrl) {
+      setVideoUrlVertical(initialRecord.generated.videoVerticalDataUrl)
+    }
   }, [initialRecord.generated.videoDataUrl, initialRecord.generated.videoVerticalDataUrl])
 
   // Hydrate saved avatar video from Supabase on mount
@@ -967,17 +939,18 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
 
-      // Save horizontal video to Supabase
-      const horizontalKey = `video-horizontal-${record.id}`
-      const horizontalBase64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          const base64 = (reader.result as string).split(",")[1]
-          resolve(base64)
-        }
-        reader.readAsDataURL(horizontalBlob)
+      // Upload horizontal video to Vercel Blob
+      setVideoProgress("Uploading horizontal video\u2026")
+      const horizontalFormData = new FormData()
+      horizontalFormData.append("file", horizontalBlob, `video-horizontal-${record.id}.webm`)
+      horizontalFormData.append("filename", `videos/horizontal-${record.id}.webm`)
+      const horizontalUploadRes = await fetch("/api/video-upload", {
+        method: "POST",
+        body: horizontalFormData,
       })
-      await saveVideoAsset(horizontalKey, horizontalBase64)
+      const horizontalUploadData = await horizontalUploadRes.json()
+      if (!horizontalUploadRes.ok) throw new Error(horizontalUploadData.error || "Failed to upload horizontal video")
+      const horizontalBlobUrl = horizontalUploadData.url
 
       // Generate vertical video (1080x1920)
       setVideoProgress("Rendering vertical video\u2026")
@@ -985,22 +958,23 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
 
-      // Save vertical video to Supabase
-      const verticalKey = `video-vertical-${record.id}`
-      const verticalBase64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          const base64 = (reader.result as string).split(",")[1]
-          resolve(base64)
-        }
-        reader.readAsDataURL(verticalBlob)
+      // Upload vertical video to Vercel Blob
+      setVideoProgress("Uploading vertical video\u2026")
+      const verticalFormData = new FormData()
+      verticalFormData.append("file", verticalBlob, `video-vertical-${record.id}.webm`)
+      verticalFormData.append("filename", `videos/vertical-${record.id}.webm`)
+      const verticalUploadRes = await fetch("/api/video-upload", {
+        method: "POST",
+        body: verticalFormData,
       })
-      await saveVideoAsset(verticalKey, verticalBase64)
+      const verticalUploadData = await verticalUploadRes.json()
+      if (!verticalUploadRes.ok) throw new Error(verticalUploadData.error || "Failed to upload vertical video")
+      const verticalBlobUrl = verticalUploadData.url
 
-      // Save video keys to record for persistence
+      // Save video URLs to record for persistence
       const updated = await updateGeneratedContent(record.id, {
-        videoDataUrl: horizontalKey,
-        videoVerticalDataUrl: verticalKey,
+        videoDataUrl: horizontalBlobUrl,
+        videoVerticalDataUrl: verticalBlobUrl,
       })
       if (updated) setRecord(updated)
 
