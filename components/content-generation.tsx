@@ -419,20 +419,27 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       ])
 
       // Set up MediaRecorder with higher bitrate for better quality
+      // Check for supported codecs in order of preference
       const chunks: Blob[] = []
+      let mimeType = "video/webm"
+      const codecsToTry = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+      ]
+      for (const codec of codecsToTry) {
+        if (MediaRecorder.isTypeSupported(codec)) {
+          mimeType = codec
+          break
+        }
+      }
+
       const mediaRecorder = new MediaRecorder(combinedStream, {
-        mimeType: "video/webm;codecs=vp9,opus",
+        mimeType,
         videoBitsPerSecond: 5000000, // 5 Mbps for high quality
       })
-
-      // Fallback to VP8 if VP9 not supported
-      if (mediaRecorder.mimeType !== "video/webm;codecs=vp9,opus") {
-        const fallbackRecorder = new MediaRecorder(combinedStream, {
-          mimeType: "video/webm;codecs=vp8,opus",
-          videoBitsPerSecond: 5000000,
-        })
-        Object.assign(mediaRecorder, fallbackRecorder)
-      }
 
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunks.push(e.data)
