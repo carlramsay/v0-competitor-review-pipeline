@@ -198,7 +198,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const content = data.content as string
 
       if (type === "blog") {
-        cconst updated = await updateGeneratedContent(record.id, { blogPost: content })
+        const updated = await updateGeneratedContent(record.id, { blogPost: content })
         if (updated) setRecord(updated)
       } else if (type === "video") {
         // Replace Arousr with Arouser for voice script pronunciation
@@ -545,7 +545,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       })
     }
 
-    // Load presenter avatar video if available in IndexedDB
+    // Load presenter avatar video if available in Supabase
     let avatarVideo: HTMLVideoElement | null = null
     const avatarBase64 = await getVideoAsset(`avatar-video-${record.id}`)
     if (avatarBase64) {
