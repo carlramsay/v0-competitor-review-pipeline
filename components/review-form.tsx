@@ -65,24 +65,30 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     const queueName = sessionStorage.getItem("queueName")
     const paramUrl = searchParams.get("url")
     
-    // If coming from queue, use queue data and ignore draft
-    if (queueUrl || queueName) {
-      setForm((prev) => ({
-        ...prev,
-        competitorUrl: queueUrl || paramUrl || prev.competitorUrl,
-        competitorName: queueName || prev.competitorName,
-      }))
-      // Clear the session storage so it doesn't auto-fill on other visits
-      sessionStorage.removeItem("queueUrl")
-      sessionStorage.removeItem("queueName")
-    } else {
-      // No queue data - load draft if available
-      getDraft().then((draft) => {
-        if (draft) {
+    // Always try to load draft first
+    getDraft().then((draft) => {
+      // If coming from queue, check if draft matches the queue competitor
+      if (queueUrl || queueName) {
+        // Clear the session storage so it doesn't auto-fill on other visits
+        sessionStorage.removeItem("queueUrl")
+        sessionStorage.removeItem("queueName")
+        
+        // If draft matches the competitor from queue, use the draft (it has more data)
+        if (draft && draft.formData.competitorName?.toLowerCase() === queueName?.toLowerCase()) {
           setForm(draft.formData)
+        } else {
+          // No matching draft - just pre-fill name and URL from queue
+          setForm((prev) => ({
+            ...prev,
+            competitorUrl: queueUrl || paramUrl || prev.competitorUrl,
+            competitorName: queueName || prev.competitorName,
+          }))
         }
-      })
-    }
+      } else if (draft) {
+        // No queue data - load draft if available
+        setForm(draft.formData)
+      }
+    })
   }, [initialData, searchParams])
 
   async function handleSaveProgress() {
