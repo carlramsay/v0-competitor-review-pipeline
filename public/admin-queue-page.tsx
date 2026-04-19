@@ -78,7 +78,7 @@ function QueueManager() {
     await updateQueueItemStatus(item.id, "In Progress")
     sessionStorage.setItem("queueUrl", item.url)
     if (item.name) sessionStorage.setItem("queueName", item.name)
-    router.push("/")
+    router.push("/admin/form")
   }
 
   function sorted(items: QueueItem[]) {
