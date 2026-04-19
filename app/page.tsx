@@ -1,5 +1,4 @@
 import Link from "next/link"
-import Image from "next/image"
 
 export const dynamic = "force-dynamic"
 
@@ -9,13 +8,10 @@ export default function Home() {
       <div className="flex flex-col items-center gap-8">
         {/* Logo */}
         <div className="w-32 h-32 rounded-2xl overflow-hidden shadow-lg">
-          <Image
-            src="/images/arousr-logo.jpg"
+          <img
+            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-ad-glJJvyaXrD5KoylEleVYC12hDTkUL8.jpg"
             alt="Arousr Logo"
-            width={128}
-            height={128}
             className="w-full h-full object-cover"
-            priority
           />
         </div>
 
