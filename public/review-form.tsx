@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FormSection, FormField } from "./form-section"
 import { ReviewFormData } from "@/lib/types"
-import { saveReview, saveDraft, getDraft } from "@/lib/store"
+import { saveReview, saveDraft, getDraft, clearDraft } from "@/lib/store"
 import { defaultScores, calcTotalScore } from "@/lib/review-utils"
 import {
   SECTION_1_QUESTIONS,
@@ -53,7 +53,7 @@ export function ReviewForm({ initialData, reviewId }: Props) {
   const [form, setForm] = useState<ReviewFormData>(initialData ?? emptyForm())
   const [submitting, setSubmitting] = useState(false)
   const [saveConfirmed, setSaveConfirmed] = useState(false)
-  const hasInitialized = React.useRef(false)
+  const hasInitialized = useRef(false)
 
   // Pre-fill from queue, query params, or draft on mount (only for new forms)
   useEffect(() => {
