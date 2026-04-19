@@ -15,6 +15,7 @@ import {
   removeFromQueue,
   saveQueue,
   getQueue,
+  getReviewByCompetitorName,
 } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { Trash2, Plus, ClipboardList, ArrowUpDown, ExternalLink, Play } from "lucide-react"
@@ -76,9 +77,19 @@ function QueueManager() {
 
   async function handleStartReview(item: QueueItem) {
     await updateQueueItemStatus(item.id, "In Progress")
+    
+    // Check if a review already exists for this competitor (by name or URL)
+    const existingReview = await getReviewByCompetitorName(item.name || "", item.url)
+    if (existingReview) {
+      // Navigate to the existing review
+      router.push(`/admin/reviews/${existingReview.id}`)
+      return
+    }
+    
+    // No existing review - go to form to create one
     sessionStorage.setItem("queueUrl", item.url)
     if (item.name) sessionStorage.setItem("queueName", item.name)
-    router.push("/")
+    router.push("/admin/form")
   }
 
   function sorted(items: QueueItem[]) {
@@ -405,14 +416,14 @@ function QueueManager() {
                   })}
                 </span>
 
-                {/* Start Review */}
+                {/* Review */}
                 <button
                   onClick={() => handleStartReview(item)}
                   disabled={item.status === "Completed"}
                   className="flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Play size={11} />
-                  Start
+                  Review
                 </button>
 
                 {/* Delete */}
