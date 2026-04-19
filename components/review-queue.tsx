@@ -26,7 +26,7 @@ export function ReviewQueue() {
     await updateQueueItemStatus(item.id, "In Progress")
     sessionStorage.setItem("queueUrl", item.url)
     if (item.name) sessionStorage.setItem("queueName", item.name)
-    router.push("/")
+    router.push("/form")
   }
 
   const statusColors: Record<QueueStatus, string> = {
