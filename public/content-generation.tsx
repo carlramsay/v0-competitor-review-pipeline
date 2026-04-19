@@ -548,9 +548,16 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     const IMAGE_CYCLE_INTERVAL = 6 // seconds
     const LOGO_DURATION = 3 // seconds
 
-    // Load all background images
+    // Load all background images - use review screenshots if available, otherwise fall back to global library
     const images: HTMLImageElement[] = []
-    for (const bgImg of backgroundLibrary) {
+    const reviewScreenshots = record.formData.reviewScreenshots || []
+    const imageSources = reviewScreenshots.length > 0 
+      ? reviewScreenshots.map((dataUrl, i) => ({ id: `review-${i}`, dataUrl }))
+      : backgroundLibrary
+    
+    console.log("[v0] Using", reviewScreenshots.length > 0 ? "review screenshots" : "global library", "for backgrounds:", imageSources.length, "images")
+    
+    for (const bgImg of imageSources) {
       const img = new Image()
       img.crossOrigin = "anonymous"
       await new Promise<void>((resolve, reject) => {
@@ -562,7 +569,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     }
 
     if (images.length === 0) {
-      throw new Error("No background images available")
+      throw new Error("No background images available - upload screenshots in the review form or add images to the global library in Settings")
     }
 
     // Load logo video if available in IndexedDB
@@ -961,8 +968,10 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       return
     }
 
-    if (backgroundLibrary.length === 0) {
-      setError("Please add background images in Settings first.")
+    // Check if we have background images (either from review or global library)
+    const reviewScreenshots = record.formData.reviewScreenshots || []
+    if (backgroundLibrary.length === 0 && reviewScreenshots.length === 0) {
+      setError("Please add background images in Settings or upload screenshots in the review form.")
       return
     }
 
