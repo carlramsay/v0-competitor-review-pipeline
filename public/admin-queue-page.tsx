@@ -78,14 +78,12 @@ function QueueManager() {
   async function handleStartReview(item: QueueItem) {
     await updateQueueItemStatus(item.id, "In Progress")
     
-    // Check if a review already exists for this competitor
-    if (item.name) {
-      const existingReview = await getReviewByCompetitorName(item.name)
-      if (existingReview) {
-        // Navigate to the existing review
-        router.push(`/admin/reviews/${existingReview.id}`)
-        return
-      }
+    // Check if a review already exists for this competitor (by name or URL)
+    const existingReview = await getReviewByCompetitorName(item.name || "", item.url)
+    if (existingReview) {
+      // Navigate to the existing review
+      router.push(`/admin/reviews/${existingReview.id}`)
+      return
     }
     
     // No existing review - go to form to create one

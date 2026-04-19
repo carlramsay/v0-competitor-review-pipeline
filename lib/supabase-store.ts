@@ -60,7 +60,7 @@ export async function saveReview(record: ReviewRecord): Promise<void> {
   }
 }
 
-export async function getReviewByCompetitorName(name: string): Promise<ReviewRecord | null> {
+export async function getReviewByCompetitorName(name: string, url?: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from("reviews")
@@ -72,14 +72,24 @@ export async function getReviewByCompetitorName(name: string): Promise<ReviewRec
     return null
   }
 
-  // Find review where competitorName matches (case-insensitive)
+  console.log("[v0] Looking for review with name:", name, "url:", url)
+  console.log("[v0] Found", data.length, "reviews to search")
+
+  // Find review where competitorName or competitorUrl matches (case-insensitive)
   const match = data.find((row) => {
     const formData = row.form_data as ReviewFormData
-    return formData.competitorName?.toLowerCase() === name.toLowerCase()
+    const nameMatch = formData.competitorName?.toLowerCase() === name?.toLowerCase()
+    const urlMatch = url && formData.competitorUrl?.toLowerCase() === url?.toLowerCase()
+    console.log("[v0] Checking review:", formData.competitorName, "nameMatch:", nameMatch, "urlMatch:", urlMatch)
+    return nameMatch || urlMatch
   })
 
-  if (!match) return null
+  if (!match) {
+    console.log("[v0] No matching review found")
+    return null
+  }
 
+  console.log("[v0] Found matching review:", match.id)
   return {
     id: match.id,
     submittedAt: match.submitted_at,
