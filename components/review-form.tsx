@@ -16,7 +16,7 @@ import {
   DISCOVERY_OPTIONS,
 } from "@/lib/questions"
 import { cn } from "@/lib/utils"
-import { Save, RotateCcw, Check } from "lucide-react"
+import { Save, RotateCcw, Check, Upload, X } from "lucide-react"
 
 const inputClass =
   "w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
@@ -35,6 +35,7 @@ function emptyForm(): ReviewFormData {
     q14: "", q15: "", q16: "", q17: "", q18: "", q19: "",
     q20: "", q21: "", q22: "", q23: "",
     q24: "", q25: "", q26: "", q27: "", q28: "",
+    reviewScreenshots: [],
     scores: defaultScores(),
     q29: "",
     q30: "Do NOT include screenshots of the competitor's interface or logos. Describe what you saw in writing only.",
@@ -342,6 +343,82 @@ export function ReviewForm({ initialData, reviewId }: Props) {
             />
           </FormField>
         ))}
+      </FormSection>
+
+      {/* Section 6.5 — Review Screenshots */}
+      <FormSection title="Review Screenshots" sectionNumber={6.5}>
+        <div className="space-y-4">
+          <p className="text-sm text-red-500 font-medium">
+            Important: blur all faces, usernames, and personal information before uploading
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Upload screenshots from this competitor review. These will be used as background images in the generated video instead of the default library.
+          </p>
+          
+          {/* Upload area */}
+          <label className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/30 p-6 cursor-pointer hover:bg-secondary/50 transition-colors">
+            <Upload size={24} className="text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Click to upload images (JPG, PNG, WebP)</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              className="hidden"
+              onChange={async (e) => {
+                const files = Array.from(e.target.files || [])
+                const newScreenshots: string[] = []
+                
+                for (const file of files) {
+                  const reader = new FileReader()
+                  const dataUrl = await new Promise<string>((resolve) => {
+                    reader.onloadend = () => resolve(reader.result as string)
+                    reader.readAsDataURL(file)
+                  })
+                  newScreenshots.push(dataUrl)
+                }
+                
+                setForm((prev) => ({
+                  ...prev,
+                  reviewScreenshots: [...(prev.reviewScreenshots || []), ...newScreenshots],
+                }))
+                e.target.value = "" // Reset input
+              }}
+            />
+          </label>
+
+          {/* Thumbnail grid */}
+          {form.reviewScreenshots && form.reviewScreenshots.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {form.reviewScreenshots.map((dataUrl, index) => (
+                <div key={index} className="relative group aspect-video rounded-md overflow-hidden border border-border">
+                  <img
+                    src={dataUrl}
+                    alt={`Screenshot ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((prev) => ({
+                        ...prev,
+                        reviewScreenshots: prev.reviewScreenshots?.filter((_, i) => i !== index) || [],
+                      }))
+                    }}
+                    className="absolute top-1 right-1 p-1 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {form.reviewScreenshots && form.reviewScreenshots.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {form.reviewScreenshots.length} screenshot{form.reviewScreenshots.length !== 1 ? "s" : ""} uploaded
+            </p>
+          )}
+        </div>
       </FormSection>
 
       {/* Section 7 — Scores */}
