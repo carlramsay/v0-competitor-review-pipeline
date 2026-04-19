@@ -89,11 +89,34 @@ export interface GeneratedContent {
   videoVerticalDataUrl?: string
 }
 
+export interface PipelineStatus {
+  reviewSubmitted: boolean
+  reviewApproved: boolean
+  blogPostGenerated: boolean
+  videoScriptGenerated: boolean
+  avatarVideoGenerated: boolean
+  allContentReady: boolean
+}
+
+export interface TaskStatus {
+  blogPublishedArousr: boolean
+  videoPostedYouTube: boolean
+  videoPostedXBIZ: boolean
+  videoEmbeddedBlog: boolean
+  blogPostedMedium: boolean
+  linkedInArticle: boolean
+  xPost: boolean
+  facebookPost: boolean
+  instagramPost: boolean
+}
+
 export interface ReviewRecord {
   id: string
   submittedAt: string
   formData: ReviewFormData
   generated: GeneratedContent
+  pipelineStatus?: PipelineStatus
+  tasks?: TaskStatus
 }
 
 export interface ThumbnailImage {

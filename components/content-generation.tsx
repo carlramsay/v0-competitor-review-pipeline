@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { ReviewRecord, ThumbnailImage } from "@/lib/types"
-import { getSettings, updateGeneratedContent, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
+import { getSettings, updateGeneratedContent, updatePipelineStatus, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { generateHeyGenAvatarVideo } from "@/lib/heygen-service"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
@@ -220,11 +220,15 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       if (type === "blog") {
         const updated = await updateGeneratedContent(record.id, { blogPost: content })
         if (updated) setRecord(updated)
+        // Update pipeline status
+        await updatePipelineStatus(record.id, { blogPostGenerated: true })
       } else if (type === "video") {
         // Replace Arousr with Arouser for voice script pronunciation
         const videoScript = content.replace(/Arousr/g, "Arouser")
         const updated = await updateGeneratedContent(record.id, { videoScript })
         if (updated) setRecord(updated)
+        // Update pipeline status
+        await updatePipelineStatus(record.id, { videoScriptGenerated: true })
       } else {
         // Parse social snippets
         const tweetMatch = content.match(/---TWEET---([\s\S]*?)(?=---INSTAGRAM---|$)/)
@@ -355,6 +359,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       })
       if (updated) {
         setRecord(updated)
+        // Update pipeline status
+        await updatePipelineStatus(record.id, { avatarVideoGenerated: true })
         // Convert base64 to blob for playback
         const binary = atob(base64)
         const bytes = new Uint8Array(binary.length)
