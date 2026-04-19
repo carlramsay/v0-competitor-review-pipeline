@@ -53,10 +53,13 @@ export function ReviewForm({ initialData, reviewId }: Props) {
   const [form, setForm] = useState<ReviewFormData>(initialData ?? emptyForm())
   const [submitting, setSubmitting] = useState(false)
   const [saveConfirmed, setSaveConfirmed] = useState(false)
+  const hasInitialized = React.useRef(false)
 
   // Pre-fill from queue, query params, or draft on mount (only for new forms)
   useEffect(() => {
     if (initialData) return // Skip for edit mode
+    if (hasInitialized.current) return // Only run once
+    hasInitialized.current = true
     
     const queueUrl = sessionStorage.getItem("queueUrl")
     const queueName = sessionStorage.getItem("queueName")
