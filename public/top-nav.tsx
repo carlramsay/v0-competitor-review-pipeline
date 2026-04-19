@@ -1,6 +1,6 @@
 "use client"
 
-import { ShieldCheck } from "lucide-react"
+import { ShieldCheck, Home } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -17,9 +17,13 @@ export function TopNav() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/80 backdrop-blur-sm">
       <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4">
         <div className="flex items-center gap-1">
-          <span className="mr-4 text-sm font-semibold tracking-wide text-foreground/60">
-            Review Pipeline
-          </span>
+          <Link
+            href="/"
+            className="mr-3 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+            aria-label="Home"
+          >
+            <Home size={18} />
+          </Link>
           {tabs.map((tab) => {
             const active =
               tab.href === "/"
