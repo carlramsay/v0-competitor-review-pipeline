@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 const tabs = [
-  { label: "Form", href: "/" },
   { label: "Queue", href: "/queue" },
   { label: "Reviews", href: "/reviews" },
 ]
