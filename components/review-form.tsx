@@ -135,6 +135,11 @@ export function ReviewForm({ initialData, reviewId }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {/* Dynamic page title */}
+      <h1 className="mb-4 text-center text-3xl font-bold tracking-tight text-foreground">
+        {form.competitorName ? `${form.competitorName} Review` : "Competitor Review"}
+      </h1>
+
       {/* Draft restore banner */}
       {savedDraft && (
         <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
