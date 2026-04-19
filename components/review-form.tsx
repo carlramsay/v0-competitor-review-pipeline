@@ -53,9 +53,10 @@ export function ReviewForm({ initialData, reviewId }: Props) {
   const [form, setForm] = useState<ReviewFormData>(initialData ?? emptyForm())
   const [submitting, setSubmitting] = useState(false)
   const [saveConfirmed, setSaveConfirmed] = useState(false)
+  const [loadedReviewId, setLoadedReviewId] = useState<string | undefined>(reviewId)
   const hasInitialized = useRef(false)
 
-  // Pre-fill from queue, query params, or draft on mount (only for new forms)
+  // Pre-fill from queue, query params, existing review, or draft on mount (only for new forms)
   useEffect(() => {
     if (initialData) return // Skip for edit mode
     if (hasInitialized.current) return // Only run once
@@ -65,15 +66,23 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     const queueName = sessionStorage.getItem("queueName")
     const paramUrl = searchParams.get("url")
     
-    // Always try to load draft first
-    getDraft().then((draft) => {
-      // If coming from queue, check if draft matches the queue competitor
+    async function loadData() {
+      // If coming from queue, check for existing review first, then draft
       if (queueUrl || queueName) {
         // Clear the session storage so it doesn't auto-fill on other visits
         sessionStorage.removeItem("queueUrl")
         sessionStorage.removeItem("queueName")
         
-        // If draft matches the competitor from queue, use the draft (it has more data)
+        // First check if a submitted review exists for this competitor
+        const existingReview = await getReviewByCompetitorName(queueName || "", queueUrl || "")
+        if (existingReview) {
+          setForm(existingReview.formData)
+          setLoadedReviewId(existingReview.id)
+          return
+        }
+        
+        // No existing review - check for draft
+        const draft = await getDraft()
         if (draft && draft.formData.competitorName?.toLowerCase() === queueName?.toLowerCase()) {
           setForm(draft.formData)
         } else {
@@ -84,11 +93,16 @@ export function ReviewForm({ initialData, reviewId }: Props) {
             competitorName: queueName || prev.competitorName,
           }))
         }
-      } else if (draft) {
+      } else {
         // No queue data - load draft if available
-        setForm(draft.formData)
+        const draft = await getDraft()
+        if (draft) {
+          setForm(draft.formData)
+        }
       }
-    })
+    }
+    
+    loadData()
   }, [initialData, searchParams])
 
   async function handleSaveProgress() {
@@ -120,8 +134,8 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     e.preventDefault()
     setSubmitting(true)
     
-    // Check if a review already exists for this competitor (update instead of duplicate)
-    let id = reviewId
+    // Use loaded review ID, prop review ID, or check for existing review
+    let id = loadedReviewId || reviewId
     let existingGenerated = {}
     if (!id && form.competitorName) {
       const existing = await getReviewByCompetitorName(form.competitorName, form.competitorUrl)
