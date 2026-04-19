@@ -1,4 +1,3 @@
-// Supabase migration
 "use client"
 
 // Re-export everything from supabase-store for backward compatibility
@@ -8,7 +7,10 @@ export {
   getReviews,
   saveReview,
   getReviewById,
+  getReviewByCompetitorName,
   updateGeneratedContent,
+  updatePipelineStatus,
+  updateTaskStatus,
   getSettings,
   saveSettings,
   getThumbnailLibrary,
@@ -31,4 +33,4 @@ export {
 } from "./supabase-store"
 
 // Re-export types
-export type { ReviewRecord, AppSettings, GeneratedContent, ThumbnailImage, QueueItem, ReviewFormData } from "./types"
+export type { ReviewRecord, AppSettings, GeneratedContent, ThumbnailImage, QueueItem, ReviewFormData, PipelineStatus, TaskStatus } from "./types"
