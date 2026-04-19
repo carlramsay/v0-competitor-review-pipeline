@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FormSection, FormField } from "./form-section"
 import { ReviewFormData } from "@/lib/types"
-import { saveReview, saveDraft, getDraft, clearDraft } from "@/lib/store"
+import { saveReview, saveDraft, getDraft, clearDraft, getReviewByCompetitorName } from "@/lib/store"
 import { defaultScores, calcTotalScore } from "@/lib/review-utils"
 import {
   SECTION_1_QUESTIONS,
@@ -119,8 +119,20 @@ export function ReviewForm({ initialData, reviewId }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
-    const id = reviewId ?? crypto.randomUUID()
-    await saveReview({ id, submittedAt: new Date().toISOString(), formData: form, generated: {} })
+    
+    // Check if a review already exists for this competitor (update instead of duplicate)
+    let id = reviewId
+    let existingGenerated = {}
+    if (!id && form.competitorName) {
+      const existing = await getReviewByCompetitorName(form.competitorName, form.competitorUrl)
+      if (existing) {
+        id = existing.id
+        existingGenerated = existing.generated // Preserve any generated content
+      }
+    }
+    
+    id = id ?? crypto.randomUUID()
+    await saveReview({ id, submittedAt: new Date().toISOString(), formData: form, generated: existingGenerated })
     await clearDraft()
     router.push(`/generate/${id}`)
   }
