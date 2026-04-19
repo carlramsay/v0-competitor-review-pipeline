@@ -137,11 +137,19 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     // Use loaded review ID, prop review ID, or check for existing review
     let id = loadedReviewId || reviewId
     let existingGenerated = {}
-    if (!id && form.competitorName) {
+    
+    // Always fetch existing review to preserve generated content
+    if (id) {
+      const { getReviewById } = await import("@/lib/store")
+      const existing = await getReviewById(id)
+      if (existing) {
+        existingGenerated = existing.generated || {}
+      }
+    } else if (form.competitorName) {
       const existing = await getReviewByCompetitorName(form.competitorName, form.competitorUrl)
       if (existing) {
         id = existing.id
-        existingGenerated = existing.generated // Preserve any generated content
+        existingGenerated = existing.generated || {}
       }
     }
     
