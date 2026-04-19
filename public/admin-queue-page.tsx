@@ -15,6 +15,7 @@ import {
   removeFromQueue,
   saveQueue,
   getQueue,
+  getReviewByCompetitorName,
 } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { Trash2, Plus, ClipboardList, ArrowUpDown, ExternalLink, Play } from "lucide-react"
@@ -76,6 +77,18 @@ function QueueManager() {
 
   async function handleStartReview(item: QueueItem) {
     await updateQueueItemStatus(item.id, "In Progress")
+    
+    // Check if a review already exists for this competitor
+    if (item.name) {
+      const existingReview = await getReviewByCompetitorName(item.name)
+      if (existingReview) {
+        // Navigate to the existing review
+        router.push(`/admin/reviews/${existingReview.id}`)
+        return
+      }
+    }
+    
+    // No existing review - go to form to create one
     sessionStorage.setItem("queueUrl", item.url)
     if (item.name) sessionStorage.setItem("queueName", item.name)
     router.push("/admin/form")

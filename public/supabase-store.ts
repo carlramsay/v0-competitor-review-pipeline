@@ -60,6 +60,36 @@ export async function saveReview(record: ReviewRecord): Promise<void> {
   }
 }
 
+export async function getReviewByCompetitorName(name: string): Promise<ReviewRecord | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("*")
+    .order("submitted_at", { ascending: false })
+
+  if (error || !data) {
+    console.error("[v0] Error fetching reviews by name:", error)
+    return null
+  }
+
+  // Find review where competitorName matches (case-insensitive)
+  const match = data.find((row) => {
+    const formData = row.form_data as ReviewFormData
+    return formData.competitorName?.toLowerCase() === name.toLowerCase()
+  })
+
+  if (!match) return null
+
+  return {
+    id: match.id,
+    submittedAt: match.submitted_at,
+    formData: match.form_data as ReviewFormData,
+    generated: match.generated as GeneratedContent,
+    pipelineStatus: match.pipeline_status as PipelineStatus | undefined,
+    tasks: match.tasks as TaskStatus | undefined,
+  }
+}
+
 export async function getReviewById(id: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
   const { data, error } = await supabase

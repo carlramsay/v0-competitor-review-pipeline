@@ -7,6 +7,7 @@ export {
   getReviews,
   saveReview,
   getReviewById,
+  getReviewByCompetitorName,
   updateGeneratedContent,
   updatePipelineStatus,
   updateTaskStatus,
