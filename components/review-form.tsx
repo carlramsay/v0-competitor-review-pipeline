@@ -54,39 +54,33 @@ export function ReviewForm({ initialData, reviewId }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [saveConfirmed, setSaveConfirmed] = useState(false)
 
-  // Auto-load saved draft on mount (only for new forms, not edits)
+  // Pre-fill from queue, query params, or draft on mount (only for new forms)
   useEffect(() => {
-    if (!initialData) {
+    if (initialData) return // Skip for edit mode
+    
+    const queueUrl = sessionStorage.getItem("queueUrl")
+    const queueName = sessionStorage.getItem("queueName")
+    const paramUrl = searchParams.get("url")
+    
+    // If coming from queue, use queue data and ignore draft
+    if (queueUrl || queueName) {
+      setForm((prev) => ({
+        ...prev,
+        competitorUrl: queueUrl || paramUrl || prev.competitorUrl,
+        competitorName: queueName || prev.competitorName,
+      }))
+      // Clear the session storage so it doesn't auto-fill on other visits
+      sessionStorage.removeItem("queueUrl")
+      sessionStorage.removeItem("queueName")
+    } else {
+      // No queue data - load draft if available
       getDraft().then((draft) => {
         if (draft) {
           setForm(draft.formData)
         }
       })
     }
-  }, [initialData])
-
-  // Pre-fill URL and competitor name from queue or query params
-  useEffect(() => {
-    const queueUrl = sessionStorage.getItem("queueUrl")
-    const queueName = sessionStorage.getItem("queueName")
-    const paramUrl = searchParams.get("url")
-    const urlToUse = queueUrl || paramUrl
-
-    if (urlToUse || queueName) {
-      setForm((prev) => ({
-        ...prev,
-        competitorUrl: urlToUse || prev.competitorUrl,
-        competitorName: queueName || prev.competitorName,
-      }))
-      // Clear the session storage so it doesn't auto-fill on other visits
-      if (queueUrl) {
-        sessionStorage.removeItem("queueUrl")
-      }
-      if (queueName) {
-        sessionStorage.removeItem("queueName")
-      }
-    }
-  }, [searchParams])
+  }, [initialData, searchParams])
 
   async function handleSaveProgress() {
     await saveDraft(form)
