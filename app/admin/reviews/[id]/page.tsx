@@ -183,6 +183,39 @@ function AdminReviewDetailContent() {
           </section>
         ))}
 
+        {/* Review Screenshots */}
+        {formData.reviewScreenshots && formData.reviewScreenshots.length > 0 && (
+          <section className="mb-6 rounded-lg border border-border bg-card overflow-hidden">
+            <div className="border-b border-border bg-secondary/30 px-5 py-3">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Review Screenshots ({formData.reviewScreenshots.length})
+              </h2>
+            </div>
+            <div className="p-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {formData.reviewScreenshots.map((dataUrl, index) => (
+                  <a
+                    key={index}
+                    href={dataUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative aspect-video rounded-md overflow-hidden border border-border hover:border-primary transition-colors"
+                  >
+                    <img
+                      src={dataUrl}
+                      alt={`Screenshot ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-xs text-white font-medium">View full size</span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Meta */}
         <section className="mb-6 rounded-lg border border-border bg-card overflow-hidden">
           <div className="border-b border-border bg-secondary/30 px-5 py-3">
