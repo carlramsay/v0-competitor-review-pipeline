@@ -522,7 +522,7 @@ export function ReviewForm({ initialData, reviewId }: Props) {
           disabled={submitting}
           className="flex-1 rounded-md bg-primary py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {submitting ? "Saving..." : "Submit Review"}
+          {submitting ? "Saving..." : "Next - Content Generation"}
         </button>
       </div>
     </form>
