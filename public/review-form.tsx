@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FormSection, FormField } from "./form-section"
 import { ReviewFormData } from "@/lib/types"
-import { saveReview, saveDraft, getDraft, clearDraft } from "@/lib/store"
+import { saveReview, saveDraft, getDraft } from "@/lib/store"
 import { defaultScores, calcTotalScore } from "@/lib/review-utils"
 import {
   SECTION_1_QUESTIONS,
@@ -16,7 +16,7 @@ import {
   DISCOVERY_OPTIONS,
 } from "@/lib/questions"
 import { cn } from "@/lib/utils"
-import { Save, RotateCcw, Check, Upload, X } from "lucide-react"
+import { Save, Check, Upload, X } from "lucide-react"
 
 const inputClass =
   "w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
@@ -52,14 +52,15 @@ export function ReviewForm({ initialData, reviewId }: Props) {
   const searchParams = useSearchParams()
   const [form, setForm] = useState<ReviewFormData>(initialData ?? emptyForm())
   const [submitting, setSubmitting] = useState(false)
-  const [savedDraft, setSavedDraft] = useState<{ formData: ReviewFormData; savedAt: string } | null>(null)
   const [saveConfirmed, setSaveConfirmed] = useState(false)
 
-  // Detect saved draft on mount (only for new forms, not edits)
+  // Auto-load saved draft on mount (only for new forms, not edits)
   useEffect(() => {
     if (!initialData) {
       getDraft().then((draft) => {
-        if (draft) setSavedDraft(draft)
+        if (draft) {
+          setForm(draft.formData)
+        }
       })
     }
   }, [initialData])
@@ -93,17 +94,7 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     setTimeout(() => setSaveConfirmed(false), 2000)
   }
 
-  function handleRestoreDraft() {
-    if (savedDraft) {
-      setForm(savedDraft.formData)
-      setSavedDraft(null)
-    }
-  }
 
-  async function handleDismissDraft() {
-    await clearDraft()
-    setSavedDraft(null)
-  }
 
   function set(key: keyof ReviewFormData, value: unknown) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -139,38 +130,6 @@ export function ReviewForm({ initialData, reviewId }: Props) {
       <h1 className="mb-4 text-center text-3xl font-bold tracking-tight text-foreground">
         {form.competitorName ? `${form.competitorName} Review` : "Competitor Review"}
       </h1>
-
-      {/* Draft restore banner */}
-      {savedDraft && (
-        <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-amber-400">You have a saved draft</p>
-            <p className="text-xs text-muted-foreground">
-              Last saved {new Date(savedDraft.savedAt).toLocaleString()} —{" "}
-              {savedDraft.formData.competitorName
-                ? `${savedDraft.formData.competitorName} review`
-                : "unnamed review"}
-            </p>
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <button
-              type="button"
-              onClick={handleRestoreDraft}
-              className="flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-400"
-            >
-              <RotateCcw size={12} />
-              Restore
-            </button>
-            <button
-              type="button"
-              onClick={handleDismissDraft}
-              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Header fields */}
       <div className="rounded-lg border border-border bg-card p-5">
