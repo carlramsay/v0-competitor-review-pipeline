@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
 import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, updatePipelineStatus, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
-import { generateHeyGenAvatarVideo } from "@/lib/heygen-service"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { cn } from "@/lib/utils"
@@ -169,29 +168,32 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     }
   }, [initialRecord.generated.videoDataUrl, initialRecord.generated.videoVerticalDataUrl])
 
-  // Hydrate saved avatar video from Supabase on mount
+  // Hydrate saved voiceover from Supabase on mount
   useEffect(() => {
-    async function loadAvatarVideo() {
+    async function loadVoiceover() {
       if (initialRecord.generated.voiceoverBase64) {
         try {
           // voiceoverBase64 now stores the Supabase key, not the actual data
-          const avatarVideoKey = initialRecord.generated.voiceoverBase64
-          const base64 = await getVideoAsset(avatarVideoKey)
+          const voiceoverKey = initialRecord.generated.voiceoverBase64
+          const base64 = await getVideoAsset(voiceoverKey)
           if (base64) {
             const binary = atob(base64)
             const bytes = new Uint8Array(binary.length)
             for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-            const blob = new Blob([bytes], { type: "video/mp4" })
+            // Detect format: voiceover- prefix means ElevenLabs MP3, avatar-video- means old HeyGen MP4
+            const isMP3 = voiceoverKey.startsWith("voiceover-")
+            const mimeType = isMP3 ? "audio/mpeg" : "video/mp4"
+            const blob = new Blob([bytes], { type: mimeType })
             const url = URL.createObjectURL(blob)
             setAudioBlob(blob)
             setAudioUrl(url)
           }
         } catch (err) {
-          // Silently ignore corrupt data or missing video
+          // Silently ignore corrupt data or missing audio
         }
       }
     }
-    loadAvatarVideo()
+    loadVoiceover()
   }, [initialRecord.generated.voiceoverBase64])
 
   const answers = buildAnswersString(record.formData)
@@ -313,59 +315,80 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     URL.revokeObjectURL(url)
   }
 
-  async function generateAvatarVideo() {
+  async function generateVoiceover() {
     setError(null)
-    setLoading("avatar")
+    setLoading("voiceover")
     const settings = await getSettings()
 
     if (!record.generated.videoScript) {
-      setError("Generate a video script first before creating an avatar video.")
+      setError("Generate a video script first before creating the voiceover.")
       setLoading(null)
       return
     }
-    if (!settings.heygenApiKey) {
-      setError("HeyGen API key is missing. Add it in Admin Settings.")
+    if (!settings.elevenLabsApiKey) {
+      setError("ElevenLabs API key is missing. Add it in Admin Settings.")
       setLoading(null)
       return
     }
-    if (!settings.heygenAvatarId) {
-      setError("HeyGen Avatar ID is missing. Add it in Admin Settings.")
-      setLoading(null)
-      return
-    }
-    if (!settings.heygenVoiceId) {
-      setError("HeyGen Voice ID is missing. Add it in Admin Settings.")
+    if (!settings.elevenLabsVoiceId) {
+      setError("ElevenLabs Voice ID is missing. Add it in Admin Settings.")
       setLoading(null)
       return
     }
 
     try {
-      setVideoProgress("Generating avatar video… usually takes 1–2 minutes.")
-      const base64 = await generateHeyGenAvatarVideo(
-        settings.heygenApiKey,
-        settings.heygenAvatarId,
-        settings.heygenVoiceId,
-        record.generated.videoScript
-      )
+      setVideoProgress("Generating voiceover with ElevenLabs...")
+      
+      // Call ElevenLabs API to generate speech
+      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${settings.elevenLabsVoiceId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "xi-api-key": settings.elevenLabsApiKey,
+        },
+        body: JSON.stringify({
+          text: record.generated.videoScript,
+          model_id: "eleven_multilingual_v2",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+          },
+        }),
+      })
 
-      // Save to IndexedDB (not localStorage) to avoid quota limits
-      const avatarVideoKey = `avatar-video-${record.id}`
-      await saveVideoAsset(avatarVideoKey, base64)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.detail?.message || errData.detail || `ElevenLabs API error: ${res.status}`)
+      }
 
-      // Update record to mark that avatar video exists (store key reference, not the data)
+      // Get the audio as a blob
+      const audioData = await res.arrayBuffer()
+      const blob = new Blob([audioData], { type: "audio/mpeg" })
+      
+      // Convert to base64 for storage
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const result = reader.result as string
+          resolve(result.split(",")[1])
+        }
+        reader.readAsDataURL(blob)
+      })
+
+      // Save to Supabase storage
+      const voiceoverKey = `voiceover-${record.id}`
+      await saveVideoAsset(voiceoverKey, base64)
+
+      // Update record to mark that voiceover exists
       const updated = await updateGeneratedContent(record.id, {
-        voiceoverBase64: avatarVideoKey, // Store the key, not the actual base64
+        voiceoverBase64: voiceoverKey,
         voiceoverScriptHash: record.generated.videoScript ?? "",
       })
       if (updated) {
         setRecord(updated)
         // Update pipeline status
         await updatePipelineStatus(record.id, { avatarVideoGenerated: true })
-        // Convert base64 to blob for playback
-        const binary = atob(base64)
-        const bytes = new Uint8Array(binary.length)
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-        const blob = new Blob([bytes], { type: "video/mp4" })
+        // Set blob for playback and video generation
         const url = URL.createObjectURL(blob)
         setAudioBlob(blob)
         setAudioUrl(url)
@@ -598,30 +621,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       })
     }
 
-    // Load presenter avatar video if available in Supabase
-    let avatarVideo: HTMLVideoElement | null = null
-    const avatarBase64 = await getVideoAsset(`avatar-video-${record.id}`)
-    console.log("[v0] Avatar video key:", `avatar-video-${record.id}`, "Found:", !!avatarBase64)
-    if (avatarBase64) {
-      avatarVideo = document.createElement("video")
-      avatarVideo.muted = true
-      avatarVideo.loop = true
-      avatarVideo.playsInline = true
-      avatarVideo.crossOrigin = "anonymous"
-      const avatarBlob = new Blob(
-        [Uint8Array.from(atob(avatarBase64), (c) => c.charCodeAt(0))],
-        { type: "video/mp4" }
-      )
-      avatarVideo.src = URL.createObjectURL(avatarBlob)
-      await new Promise<void>((resolve, reject) => {
-        avatarVideo!.onloadeddata = () => resolve()
-        avatarVideo!.onerror = () => reject(new Error("Failed to load avatar video"))
-        avatarVideo!.load()
-      })
-      console.log("[v0] Avatar video loaded, dimensions:", avatarVideo.videoWidth, "x", avatarVideo.videoHeight)
-    } else {
-      console.log("[v0] No avatar video found - avatar will not appear in video")
-    }
+    // Avatar video removed - HeyGen integration is paused
 
     const canvas = document.createElement("canvas")
     canvas.width = width
@@ -693,61 +693,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const y = (height - img.height * scale) / 2
       ctx!.drawImage(img, x, y, img.width * scale, img.height * scale)
       ctx!.globalAlpha = 1
-    }
-
-    // Avatar dimensions - calculated dynamically based on actual video aspect ratio
-    const isHorizontal = width >= height
-    const avatarRadius = 12
-    const avatarRight = isHorizontal ? 40 : 30
-    const avatarBottom = isHorizontal ? 100 : 160
-
-    // Helper: draw avatar with rounded-rect clip mask, cropping black bars
-    function drawAvatar() {
-      if (!avatarVideo || avatarVideo.readyState < 2) return
-      
-      const videoW = avatarVideo.videoWidth
-      const videoH = avatarVideo.videoHeight
-      if (videoW === 0 || videoH === 0) return
-      
-      // Crop black bars: assume person is in center 40% width of video
-      const cropPercent = 0.30 // crop 30% from each side
-      const srcX = Math.round(videoW * cropPercent)
-      const srcW = Math.round(videoW * (1 - 2 * cropPercent))
-      const srcY = 0
-      const srcH = videoH
-      
-      // Calculate display size based on cropped aspect ratio
-      const croppedAspect = srcW / srcH
-      
-      // Size avatar based on canvas - larger for better visibility
-      let avatarH: number, avatarW: number
-      if (isHorizontal) {
-        avatarH = Math.round(height * 0.45) // 45% of canvas height
-        avatarW = Math.round(avatarH * croppedAspect)
-      } else {
-        avatarH = Math.round(height * 0.32) // 32% for vertical
-        avatarW = Math.round(avatarH * croppedAspect)
-      }
-      
-      const avatarX = width - avatarRight - avatarW
-      const avatarY = height - avatarBottom - avatarH
-      
-      ctx!.save()
-      ctx!.beginPath()
-      ctx!.moveTo(avatarX + avatarRadius, avatarY)
-      ctx!.lineTo(avatarX + avatarW - avatarRadius, avatarY)
-      ctx!.arcTo(avatarX + avatarW, avatarY, avatarX + avatarW, avatarY + avatarRadius, avatarRadius)
-      ctx!.lineTo(avatarX + avatarW, avatarY + avatarH - avatarRadius)
-      ctx!.arcTo(avatarX + avatarW, avatarY + avatarH, avatarX + avatarW - avatarRadius, avatarY + avatarH, avatarRadius)
-      ctx!.lineTo(avatarX + avatarRadius, avatarY + avatarH)
-      ctx!.arcTo(avatarX, avatarY + avatarH, avatarX, avatarY + avatarH - avatarRadius, avatarRadius)
-      ctx!.lineTo(avatarX, avatarY + avatarRadius)
-      ctx!.arcTo(avatarX, avatarY, avatarX + avatarRadius, avatarY, avatarRadius)
-      ctx!.closePath()
-      ctx!.clip()
-      // Draw cropped portion of video
-      ctx!.drawImage(avatarVideo, srcX, srcY, srcW, srcH, avatarX, avatarY, avatarW, avatarH)
-      ctx!.restore()
     }
 
     // Caption font size: 38px for horizontal, 52px for vertical
@@ -852,7 +797,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     let isRecording = true
     const startTime = performance.now()
     let logoStarted = false
-    let avatarStarted = false
 
     function render() {
       if (!isRecording) return
@@ -910,22 +854,8 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         // Title (top, first 4–4.5 s only)
         drawTitle(elapsed)
 
-        // After title fades: show avatar PiP and captions (title holds 4s, fades 0.5s)
-        const TITLE_GONE = 4.0 // Avatar appears as title starts fading
-        if (elapsed >= TITLE_GONE) {
-          // Sync avatar video to audio time (avatar video contains the same audio)
-          if (avatarVideo && !avatarStarted) {
-            avatarVideo.currentTime = elapsed // Start at current audio position
-            avatarVideo.play().catch(() => {})
-            avatarStarted = true
-          }
-          // Keep avatar synced (prevent drift)
-          if (avatarVideo && avatarStarted && Math.abs(avatarVideo.currentTime - elapsed) > 0.2) {
-            avatarVideo.currentTime = elapsed
-          }
-          drawAvatar()
-          drawCaption(elapsed)
-        }
+        // Captions shown throughout the video
+        drawCaption(elapsed)
       }
 
       animationFrameId = requestAnimationFrame(render)
@@ -960,10 +890,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       logoVideo.pause()
       URL.revokeObjectURL(logoVideo.src)
     }
-    if (avatarVideo) {
-      avatarVideo.pause()
-      URL.revokeObjectURL(avatarVideo.src)
-    }
 
     return recordingPromise
   }
@@ -985,7 +911,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     setLoading("video")
     setVideoUrl(null)
     setVideoUrlVertical(null)
-    setVideoProgress("Generating captions\u2026 then rendering video. This takes about 60 seconds.")
+    setVideoProgress("Generating voiceover and captions\u2026 then rendering video. This takes about 60 seconds.")
 
     try {
       // Fetch Whisper word-level captions
@@ -1132,13 +1058,13 @@ export function ContentGeneration({ record: initialRecord }: Props) {
           </button>
           <button
             type="button"
-            onClick={generateAvatarVideo}
+            onClick={generateVoiceover}
             disabled={loading !== null || !record.generated.videoScript}
             className={actionBtn}
-            title={!record.generated.videoScript ? "Generate a video script first" : audioUrl ? "Re-generate avatar video" : undefined}
+            title={!record.generated.videoScript ? "Generate a video script first" : audioUrl ? "Re-generate voiceover" : undefined}
           >
-            {loading === "avatar" ? <Loader2 size={15} className="animate-spin" /> : <Video size={15} />}
-            {audioUrl ? "Re-generate Avatar Video" : "Generate Avatar Video"}
+            {loading === "voiceover" ? <Loader2 size={15} className="animate-spin" /> : <Video size={15} />}
+            {audioUrl ? "Re-generate Voiceover" : "Generate Voiceover"}
           </button>
           {/* Background image picker */}
           {backgroundLibrary.length > 0 && (
