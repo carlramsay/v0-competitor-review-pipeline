@@ -6,7 +6,7 @@ import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { cn } from "@/lib/utils"
 import { Download, ImageIcon, Save, Check } from "lucide-react"
 import { CopyButton } from "./copy-button"
-import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Eye, EyeOff, Linkedin } from "lucide-react"
+import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Eye, EyeOff, Linkedin, Facebook } from "lucide-react"
 
 interface OutputBlockProps {
   label: string
@@ -336,17 +336,60 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     }
   }
 
-  function downloadBlogPostHTML() {
-    if (!record.generated.blogPost) return
-    const blob = new Blob([record.generated.blogPost], { type: "text/html;charset=utf-8" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${record.formData.competitorName || "competitor"}-review.html`.toLowerCase().replace(/\s+/g, "-")
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  async function generateFacebookPost() {
+    setError(null)
+    setLoading("facebook")
+    const settings = await getSettings()
+
+    if (!settings.openaiApiKey) {
+      setError("OpenAI API key is missing. Add it in Admin Settings.")
+      setLoading(null)
+      return
+    }
+
+    const competitorName = record.formData.competitorName || "Competitor"
+    const systemPrompt = `Write a Facebook post based on this competitor review of ${competitorName}. Tone: conversational, engaging, informative but not overly formal. Frame it as sharing an interesting discovery with friends/followers. Structure: Start with an attention-grabbing opening line or question, 2-3 paragraphs covering the main findings (what stood out, pricing insights, user experience observations), end with a subtle mention of Arousr as an alternative worth checking out. Include a call-to-action like asking for opinions or experiences. Length: 150-250 words. Make it shareable and engaging for a general Facebook audience.`
+
+    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent },
+          ],
+          max_tokens: 800,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error?.message ?? "Facebook post generation failed")
+      }
+
+      const data = await res.json()
+      const content = data.choices?.[0]?.message?.content?.trim() || ""
+      
+      // Use the horizontal thumbnail as the Facebook image if available
+      const imageUrl = record.generated.thumbnailDataUrl || ""
+      
+      const updated = await updateGeneratedContent(record.id, { 
+        facebookPost: content,
+        facebookImageUrl: imageUrl 
+      })
+      if (updated) setRecord(updated)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setLoading(null)
+    }
   }
 
   async function generateVoiceover() {
@@ -1170,6 +1213,15 @@ export function ContentGeneration({ record: initialRecord }: Props) {
           </button>
           <button
             type="button"
+            onClick={generateFacebookPost}
+            disabled={loading !== null}
+            className={actionBtn}
+          >
+            {loading === "facebook" ? <Loader2 size={15} className="animate-spin" /> : <Facebook size={15} />}
+            Generate Facebook Post
+          </button>
+          <button
+            type="button"
             onClick={pushToWordPress}
             disabled={loading !== null}
             className={actionBtn}
@@ -1414,6 +1466,44 @@ export function ContentGeneration({ record: initialRecord }: Props) {
               if (updated) setRecord(updated)
             }}
           />
+        </div>
+      )}
+
+      {/* Facebook Post */}
+      {record.generated.facebookPost && (
+        <div className="rounded-lg border border-border bg-card p-5">
+          <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Facebook Post
+          </h3>
+          <div className="flex flex-col gap-4">
+            {/* Facebook Image */}
+            {record.generated.facebookImageUrl && (
+              <div className="relative rounded-lg overflow-hidden border border-border">
+                <img
+                  src={record.generated.facebookImageUrl}
+                  alt="Facebook post image"
+                  className="w-full h-auto object-cover"
+                />
+                <a
+                  href={record.generated.facebookImageUrl}
+                  download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "review"}-facebook-image.jpg`}
+                  className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-md bg-black/70 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-black/90"
+                >
+                  <Download size={12} />
+                  Download Image
+                </a>
+              </div>
+            )}
+            {/* Facebook Text */}
+            <OutputBlock
+              label="Post Text"
+              content={record.generated.facebookPost}
+              onSave={async (v) => {
+                const updated = await updateGeneratedContent(record.id, { facebookPost: v })
+                if (updated) setRecord(updated)
+              }}
+            />
+          </div>
         </div>
       )}
     </div>

@@ -82,6 +82,8 @@ export interface GeneratedContent {
   instagramSnippet?: string
   redditSnippet?: string
   linkedinPost?: string
+  facebookPost?: string
+  facebookImageUrl?: string
   wordpressDraftUrl?: string
   thumbnailDataUrl?: string
   thumbnailVerticalDataUrl?: string
