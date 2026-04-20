@@ -70,6 +70,8 @@ function AdminSettingsContent() {
     heygenApiKey: "",
     heygenAvatarId: "",
     heygenVoiceId: "",
+    elevenLabsApiKey: "",
+    elevenLabsVoiceId: "",
     logoVideoBase64: "",
     avatarVideoBase64: "",
   })
@@ -288,12 +290,51 @@ function AdminSettingsContent() {
             />
           </div>
 
-          {/* HeyGen */}
+          {/* ElevenLabs */}
           <div className="rounded-lg border border-border bg-card p-5">
             <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              HeyGen
+              ElevenLabs (Voice Generation)
             </h2>
             <div className="flex flex-col gap-4">
+              <PasswordField
+                label="API Key"
+                id="elevenlabs-key"
+                value={settings.elevenLabsApiKey}
+                onChange={(v) => set("elevenLabsApiKey", v)}
+                placeholder="Your ElevenLabs API key"
+              />
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="elevenlabs-voice" className="text-xs font-medium text-muted-foreground">
+                  Voice ID
+                </label>
+                <input
+                  id="elevenlabs-voice"
+                  className={inputClass}
+                  value={settings.elevenLabsVoiceId}
+                  onChange={(e) => set("elevenLabsVoiceId", e.target.value)}
+                  placeholder="Paste your ElevenLabs Voice ID"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Find this in your ElevenLabs dashboard under Voices → Voice ID
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* HeyGen - Coming Soon */}
+          <div className="rounded-lg border border-border bg-card p-5 opacity-60">
+            <div className="flex items-center gap-2 mb-4">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                HeyGen
+              </h2>
+              <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-400">
+                Coming Soon
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              HeyGen avatar integration is paused — will be re-enabled in a future update.
+            </p>
+            <div className="flex flex-col gap-4 pointer-events-none">
               <PasswordField
                 label="API Key"
                 id="heygen-key"
@@ -311,12 +352,9 @@ function AdminSettingsContent() {
                   value={settings.heygenAvatarId}
                   onChange={(e) => set("heygenAvatarId", e.target.value)}
                   placeholder="Paste your HeyGen Avatar ID"
+                  disabled
                 />
-                <p className="text-xs text-muted-foreground">
-                  Find this in your HeyGen dashboard under Avatars
-                </p>
               </div>
-
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="heygen-voice" className="text-xs font-medium text-muted-foreground">
                   Voice ID
@@ -327,10 +365,8 @@ function AdminSettingsContent() {
                   value={settings.heygenVoiceId}
                   onChange={(e) => set("heygenVoiceId", e.target.value)}
                   placeholder="Paste your HeyGen Voice ID"
+                  disabled
                 />
-                <p className="text-xs text-muted-foreground">
-                  Find this in your HeyGen dashboard under Voices
-                </p>
               </div>
             </div>
           </div>
