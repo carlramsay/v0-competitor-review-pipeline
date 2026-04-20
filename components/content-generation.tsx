@@ -1,3 +1,5 @@
+// v2 deployment trigger
+
 import { useState, useEffect } from "react"
 import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, updatePipelineStatus, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
