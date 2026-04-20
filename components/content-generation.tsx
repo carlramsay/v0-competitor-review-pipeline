@@ -21,15 +21,40 @@ interface HTMLPreviewBlockProps {
   viewAsHtml: boolean
   onToggleView: (asHtml: boolean) => void
   onDownload: () => void
+  onSave: (markdown: string) => void
 }
 
-function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onToggleView, onDownload }: HTMLPreviewBlockProps) {
+function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onToggleView, onDownload, onSave }: HTMLPreviewBlockProps) {
+  const [value, setValue] = useState(markdownContent)
+  const [saved, setSaved] = useState(false)
+  const isDirty = value !== markdownContent
+
+  // Keep in sync if parent content changes (e.g. after a re-generate)
+  useEffect(() => {
+    setValue(markdownContent)
+    setSaved(false)
+  }, [markdownContent])
+
+  function handleSave() {
+    onSave(value)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  // Generate HTML from current edited value for preview
+  const currentHtmlContent = isDirty ? convertMarkdownToStyledHTML(value) : htmlContent
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</span>
         <div className="flex items-center gap-2">
-          <CopyButton text={viewAsHtml ? htmlContent : markdownContent} />
+          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</span>
+          {isDirty && !saved && (
+            <span className="text-xs text-amber-400">Unsaved changes</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <CopyButton text={viewAsHtml ? currentHtmlContent : value} />
           <button
             type="button"
             onClick={() => onToggleView(!viewAsHtml)}
@@ -46,17 +71,26 @@ function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onT
             <Download size={12} />
             Download HTML
           </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!isDirty}
+            className="flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saved ? <Check size={12} className="text-green-400" /> : <Save size={12} />}
+            {saved ? "Saved" : "Save"}
+          </button>
         </div>
       </div>
       {viewAsHtml ? (
-        <div 
+        <div
           className="min-h-[160px] max-h-[500px] overflow-y-auto w-full rounded-md border border-border bg-[#1a1a1a] px-4 py-3 text-sm leading-relaxed"
-          dangerouslySetInnerHTML={{ __html: htmlContent }}
+          dangerouslySetInnerHTML={{ __html: currentHtmlContent }}
         />
       ) : (
         <textarea
-          value={markdownContent}
-          readOnly
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
           className="min-h-[160px] max-h-[500px] w-full resize-y rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono"
         />
       )}
@@ -1184,6 +1218,10 @@ export function ContentGeneration({ record: initialRecord }: Props) {
             markdownContent={record.generated.blogPost}
             viewAsHtml={blogPostViewAsHtml}
             onToggleView={setBlogPostViewAsHtml}
+            onSave={async (v) => {
+              const updated = await updateGeneratedContent(record.id, { blogPost: v })
+              if (updated) setRecord(updated)
+            }}
             onDownload={() => {
               const html = convertMarkdownToStyledHTML(record.generated.blogPost!)
               const blob = new Blob([html], { type: "text/html;charset=utf-8" })
