@@ -90,8 +90,10 @@ function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onT
       ) : (
         <textarea
           value={value}
-          onChange={(e) => setValue(e.target.value)}
-          className="min-h-[160px] max-h-[500px] w-full resize-y rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+          onChange={(e) => { console.log("[v0] textarea onChange fired"); setValue(e.target.value) }}
+          onFocus={() => console.log("[v0] textarea focused")}
+          className="min-h-[160px] max-h-[500px] w-full resize-y rounded-md border-2 border-green-500 bg-input px-3 py-2 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
+          placeholder="Type here to edit..."
         />
       )}
     </div>
