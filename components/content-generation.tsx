@@ -1224,39 +1224,104 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       setError("Generate a video script first.")
       return
     }
-    
-    if (!audioBlob) {
-      setError("Generate voiceover first before creating videos.")
-      return
-    }
 
     setError(null)
     setLoading("fullVideo")
     
     try {
-      // Step 1: Transcribe audio for captions
-      setVideoProgress("Step 1/3: Transcribing audio for captions...")
-      const words = await fetchWhisperCaptions(audioBlob!)
+      // Check if voiceover needs to be regenerated (script changed since last voiceover)
+      const voiceoverScript = record.generated.voiceoverScriptHash || ""
+      const scriptChanged = currentScript !== voiceoverScript
+      
+      let currentAudioBlob = audioBlob
+      
+      if (!currentAudioBlob || scriptChanged) {
+        // Generate/regenerate voiceover with current script
+        setVideoProgress("Step 1/4: Generating voiceover...")
+        const settings = await getSettings()
+        
+        if (!settings.heygenApiKey || !settings.heygenVoiceId) {
+          setError("HeyGen API key or Voice ID missing. Add them in Admin Settings.")
+          setLoading(null)
+          return
+        }
+        
+        const ttsRes = await fetch("https://api.heygen.com/v1/voice.tts", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Api-Key": settings.heygenApiKey,
+          },
+          body: JSON.stringify({
+            text: currentScript,
+            voice_id: settings.heygenVoiceId,
+          }),
+        })
+        
+        if (!ttsRes.ok) {
+          const errText = await ttsRes.text()
+          throw new Error(`HeyGen TTS error: ${errText}`)
+        }
+        
+        const ttsData = await ttsRes.json()
+        const audioUrl = ttsData.data?.url
+        if (!audioUrl) throw new Error("No audio URL returned from HeyGen")
+        
+        const audioRes = await fetch(audioUrl)
+        if (!audioRes.ok) throw new Error("Failed to download voiceover audio")
+        
+        const blob = await audioRes.blob()
+        currentAudioBlob = blob
+        setAudioBlob(blob)
+        setAudioUrl(URL.createObjectURL(blob))
+        
+        // Save voiceover to storage
+        const arrayBuffer = await blob.arrayBuffer()
+        const bytes = new Uint8Array(arrayBuffer)
+        let binary = ""
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i])
+        }
+        const base64 = btoa(binary)
+        const voiceoverKey = `voiceover-${record.id}`
+        await saveVideoAsset(voiceoverKey, base64)
+        
+        // Update record with new voiceover
+        const updated = await updateGeneratedContent(record.id, {
+          voiceoverBase64: voiceoverKey,
+          voiceoverScriptHash: currentScript,
+          videoScript: currentScript,
+        })
+        if (updated) setRecord(updated)
+        
+      }
+      
+      // Transcribe audio for captions
+      const stepPrefix = scriptChanged ? "Step 2/4" : "Step 1/3"
+      setVideoProgress(`${stepPrefix}: Transcribing audio for captions...`)
+      const words = await fetchWhisperCaptions(currentAudioBlob!)
       const captionGroups = buildCaptionGroups(words)
       
-      // Step 2: Generate horizontal slideshow video
-      setVideoProgress("Step 2/3: Generating horizontal video...")
+      // Generate horizontal slideshow video
+      const hStep = scriptChanged ? "Step 3/4" : "Step 2/3"
+      setVideoProgress(`${hStep}: Generating horizontal video...`)
       const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal", captionGroups)
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
       
-      // Step 3: Generate vertical slideshow video
-      setVideoProgress("Step 3/3: Generating vertical video...")
+      // Generate vertical slideshow video
+      const vStep = scriptChanged ? "Step 4/4" : "Step 3/3"
+      setVideoProgress(`${vStep}: Generating vertical video...`)
       const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups)
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
       
       // Save to record
-      const updated = await updateGeneratedContent(record.id, {
+      const updatedRecord = await updateGeneratedContent(record.id, {
         videoDataUrl: horizontalUrl,
         videoVerticalDataUrl: verticalUrl,
       })
-      if (updated) setRecord(updated)
+      if (updatedRecord) setRecord(updatedRecord)
       
       setVideoProgress(null)
     } catch (err) {
