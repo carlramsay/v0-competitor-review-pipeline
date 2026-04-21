@@ -1453,13 +1453,29 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         console.log("[v0] Skipping avatar generation - HeyGen not configured")
       }
       
-      // Step 2: Generate horizontal slideshow video
-      setVideoProgress("Step 2/3: Generating horizontal slideshow video...")
-      await generateVideoWithFormat(false) // horizontal
+      // Step 2: Transcribe audio for captions
+      setVideoProgress("Step 2/4: Transcribing audio for captions...")
+      const words = await fetchWhisperCaptions(audioBlob!)
+      const captionGroups = buildCaptionGroups(words)
       
-      // Step 3: Generate vertical slideshow video
-      setVideoProgress("Step 3/3: Generating vertical slideshow video...")
-      await generateVideoWithFormat(true) // vertical
+      // Step 3: Generate horizontal slideshow video
+      setVideoProgress("Step 3/4: Generating horizontal slideshow video...")
+      const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal", captionGroups)
+      const horizontalUrl = URL.createObjectURL(horizontalBlob)
+      setVideoUrl(horizontalUrl)
+      
+      // Step 4: Generate vertical slideshow video
+      setVideoProgress("Step 4/4: Generating vertical slideshow video...")
+      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups)
+      const verticalUrl = URL.createObjectURL(verticalBlob)
+      setVideoUrlVertical(verticalUrl)
+      
+      // Save to record
+      const updated = await updateGeneratedContent(record.id, {
+        videoDataUrl: horizontalUrl,
+        videoVerticalDataUrl: verticalUrl,
+      })
+      if (updated) setRecord(updated)
       
       setVideoProgress(null)
     } catch (err) {
