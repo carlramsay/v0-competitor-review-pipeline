@@ -92,6 +92,8 @@ export async function generateHeyGenAvatarVideo(
 
   // Submit video generation request
   console.log("[v0] Sending HeyGen payload:", JSON.stringify(payload, null, 2))
+  console.log("[v0] Using avatar ID:", avatarId)
+  
   const generateRes = await fetch("https://api.heygen.com/v2/video/generate", {
     method: "POST",
     headers: {
@@ -101,18 +103,31 @@ export async function generateHeyGenAvatarVideo(
     body: JSON.stringify(payload),
   })
 
+  const responseText = await generateRes.text()
+  console.log("[v0] HeyGen generate response status:", generateRes.status)
+  console.log("[v0] HeyGen generate response body:", responseText)
+
   if (!generateRes.ok) {
-    const errData = await generateRes.json()
-    console.error("[v0] HeyGen error:", errData)
-    throw new Error(`HeyGen error (${generateRes.status}): ${errData.error?.message || "Unknown error"}`)
+    let errData
+    try {
+      errData = JSON.parse(responseText)
+    } catch {
+      errData = { error: { message: responseText } }
+    }
+    console.error("[v0] HeyGen error parsed:", errData)
+    throw new Error(`HeyGen error (${generateRes.status}): ${errData.error?.message || errData.message || responseText}`)
   }
 
-  const generateData = await generateRes.json()
+  const generateData = JSON.parse(responseText)
+  console.log("[v0] HeyGen generate data:", generateData)
   const videoId = generateData.data?.video_id
 
   if (!videoId) {
+    console.error("[v0] No video ID in response data:", generateData)
     throw new Error("No video ID returned from HeyGen API")
   }
+  
+  console.log("[v0] HeyGen video ID received:", videoId)
 
   // Poll for completion
   let status = "processing"
