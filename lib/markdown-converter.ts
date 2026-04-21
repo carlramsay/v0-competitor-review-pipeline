@@ -1,4 +1,16 @@
 export function convertMarkdownToStyledHTML(md: string): string {
+  // Strip code fences from GPT-4o output
+  const cleaned = md
+    .replace(/^```html\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim()
+
+  // If content is already HTML (starts with < tag), return it wrapped in a styled div
+  if (cleaned.startsWith('<')) {
+    return `<div style="color: #eee; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;">\n${cleaned}\n</div>`
+  }
+
   const sectionEmojis: Record<string, string> = {
     introduction: "📋",
     signup: "🔹",
@@ -32,7 +44,7 @@ export function convertMarkdownToStyledHTML(md: string): string {
     return text.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
   }
 
-  const lines = md.split("\n")
+  const lines = cleaned.split("\n")
   const parts: string[] = []
   let i = 0
 
