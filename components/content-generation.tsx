@@ -321,22 +321,22 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     try {
       setVideoProgress("Generating voiceover with HeyGen...")
 
-      // Call HeyGen Starfish TTS API
-      const res = await fetch("https://api.heygen.com/v1/audio/text_to_speech", {
+      // Call HeyGen TTS API via server route (avoids CORS)
+      const res = await fetch("/api/heygen-audio", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-KEY": settings.heygenApiKey,
         },
         body: JSON.stringify({
           text: currentScript,
           voice_id: settings.heygenVoiceId,
+          apiKey: settings.heygenApiKey,
         }),
       })
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.error?.message || errData.detail || `HeyGen API error: ${res.status}`)
+        throw new Error(errData.error || `HeyGen API error: ${res.status}`)
       }
 
       const data = await res.json()
@@ -1246,21 +1246,21 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           return
         }
         
-        const ttsRes = await fetch("https://api.heygen.com/v1/voice.tts", {
+        const ttsRes = await fetch("/api/heygen-tts", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Api-Key": settings.heygenApiKey,
           },
           body: JSON.stringify({
             text: currentScript,
             voice_id: settings.heygenVoiceId,
+            apiKey: settings.heygenApiKey,
           }),
         })
         
         if (!ttsRes.ok) {
-          const errText = await ttsRes.text()
-          throw new Error(`HeyGen TTS error: ${errText}`)
+          const errData = await ttsRes.json()
+          throw new Error(errData.error || "HeyGen TTS error")
         }
         
         const ttsData = await ttsRes.json()
