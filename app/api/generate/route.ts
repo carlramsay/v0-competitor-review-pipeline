@@ -87,7 +87,18 @@ Length: 300-400 words spoken.`
 const SOCIAL_SYSTEM_PROMPT = `Based on this competitor review, produce exactly three outputs separated by the exact delimiters shown below. Follow length and tone rules strictly.
 
 ---TWEET---
-A single tweet under 280 characters. Honest, punchy take.
+Write a tweet based on this competitor review. Follow these rules:
+TONE: Direct and factual. No fluff. State the finding, back it with a specific detail, mention Arousr.
+STRUCTURE:
+- One sentence stating the core finding about the competitor with a specific score or detail
+- One sentence with a specific observation from the review
+- One sentence mentioning Arousr by name with its score as contrast
+- Two to three hashtags
+LENGTH: Under 280 characters total including hashtags.
+DO NOT use: vague phrases like "users might want to look elsewhere", "worth considering", or any soft language.
+DO NOT skip: the Arousr mention with its score.
+DO NOT mention: age policies or age verification concerns.
+ALWAYS include: at least one specific number or score from the review.
 
 ---INSTAGRAM---
 Write an Instagram caption based on this competitor review. Follow these rules:
