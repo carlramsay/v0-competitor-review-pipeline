@@ -363,7 +363,19 @@ DO NOT use: #AdultEntertainment or similar hashtags that could trigger content s
     }
 
     const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write a Facebook post based on this competitor review of ${competitorName}. Tone: conversational, engaging, informative but not overly formal. Frame it as sharing an interesting discovery with friends/followers. Structure: Start with an attention-grabbing opening line or question, 2-3 paragraphs covering the main findings (what stood out, pricing insights, user experience observations), end with a subtle mention of Arousr as an alternative worth checking out. Include a call-to-action like asking for opinions or experiences. Length: 150-250 words. Make it shareable and engaging for a general Facebook audience.`
+    const systemPrompt = `Write a Facebook post based on this competitor review of ${competitorName}. Follow these rules strictly:
+
+TONE: Conversational, engaging, informative but not overly formal. Write from a brand voice perspective — do NOT use first person singular ("I", "me", "my", "if you're like me"). Use "we" or address the reader directly with "you".
+
+STRUCTURE:
+- Start with an attention-grabbing opening line or question
+- 2-3 paragraphs covering the main findings (what stood out, pricing insights, user experience observations)
+- End with a subtle mention of Arousr as an alternative worth checking out
+- Include a call-to-action at the end encouraging comments or engagement (e.g., "Have you tried this platform? Drop your experience in the comments!")
+
+DO NOT mention: age verification bypass, age policies, minimum age requirements, or any age-related concerns.
+
+LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook audience.`
 
     const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
 
