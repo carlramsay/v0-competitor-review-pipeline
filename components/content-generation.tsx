@@ -348,7 +348,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       if (screenshots.length > 0) {
         const imageHtml = (src: string) => `
 <div style="margin: 1.5em 0; text-align: center;">
-  <img src="${src}" alt="${competitorName} screenshot" style="max-width: 100%; border-radius: 8px; border: 1px solid #444;" />
+  <img src="${src}" alt="${competitorName} screenshot" style="max-width: 30%; border-radius: 8px; border: 1px solid #444;" />
 </div>`
 
         // Insert after Introduction section (look for </section> or </h2> patterns)
