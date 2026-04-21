@@ -258,7 +258,11 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         console.log("[v0] Saving blog post to record:", record.id)
         const updated = await updateGeneratedContent(record.id, { blogPost: content })
         console.log("[v0] updateGeneratedContent returned:", updated ? "success" : "null")
-        if (updated) setRecord(updated)
+        if (updated) {
+          console.log("[v0] Updated record blogPost length:", updated.generated?.blogPost?.length)
+          console.log("[v0] Old record blogPost length:", record.generated?.blogPost?.length)
+          setRecord(updated)
+        }
         // Update pipeline status
         await updatePipelineStatus(record.id, { blogPostGenerated: true })
       } else if (type === "video") {
