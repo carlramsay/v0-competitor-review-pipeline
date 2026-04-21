@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, updatePipelineStatus, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { buildAnswersString } from "@/lib/review-utils"
@@ -17,17 +17,23 @@ interface EditableBlockProps {
   onGenerate?: () => void
   isGenerating?: boolean
   generateLabel?: string
+  onChange?: (value: string) => void // Called on every edit to track current value
 }
 
-function EditableBlock({ label, content, onSave, onGenerate, isGenerating, generateLabel = "Generate" }: EditableBlockProps) {
+function EditableBlock({ label, content, onSave, onGenerate, isGenerating, generateLabel = "Generate", onChange }: EditableBlockProps) {
   const [value, setValue] = useState(content)
   const [saved, setSaved] = useState(false)
   const isDirty = value !== content
-
+  
   useEffect(() => {
     setValue(content)
     setSaved(false)
   }, [content])
+  
+  function handleChange(newValue: string) {
+    setValue(newValue)
+    onChange?.(newValue)
+  }
 
   function handleSave() {
     onSave(value)
@@ -62,7 +68,7 @@ function EditableBlock({ label, content, onSave, onGenerate, isGenerating, gener
       </div>
       <textarea
         value={value}
-        onChange={(e) => { setValue(e.target.value); setSaved(false) }}
+        onChange={(e) => { handleChange(e.target.value); setSaved(false) }}
         className="min-h-[160px] w-full resize-y rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
       />
     </div>
@@ -167,6 +173,14 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   const [blogPostViewAsHtml, setBlogPostViewAsHtml] = useState(true)
   const [backgroundLibrary, setBackgroundLibrary] = useState<ThumbnailImage[]>([])
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null)
+  
+  // Ref to track the current video script value (including unsaved edits)
+  const videoScriptRef = useRef(initialRecord.generated.videoScript || "")
+  
+  // Keep ref in sync with saved record
+  useEffect(() => {
+    videoScriptRef.current = record.generated.videoScript || ""
+  }, [record.generated.videoScript])
 
   // Load background image library on mount
   useEffect(() => {
@@ -285,8 +299,11 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     setError(null)
     setLoading("voiceover")
     const settings = await getSettings()
+    
+    // Use the current script from ref (includes unsaved edits)
+    const currentScript = videoScriptRef.current
 
-    if (!record.generated.videoScript) {
+    if (!currentScript) {
       setError("Generate a video script first before creating the voiceover.")
       setLoading(null)
       return
@@ -313,7 +330,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
           "X-API-KEY": settings.heygenApiKey,
         },
         body: JSON.stringify({
-          text: record.generated.videoScript,
+          text: currentScript,
           voice_id: settings.heygenVoiceId,
         }),
       })
@@ -353,10 +370,11 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const voiceoverKey = `voiceover-${record.id}`
       await saveVideoAsset(voiceoverKey, base64)
 
-      // Update record
+      // Update record - also save the current script to ensure consistency
       const updated = await updateGeneratedContent(record.id, {
         voiceoverBase64: voiceoverKey,
-        voiceoverScriptHash: record.generated.videoScript ?? "",
+        voiceoverScriptHash: currentScript,
+        videoScript: currentScript, // Save the script that was used
       })
       if (updated) {
         setRecord(updated)
@@ -1282,7 +1300,10 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
   const [avatarVideoVerticalUrl, setAvatarVideoVerticalUrl] = useState<string | null>(null)
 
   async function generateAvatarVideo() {
-    if (!record.generated.videoScript) {
+    // Use the current script from ref (includes unsaved edits)
+    const currentScript = videoScriptRef.current
+    
+    if (!currentScript) {
       setError("Generate a video script first before creating the avatar video.")
       return
     }
@@ -1317,7 +1338,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         settings.heygenApiKey,
         settings.heygenAvatarId,
         settings.heygenVoiceId,
-        record.generated.videoScript,
+        currentScript,
         true // isPortrait
       )
       
@@ -1342,7 +1363,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         settings.heygenApiKey,
         settings.heygenAvatarId,
         settings.heygenVoiceId,
-        record.generated.videoScript,
+        currentScript,
         false // isPortrait = false for landscape
       )
       
@@ -1585,12 +1606,14 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           onGenerate={generateVideoScript}
           isGenerating={loading === "video"}
           generateLabel="Generate Video Script"
+          onChange={(v) => { videoScriptRef.current = v }}
           onSave={async (v) => {
+            videoScriptRef.current = v
             const updated = await updateGeneratedContent(record.id, { videoScript: v })
             if (updated) setRecord(updated)
           }}
         />
-        {record.generated.videoScript && (
+        {(record.generated.videoScript || videoScriptRef.current) && (
           <div className="mt-4 flex flex-wrap gap-2">
             {audioBlob && (
               <button type="button" onClick={generateVideo} disabled={loading !== null} className={btnClass}>
