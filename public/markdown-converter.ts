@@ -6,6 +6,11 @@ export function convertMarkdownToStyledHTML(md: string): string {
     .replace(/```\s*$/i, '')
     .trim()
 
+  // If content is already HTML (starts with < tag), return it wrapped in a styled div
+  if (cleaned.startsWith('<')) {
+    return `<div style="color: #eee; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;">\n${cleaned}\n</div>`
+  }
+
   const sectionEmojis: Record<string, string> = {
     introduction: "📋",
     signup: "🔹",
