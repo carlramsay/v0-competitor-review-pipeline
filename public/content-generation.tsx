@@ -3,6 +3,7 @@ import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, updatePipelineStatus, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
+import { generateHeyGenTTS, generateHeyGenAudioTTS } from "@/lib/heygen-actions"
 import { cn } from "@/lib/utils"
 import { Download, ImageIcon, Save, Check, RefreshCw } from "lucide-react"
 import { CopyButton } from "./copy-button"
@@ -321,30 +322,18 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     try {
       setVideoProgress("Generating voiceover with HeyGen...")
 
-      // Call HeyGen TTS API via server route (avoids CORS)
-      const res = await fetch("/api/heygen-audio", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: currentScript,
-          voice_id: settings.heygenVoiceId,
-          apiKey: settings.heygenApiKey,
-        }),
-      })
+      // Call HeyGen TTS via server action (avoids CORS)
+      const ttsResult = await generateHeyGenAudioTTS(
+        currentScript,
+        settings.heygenVoiceId,
+        settings.heygenApiKey
+      )
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.error || `HeyGen API error: ${res.status}`)
+      if (!ttsResult.success) {
+        throw new Error(ttsResult.error)
       }
 
-      const data = await res.json()
-      const audioFileUrl = data.data?.audio_url
-
-      if (!audioFileUrl) {
-        throw new Error("No audio URL returned from HeyGen API")
-      }
+      const audioFileUrl = ttsResult.audioUrl
 
       // Download the audio file
       const audioRes = await fetch(audioFileUrl)
@@ -1253,30 +1242,19 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           return
         }
         
-        console.log("[v0] Calling /api/heygen-tts...")
-        const ttsRes = await fetch("/api/heygen-tts", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: currentScript,
-            voice_id: settings.heygenVoiceId,
-            apiKey: settings.heygenApiKey,
-          }),
-        })
-        console.log("[v0] TTS response status:", ttsRes.status)
+        console.log("[v0] Calling generateHeyGenTTS server action...")
+        const ttsResult = await generateHeyGenTTS(
+          currentScript,
+          settings.heygenVoiceId,
+          settings.heygenApiKey
+        )
+        console.log("[v0] TTS result:", ttsResult)
         
-        if (!ttsRes.ok) {
-          const errData = await ttsRes.json()
-          console.log("[v0] TTS error:", errData)
-          throw new Error(errData.error || "HeyGen TTS error")
+        if (!ttsResult.success) {
+          throw new Error(ttsResult.error)
         }
         
-        const ttsData = await ttsRes.json()
-        console.log("[v0] TTS data:", ttsData)
-        const audioUrl = ttsData.data?.url
-        if (!audioUrl) throw new Error("No audio URL returned from HeyGen")
+        const audioUrl = ttsResult.audioUrl
         
         const audioRes = await fetch(audioUrl)
         if (!audioRes.ok) throw new Error("Failed to download voiceover audio")
