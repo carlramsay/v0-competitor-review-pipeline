@@ -36,12 +36,25 @@ Blockquote style: style="background: #2a2a2a; border-left: 4px solid #888; paddi
 
 Use these emojis for H3 subheadings: 🔹 for neutral observations, 💳 for pricing, 💬 for chat and interaction, 🔐 for privacy and safety, ⚙️ for performance, 🎭 for overall impression.
 
-Table style: style="border-collapse: collapse; width: 100%; background: #222; color: #fff; margin: 1em 0;"
-Header row style: style="background: #333;"
-Alternating row style: style="background: #2a2a2a;" on every other row, none on the others.
-Cell style: style="border: 1px solid #555; padding: 10px;"
+Tables MUST use proper HTML table tags. Here is the exact format to follow:
+<table style="border-collapse: collapse; width: 100%; background: #222; color: #fff; margin: 1em 0;">
+<tr style="background: #333;"><th style="border: 1px solid #555; padding: 10px;">Category</th><th style="border: 1px solid #555; padding: 10px;">Finding</th></tr>
+<tr><td style="border: 1px solid #555; padding: 10px;">Row 1</td><td style="border: 1px solid #555; padding: 10px;">Value</td></tr>
+<tr style="background: #2a2a2a;"><td style="border: 1px solid #555; padding: 10px;">Row 2</td><td style="border: 1px solid #555; padding: 10px;">Value</td></tr>
+</table>
+
+NEVER output tables as plain text with tabs or spaces. ALWAYS use <table>, <tr>, <th>, <td> HTML tags with inline styles.
 
 The Overall Experience section must include: <p style="margin: .6em 0; color: #ddd;"><b>Overall Rating: [exact score from form]/80 ([percentage]/100)</b> — <i>[One-line Verdict]</i></p> where percentage is score divided by 80 multiplied by 100 rounded to nearest whole number.
+
+Before the Conclusion, add a Final Scores Comparison table using the exact scores from the SCORES section at the end of the input. Use this exact HTML format:
+<h2 style="margin: 1.2em 0 .4em; line-height: 1.25; font-size: 1.4rem;">Final Scores Comparison</h2>
+<table style="border-collapse: collapse; width: 100%; background: #222; color: #fff; margin: 1em 0;">
+<tr style="background: #333;"><th style="border: 1px solid #555; padding: 10px;">Category</th><th style="border: 1px solid #555; padding: 10px;">[Competitor Name]</th><th style="border: 1px solid #555; padding: 10px;">Arousr</th></tr>
+<tr><td style="border: 1px solid #555; padding: 10px;">Ease of Signup</td><td style="border: 1px solid #555; padding: 10px;">[score]/10</td><td style="border: 1px solid #555; padding: 10px;">[score]/10</td></tr>
+... (all 8 categories) ...
+<tr style="background: #444; font-weight: bold;"><td style="border: 1px solid #555; padding: 10px;">Total</td><td style="border: 1px solid #555; padding: 10px;">[total]/80</td><td style="border: 1px solid #555; padding: 10px;">[total]/80</td></tr>
+</table>
 
 End with an H2 labeled Conclusion: [Competitor Name] vs Arousr. Two paragraphs. First paragraph: what the competitor genuinely does well based on the reviewer's answers — be honest, do not minimize real positives. Second paragraph: one natural mention of Arousr as the stronger choice for users who want verified human hosts, without being salesy.
 
