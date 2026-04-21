@@ -158,6 +158,10 @@ interface Props {
 }
 
 export function ContentGeneration({ record: initialRecord }: Props) {
+  console.log("[v0] ContentGeneration received record:", initialRecord.id)
+  console.log("[v0] record.generated:", initialRecord.generated)
+  console.log("[v0] record.generated.blogPost:", initialRecord.generated?.blogPost?.substring(0, 100))
+  
   const [record, setRecord] = useState(initialRecord)
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
