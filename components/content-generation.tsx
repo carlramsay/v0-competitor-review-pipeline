@@ -252,9 +252,12 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       if (!res.ok) throw new Error(data.error ?? "Generation failed")
 
       const content = data.content as string
+      console.log("[v0] API returned content length:", content?.length, "First 200 chars:", content?.substring(0, 200))
 
       if (type === "blog") {
+        console.log("[v0] Saving blog post to record:", record.id)
         const updated = await updateGeneratedContent(record.id, { blogPost: content })
+        console.log("[v0] updateGeneratedContent returned:", updated ? "success" : "null")
         if (updated) setRecord(updated)
         // Update pipeline status
         await updatePipelineStatus(record.id, { blogPostGenerated: true })
