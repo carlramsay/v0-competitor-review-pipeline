@@ -7,7 +7,7 @@ import { generateHeyGenTTS, generateHeyGenAudioTTS } from "@/lib/heygen-actions"
 import { cn } from "@/lib/utils"
 import { Download, ImageIcon, Save, Check, RefreshCw } from "lucide-react"
 import { CopyButton } from "./copy-button"
-import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Eye, EyeOff, Linkedin, Facebook, Twitter, Instagram, MessageSquare, ChevronDown } from "lucide-react"
+import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Eye, EyeOff, Linkedin, Facebook, Twitter, Instagram, MessageSquare, ChevronDown, Copy, Check } from "lucide-react"
 
 // Reusable editable text block with Copy and Save buttons
 interface EditableBlockProps {
@@ -183,6 +183,15 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     social: true,
   })
   
+  // Track which item was copied (for copy button feedback)
+  const [copiedItem, setCopiedItem] = useState<string | null>(null)
+  
+  const copyToClipboard = async (text: string, itemId: string) => {
+    await navigator.clipboard.writeText(text)
+    setCopiedItem(itemId)
+    setTimeout(() => setCopiedItem(null), 2000)
+  }
+  
   // Ref to track the current video script value (including unsaved edits)
   const videoScriptRef = useRef(initialRecord.generated.videoScript || "")
   
@@ -298,7 +307,52 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Generation failed")
 
-      const updated = await updateGeneratedContent(record.id, { blogPost: data.content })
+      // Parse the response to extract blog post and metadata fields
+      const fullContent = data.content as string
+      let blogPost = fullContent
+      let blogPostTitles: string[] = []
+      let blogPostMeta = ""
+      let blogPostYouTubeTitle = ""
+
+      // Check if the response contains the metadata section
+      const titlesMatch = fullContent.match(/---TITLES---\s*([\s\S]*?)---META---/)
+      const metaMatch = fullContent.match(/---META---\s*([\s\S]*?)---YOUTUBE---/)
+      const youtubeMatch = fullContent.match(/---YOUTUBE---\s*([\s\S]*?)---END---/)
+
+      if (titlesMatch) {
+        // Strip metadata from blog post
+        blogPost = fullContent.split("---TITLES---")[0].trim()
+        
+        // Parse titles
+        const titlesSection = titlesMatch[1]
+        const title1Match = titlesSection.match(/Title 1:\s*(.+)/)
+        const title2Match = titlesSection.match(/Title 2:\s*(.+)/)
+        const title3Match = titlesSection.match(/Title 3:\s*(.+)/)
+        blogPostTitles = [
+          title1Match?.[1]?.trim() || "",
+          title2Match?.[1]?.trim() || "",
+          title3Match?.[1]?.trim() || "",
+        ].filter(Boolean)
+      }
+
+      if (metaMatch) {
+        const metaSection = metaMatch[1]
+        const metaLine = metaSection.match(/Meta:\s*(.+)/)
+        blogPostMeta = metaLine?.[1]?.trim() || ""
+      }
+
+      if (youtubeMatch) {
+        const youtubeSection = youtubeMatch[1]
+        const youtubeLine = youtubeSection.match(/YouTube:\s*(.+)/)
+        blogPostYouTubeTitle = youtubeLine?.[1]?.trim() || ""
+      }
+
+      const updated = await updateGeneratedContent(record.id, { 
+        blogPost,
+        blogPostTitles,
+        blogPostMeta,
+        blogPostYouTubeTitle,
+      })
       if (updated) setRecord(updated)
       await updatePipelineStatus(record.id, { blogPostGenerated: true })
     } catch (err) {
@@ -1523,7 +1577,84 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             URL.revokeObjectURL(url)
           }}
         />
-        <div className="mt-4 flex gap-2">
+        
+        {/* Blog Post Titles */}
+        {record.generated.blogPostTitles && record.generated.blogPostTitles.length > 0 && (
+          <div className="mt-6 space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Blog Post Titles</h3>
+            {record.generated.blogPostTitles.map((title, idx) => (
+              <div key={idx} className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+                <span className="flex-1 text-sm text-foreground">{title}</span>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(title, `title-${idx}`)}
+                  className="flex-shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  title="Copy to clipboard"
+                >
+                  {copiedItem === `title-${idx}` ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {/* Meta Description */}
+        {record.generated.blogPostMeta && (
+          <div className="mt-6 space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Meta Description</h3>
+              <span className={cn(
+                "text-xs",
+                record.generated.blogPostMeta.length >= 150 && record.generated.blogPostMeta.length <= 160
+                  ? "text-green-500"
+                  : "text-yellow-500"
+              )}>
+                {record.generated.blogPostMeta.length} characters
+              </span>
+            </div>
+            <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+              <span className="flex-1 text-sm text-foreground">{record.generated.blogPostMeta}</span>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(record.generated.blogPostMeta!, "meta")}
+                className="flex-shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                title="Copy to clipboard"
+              >
+                {copiedItem === "meta" ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* YouTube Video Title */}
+        {record.generated.blogPostYouTubeTitle && (
+          <div className="mt-6 space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">YouTube Video Title</h3>
+              <span className={cn(
+                "text-xs",
+                record.generated.blogPostYouTubeTitle.length <= 70
+                  ? "text-green-500"
+                  : "text-red-500"
+              )}>
+                {record.generated.blogPostYouTubeTitle.length}/70 characters
+              </span>
+            </div>
+            <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+              <span className="flex-1 text-sm text-foreground">{record.generated.blogPostYouTubeTitle}</span>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(record.generated.blogPostYouTubeTitle!, "youtube")}
+                className="flex-shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                title="Copy to clipboard"
+              >
+                {copiedItem === "youtube" ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+              </button>
+            </div>
+          </div>
+        )}
+        
+        <div className="mt-6 flex gap-2">
           <button type="button" onClick={pushToWordPress} disabled={loading !== null} className={btnClass}>
             {loading === "wp" ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
             Push to WordPress
