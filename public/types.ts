@@ -62,7 +62,8 @@ export interface ReviewFormData {
   q28: string
 
   // Section 6.5 — Review Screenshots (for video backgrounds)
-  reviewScreenshots?: string[] // array of base64 data URLs
+  // Array of base64 data URLs, ordered by priority (index 0 = first in video)
+  reviewScreenshots?: string[]
 
   // Section 7 — Scores
   scores: ScoreRow[]

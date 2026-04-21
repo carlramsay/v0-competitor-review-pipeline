@@ -869,6 +869,31 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       })
     }
 
+    // Load avatar video for PiP overlay (right side of screen)
+    let avatarVideo: HTMLVideoElement | null = null
+    const avatarBase64 = await getVideoAsset("avatar-video")
+    if (avatarBase64) {
+      avatarVideo = document.createElement("video")
+      avatarVideo.muted = true // Audio comes from main voiceover
+      avatarVideo.playsInline = true
+      avatarVideo.crossOrigin = "anonymous"
+      avatarVideo.loop = true // Loop if avatar video is shorter than audio
+      const avatarBlob = new Blob(
+        [Uint8Array.from(atob(avatarBase64), (c) => c.charCodeAt(0))],
+        { type: "video/mp4" }
+      )
+      avatarVideo.src = URL.createObjectURL(avatarBlob)
+      await new Promise<void>((resolve, reject) => {
+        avatarVideo!.onloadeddata = () => resolve()
+        avatarVideo!.onerror = () => reject(new Error("Failed to load avatar video"))
+        avatarVideo!.load()
+      })
+    }
+    
+    // Calculate avatar dimensions (25-30% of width on right side)
+    const avatarWidthRatio = avatarVideo ? 0.28 : 0
+    const avatarWidth = Math.round(width * avatarWidthRatio)
+
     const canvas = document.createElement("canvas")
     canvas.width = width
     canvas.height = height
@@ -925,6 +950,61 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       mediaRecorder.onerror = (e) => reject(e)
     })
 
+    // Draw image with blurred/dimmed background fill
+    function drawImageWithBlurredBg(img: HTMLImageElement, alpha = 1, avatarWidth = 0) {
+      ctx!.globalAlpha = alpha
+      
+      // Calculate available width (leaving room for avatar on right if needed)
+      const availableWidth = width - avatarWidth
+      
+      // First: draw blurred background that fills the entire canvas
+      const bgScale = Math.max(width / img.width, height / img.height) * 1.2
+      const bgX = (width - img.width * bgScale) / 2
+      const bgY = (height - img.height * bgScale) / 2
+      
+      // Apply blur and dim effect using a temporary canvas
+      const tempCanvas = document.createElement("canvas")
+      tempCanvas.width = width
+      tempCanvas.height = height
+      const tempCtx = tempCanvas.getContext("2d")!
+      tempCtx.filter = "blur(20px) brightness(0.4)"
+      tempCtx.drawImage(img, bgX, bgY, img.width * bgScale, img.height * bgScale)
+      ctx!.drawImage(tempCanvas, 0, 0)
+      
+      // Second: draw the main image fitted (contain) within the available space
+      const imgAspect = img.width / img.height
+      const areaAspect = availableWidth / height
+      
+      let drawWidth: number, drawHeight: number, drawX: number, drawY: number
+      
+      if (imgAspect > areaAspect) {
+        // Image is wider - fit to width
+        drawWidth = availableWidth * 0.92
+        drawHeight = drawWidth / imgAspect
+      } else {
+        // Image is taller - fit to height
+        drawHeight = height * 0.88
+        drawWidth = drawHeight * imgAspect
+      }
+      
+      // Center in the available area (left side if avatar present)
+      drawX = (availableWidth - drawWidth) / 2
+      drawY = (height - drawHeight) / 2
+      
+      // Add a subtle shadow/border around the main image
+      ctx!.shadowColor = "rgba(0, 0, 0, 0.5)"
+      ctx!.shadowBlur = 20
+      ctx!.shadowOffsetX = 0
+      ctx!.shadowOffsetY = 4
+      ctx!.drawImage(img, drawX, drawY, drawWidth, drawHeight)
+      ctx!.shadowBlur = 0
+      ctx!.shadowOffsetX = 0
+      ctx!.shadowOffsetY = 0
+      
+      ctx!.globalAlpha = 1
+    }
+    
+    // Legacy cover function for logo screen
     function drawImageCover(img: HTMLImageElement, alpha = 1) {
       ctx!.globalAlpha = alpha
       const scale = Math.max(width / img.width, height / img.height)
@@ -1018,10 +1098,48 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       ctx!.fillText(group.text, width / 2, bottomY)
     }
 
+    // Function to draw avatar video overlay on the right side
+    function drawAvatarOverlay() {
+      if (!avatarVideo || avatarVideo.readyState < 2) return
+      
+      const avWidth = avatarWidth
+      const avHeight = height
+      const avX = width - avWidth
+      const avY = 0
+      
+      // Calculate aspect ratio to fit avatar video
+      const videoAspect = avatarVideo.videoWidth / avatarVideo.videoHeight
+      const areaAspect = avWidth / avHeight
+      
+      let drawW: number, drawH: number, drawX: number, drawY: number
+      
+      if (videoAspect > areaAspect) {
+        // Video is wider than area - fit to height
+        drawH = avHeight
+        drawW = drawH * videoAspect
+        drawX = avX + (avWidth - drawW) / 2
+        drawY = avY
+      } else {
+        // Video is taller than area - fit to width
+        drawW = avWidth
+        drawH = drawW / videoAspect
+        drawX = avX
+        drawY = avY + (avHeight - drawH) / 2
+      }
+      
+      // Draw semi-transparent background behind avatar
+      ctx!.fillStyle = "rgba(0, 0, 0, 0.3)"
+      ctx!.fillRect(avX, 0, avWidth, height)
+      
+      // Draw the avatar video
+      ctx!.drawImage(avatarVideo, drawX, drawY, drawW, drawH)
+    }
+
     let animationFrameId: number
     let isRecording = true
     const startTime = performance.now()
     let logoStarted = false
+    let avatarStarted = false
 
     function render() {
       if (!isRecording) return
@@ -1060,17 +1178,28 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           ctx!.globalAlpha = 1
         }
       } else {
+        // Start avatar video from the beginning for perfect lip sync
+        if (avatarVideo && !avatarStarted) {
+          avatarVideo.currentTime = 0
+          avatarVideo.play().catch(() => {})
+          avatarStarted = true
+        }
+        
         const cycleTime = elapsed % (IMAGE_CYCLE_INTERVAL * images.length)
         const currentImageIndex = Math.floor(cycleTime / IMAGE_CYCLE_INTERVAL) % images.length
         const timeInCurrentImage = cycleTime % IMAGE_CYCLE_INTERVAL
 
-        drawImageCover(images[currentImageIndex])
+        // Draw screenshot with blurred background, leaving room for avatar
+        drawImageWithBlurredBg(images[currentImageIndex], 1, avatarWidth)
 
         if (images.length > 1 && timeInCurrentImage >= IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION) {
           const nextImageIndex = (currentImageIndex + 1) % images.length
           const crossAlpha = (timeInCurrentImage - (IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION)) / CROSSFADE_DURATION
-          drawImageCover(images[nextImageIndex], crossAlpha)
+          drawImageWithBlurredBg(images[nextImageIndex], crossAlpha, avatarWidth)
         }
+
+        // Draw avatar overlay on the right side
+        drawAvatarOverlay()
 
         drawTitle(elapsed)
         drawCaption(elapsed)
