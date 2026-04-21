@@ -63,10 +63,11 @@ export async function generateHeyGenAvatarVideo(
   // Log full avatars list for debugging
   await logAvatarsList(apiKey)
 
-  // Portrait format (9:16) for vertical video, landscape (16:9) for horizontal
+  // For talking_photo, use standard dimensions that are well-supported
+  // 1280x720 is the most reliable for talking_photo
   const dimension = isPortrait 
-    ? { width: 1080, height: 1920 }
-    : { width: 1920, height: 1080 }
+    ? { width: 720, height: 1280 }
+    : { width: 1280, height: 720 }
 
   const payload: HeyGenGenerateRequest = {
     video_inputs: [
@@ -158,15 +159,18 @@ export async function generateHeyGenAvatarVideo(
       throw new Error(`Failed to check HeyGen video status: ${statusRes.statusText}`)
     }
 
-    const statusData = (await statusRes.json()) as HeyGenStatusResponse
+    const statusText = await statusRes.text()
+    console.log(`[v0] Full status response:`, statusText)
+    
+    const statusData = JSON.parse(statusText) as HeyGenStatusResponse
     status = statusData.data.status
     videoUrl = statusData.data.video_url
 
     console.log(`[v0] Video status: ${status}`, videoUrl ? `URL: ${videoUrl.substring(0, 50)}...` : "")
 
     if (status === "failed") {
-      console.error("[v0] Video generation failed:", statusData.data.error)
-      throw new Error(`HeyGen video generation failed: ${statusData.data.error || "Unknown error"}`)
+      console.error("[v0] Video generation failed. Full response:", statusData)
+      throw new Error(`HeyGen video generation failed: ${statusData.data.error || JSON.stringify(statusData)}`)
     }
   }
 
