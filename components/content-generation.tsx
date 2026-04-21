@@ -828,7 +828,8 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     width: number,
     height: number,
     formatLabel: string,
-    captionGroups: Array<{ text: string; start: number; end: number }>
+    captionGroups: Array<{ text: string; start: number; end: number }>,
+    audioBlobParam: Blob
   ): Promise<Blob> {
     const settings = await getSettings()
     const isVertical = height > width // Derive from dimensions
@@ -883,7 +884,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     if (!ctx) throw new Error("Failed to create canvas context")
 
     const audioContext = new AudioContext()
-    const arrayBuffer = await audioBlob!.arrayBuffer()
+    const arrayBuffer = await audioBlobParam.arrayBuffer()
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
     const audioDuration = audioBuffer.duration
     const totalDuration = audioDuration + LOGO_DURATION
@@ -1177,16 +1178,16 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     setVideoProgress("Transcribing audio for captions...")
 
     try {
-      const words = await fetchWhisperCaptions(audioBlob)
+      const words = await fetchWhisperCaptions(audioBlob!)
       const captionGroups = buildCaptionGroups(words)
 
       setVideoProgress("Generating horizontal video...")
-      const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal", captionGroups)
+      const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal", captionGroups, audioBlob!)
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
 
       setVideoProgress("Generating vertical video...")
-      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups)
+      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups, audioBlob!)
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
 
@@ -1300,14 +1301,14 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       // Generate horizontal slideshow video
       const hStep = scriptChanged ? "Step 3/4" : "Step 2/3"
       setVideoProgress(`${hStep}: Generating horizontal video...`)
-      const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal", captionGroups)
+      const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal", captionGroups, currentAudioBlob!)
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
       
       // Generate vertical slideshow video
       const vStep = scriptChanged ? "Step 4/4" : "Step 3/3"
       setVideoProgress(`${vStep}: Generating vertical video...`)
-      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups)
+      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups, currentAudioBlob!)
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
       
