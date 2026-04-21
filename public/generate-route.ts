@@ -80,6 +80,8 @@ Do NOT include: any reference to age policies, age requirements, or underage acc
 
 Tone: casual, honest, like a friend giving real advice after actually testing something. Occasionally use short rhetorical questions to keep the listener engaged.
 
+Closing paragraph structure: one sentence summarizing what the platform is good for, one specific stat or observation from the reviewer that proves the point, then a natural transition to Arousr as a contrasting alternative. End on a short punchy closing line. Do not use generic sign-offs like "stay safe", "choose wisely", "until next time", or any variation of these.
+
 Length: 300-400 words spoken.`
 
 const SOCIAL_SYSTEM_PROMPT = `Based on this competitor review, produce exactly three outputs separated by the exact delimiters shown below. Follow length and tone rules strictly.
