@@ -7,7 +7,7 @@ import { generateHeyGenTTS, generateHeyGenAudioTTS } from "@/lib/heygen-actions"
 import { cn } from "@/lib/utils"
 import { Download, ImageIcon, Save, Check, RefreshCw } from "lucide-react"
 import { CopyButton } from "./copy-button"
-import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Eye, EyeOff, Linkedin, Facebook, Twitter, Instagram, MessageSquare } from "lucide-react"
+import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Eye, EyeOff, Linkedin, Facebook, Twitter, Instagram, MessageSquare, ChevronDown } from "lucide-react"
 
 // Reusable editable text block with Copy and Save buttons
 interface EditableBlockProps {
@@ -173,6 +173,15 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   const [blogPostViewAsHtml, setBlogPostViewAsHtml] = useState(true)
   const [backgroundLibrary, setBackgroundLibrary] = useState<ThumbnailImage[]>([])
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null)
+  
+  // Collapsible section states
+  const [collapsed, setCollapsed] = useState({
+    blogPost: false,
+    thumbnails: false,
+    video: false,
+    voiceover: false,
+    social: false,
+  })
   
   // Ref to track the current video script value (including unsaved edits)
   const videoScriptRef = useRef(initialRecord.generated.videoScript || "")
@@ -1416,11 +1425,20 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       )}
 
       {/* 1. Blog Post Draft */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
-          <FileText size={16} />
-          1. Blog Post Draft
-        </h2>
+      <div className="rounded-lg border border-border bg-card">
+        <button
+          type="button"
+          onClick={() => setCollapsed(c => ({ ...c, blogPost: !c.blogPost }))}
+          className="flex w-full items-center justify-between p-5"
+        >
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <FileText size={16} />
+            1. Blog Post Draft
+          </h2>
+          <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", collapsed.blogPost && "-rotate-90")} />
+        </button>
+        {!collapsed.blogPost && (
+        <div className="px-5 pb-5">
         <HTMLPreviewBlock
           label="Blog Post"
           htmlContent={convertMarkdownToStyledHTML(record.generated.blogPost || "")}
@@ -1452,14 +1470,25 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             Push to WordPress
           </button>
         </div>
+        </div>
+        )}
       </div>
 
       {/* 2. Thumbnails */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
-          <ImageIcon size={16} />
-          2. Thumbnails
-        </h2>
+      <div className="rounded-lg border border-border bg-card">
+        <button
+          type="button"
+          onClick={() => setCollapsed(c => ({ ...c, thumbnails: !c.thumbnails }))}
+          className="flex w-full items-center justify-between p-5"
+        >
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <ImageIcon size={16} />
+            2. Thumbnails
+          </h2>
+          <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", collapsed.thumbnails && "-rotate-90")} />
+        </button>
+        {!collapsed.thumbnails && (
+        <div className="px-5 pb-5">
 
         {/* Background image picker */}
         {backgroundLibrary.length > 0 && (
@@ -1530,14 +1559,25 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             )}
           </div>
         )}
+        </div>
+        )}
       </div>
 
-      {/* 3. Video Script */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
-          <Video size={16} />
-          3. Video Script
-        </h2>
+      {/* 3. Video */}
+      <div className="rounded-lg border border-border bg-card">
+        <button
+          type="button"
+          onClick={() => setCollapsed(c => ({ ...c, video: !c.video }))}
+          className="flex w-full items-center justify-between p-5"
+        >
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Video size={16} />
+            3. Video
+          </h2>
+          <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", collapsed.video && "-rotate-90")} />
+        </button>
+        {!collapsed.video && (
+        <div className="px-5 pb-5">
         <EditableBlock
           label="Video Script"
           content={record.generated.videoScript || ""}
@@ -1611,14 +1651,25 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             </div>
           </div>
         )}
+        </div>
+        )}
       </div>
 
       {/* 4. Voiceover */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
-          <Video size={16} />
-          4. Voiceover
-        </h2>
+      <div className="rounded-lg border border-border bg-card">
+        <button
+          type="button"
+          onClick={() => setCollapsed(c => ({ ...c, voiceover: !c.voiceover }))}
+          className="flex w-full items-center justify-between p-5"
+        >
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Video size={16} />
+            4. Voiceover
+          </h2>
+          <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", collapsed.voiceover && "-rotate-90")} />
+        </button>
+        {!collapsed.voiceover && (
+        <div className="px-5 pb-5">
         <button
           type="button"
           onClick={generateVoiceover}
@@ -1651,15 +1702,33 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             <audio controls src={audioUrl} className="w-full" />
           </div>
         )}
+        </div>
+        )}
       </div>
 
-      {/* 5. LinkedIn Post */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
-          <Linkedin size={16} />
-          5. LinkedIn Post
-        </h2>
-        <EditableBlock
+      {/* 5. Social Posts */}
+      <div className="rounded-lg border border-border bg-card">
+        <button
+          type="button"
+          onClick={() => setCollapsed(c => ({ ...c, social: !c.social }))}
+          className="flex w-full items-center justify-between p-5"
+        >
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Share2 size={16} />
+            5. Social Posts
+          </h2>
+          <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", collapsed.social && "-rotate-90")} />
+        </button>
+        {!collapsed.social && (
+        <div className="px-5 pb-5 space-y-6">
+        
+        {/* LinkedIn Post */}
+        <div>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <Linkedin size={14} />
+            LinkedIn Post
+          </h3>
+          <EditableBlock
           label="LinkedIn Post"
           content={record.generated.linkedinPost || ""}
           onGenerate={generateLinkedInPost}
@@ -1670,95 +1739,98 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             if (updated) setRecord(updated)
           }}
         />
-      </div>
+        </div>
 
-      {/* 6. Facebook Post */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
-          <Facebook size={16} />
-          6. Facebook Post
-        </h2>
-        {record.generated.facebookImageUrl && (
-          <div className="relative mb-4 rounded-lg overflow-hidden border border-border">
-            <img src={record.generated.facebookImageUrl} alt="Facebook post image" className="w-full h-auto object-cover" />
-            <a
-              href={record.generated.facebookImageUrl}
-              download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "review"}-facebook-image.jpg`}
-              className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-md bg-black/70 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-black/90"
-            >
-              <Download size={12} />
-              Download Image
-            </a>
-          </div>
+        {/* Facebook Post */}
+        <div>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <Facebook size={14} />
+            Facebook Post
+          </h3>
+          {record.generated.facebookImageUrl && (
+            <div className="relative mb-4 rounded-lg overflow-hidden border border-border">
+              <img src={record.generated.facebookImageUrl} alt="Facebook post image" className="w-full h-auto object-cover" />
+              <a
+                href={record.generated.facebookImageUrl}
+                download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "review"}-facebook-image.jpg`}
+                className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-md bg-black/70 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-black/90"
+              >
+                <Download size={12} />
+                Download Image
+              </a>
+            </div>
+          )}
+          <EditableBlock
+            label="Facebook Post"
+            content={record.generated.facebookPost || ""}
+            onGenerate={generateFacebookPost}
+            isGenerating={loading === "facebook"}
+            generateLabel="Generate"
+            onSave={async (v) => {
+              const updated = await updateGeneratedContent(record.id, { facebookPost: v })
+              if (updated) setRecord(updated)
+            }}
+          />
+        </div>
+
+        {/* Tweet */}
+        <div>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <Twitter size={14} />
+            Tweet
+          </h3>
+          <EditableBlock
+            label="Tweet"
+            content={record.generated.tweetSnippet || ""}
+            onGenerate={generateTweet}
+            isGenerating={loading === "tweet"}
+            generateLabel="Generate"
+            onSave={async (v) => {
+              const updated = await updateGeneratedContent(record.id, { tweetSnippet: v })
+              if (updated) setRecord(updated)
+            }}
+          />
+        </div>
+
+        {/* Instagram Caption */}
+        <div>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <Instagram size={14} />
+            Instagram Caption
+          </h3>
+          <EditableBlock
+            label="Instagram Caption"
+            content={record.generated.instagramSnippet || ""}
+            onGenerate={generateInstagramCaption}
+            isGenerating={loading === "instagram"}
+            generateLabel="Generate"
+            onSave={async (v) => {
+              const updated = await updateGeneratedContent(record.id, { instagramSnippet: v })
+              if (updated) setRecord(updated)
+            }}
+          />
+        </div>
+
+        {/* Reddit Comment */}
+        <div>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <MessageSquare size={14} />
+            Reddit Comment
+          </h3>
+          <EditableBlock
+            label="Reddit Comment"
+            content={record.generated.redditSnippet || ""}
+            onGenerate={generateRedditComment}
+            isGenerating={loading === "reddit"}
+            generateLabel="Generate"
+            onSave={async (v) => {
+              const updated = await updateGeneratedContent(record.id, { redditSnippet: v })
+              if (updated) setRecord(updated)
+            }}
+          />
+        </div>
+        </div>
         )}
-        <EditableBlock
-          label="Facebook Post"
-          content={record.generated.facebookPost || ""}
-          onGenerate={generateFacebookPost}
-          isGenerating={loading === "facebook"}
-          generateLabel="Generate"
-          onSave={async (v) => {
-            const updated = await updateGeneratedContent(record.id, { facebookPost: v })
-            if (updated) setRecord(updated)
-          }}
-        />
-      </div>
-
-      {/* 7. Tweet */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
-          <Twitter size={16} />
-          7. Tweet
-        </h2>
-        <EditableBlock
-          label="Tweet"
-          content={record.generated.tweetSnippet || ""}
-          onGenerate={generateTweet}
-          isGenerating={loading === "tweet"}
-          generateLabel="Generate"
-          onSave={async (v) => {
-            const updated = await updateGeneratedContent(record.id, { tweetSnippet: v })
-            if (updated) setRecord(updated)
-          }}
-        />
-      </div>
-
-      {/* 8. Instagram Caption */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
-          <Instagram size={16} />
-          8. Instagram Caption
-        </h2>
-        <EditableBlock
-          label="Instagram Caption"
-          content={record.generated.instagramSnippet || ""}
-          onGenerate={generateInstagramCaption}
-          isGenerating={loading === "instagram"}
-          generateLabel="Generate"
-          onSave={async (v) => {
-            const updated = await updateGeneratedContent(record.id, { instagramSnippet: v })
-            if (updated) setRecord(updated)
-          }}
-        />
-      </div>
-
-      {/* 9. Reddit Comment */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
-          <MessageSquare size={16} />
-          9. Reddit Comment
-        </h2>
-        <EditableBlock
-          label="Reddit Comment"
-          content={record.generated.redditSnippet || ""}
-          onGenerate={generateRedditComment}
-          isGenerating={loading === "reddit"}
-          generateLabel="Generate"
-          onSave={async (v) => {
-            const updated = await updateGeneratedContent(record.id, { redditSnippet: v })
-            if (updated) setRecord(updated)
-          }}
-        />
       </div>
     </div>
   )
