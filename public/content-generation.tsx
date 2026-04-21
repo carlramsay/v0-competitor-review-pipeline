@@ -1218,27 +1218,34 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
 
   // Generates slideshow videos with voiceover and captions
   async function generateFullVideo() {
+    console.log("[v0] generateFullVideo called")
     const currentScript = videoScriptRef.current
+    console.log("[v0] currentScript length:", currentScript?.length)
     
     if (!currentScript) {
+      console.log("[v0] No script, returning early")
       setError("Generate a video script first.")
       return
     }
 
     setError(null)
     setLoading("fullVideo")
+    console.log("[v0] Set loading to fullVideo")
     
     try {
       // Check if voiceover needs to be regenerated (script changed since last voiceover)
       const voiceoverScript = record.generated.voiceoverScriptHash || ""
       const scriptChanged = currentScript !== voiceoverScript
+      console.log("[v0] scriptChanged:", scriptChanged, "audioBlob exists:", !!audioBlob)
       
       let currentAudioBlob = audioBlob
       
       if (!currentAudioBlob || scriptChanged) {
         // Generate/regenerate voiceover with current script
+        console.log("[v0] Need to generate voiceover")
         setVideoProgress("Step 1/4: Generating voiceover...")
         const settings = await getSettings()
+        console.log("[v0] Got settings, heygenApiKey exists:", !!settings.heygenApiKey, "heygenVoiceId:", settings.heygenVoiceId)
         
         if (!settings.heygenApiKey || !settings.heygenVoiceId) {
           setError("HeyGen API key or Voice ID missing. Add them in Admin Settings.")
@@ -1246,6 +1253,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           return
         }
         
+        console.log("[v0] Calling /api/heygen-tts...")
         const ttsRes = await fetch("/api/heygen-tts", {
           method: "POST",
           headers: {
@@ -1257,13 +1265,16 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             apiKey: settings.heygenApiKey,
           }),
         })
+        console.log("[v0] TTS response status:", ttsRes.status)
         
         if (!ttsRes.ok) {
           const errData = await ttsRes.json()
+          console.log("[v0] TTS error:", errData)
           throw new Error(errData.error || "HeyGen TTS error")
         }
         
         const ttsData = await ttsRes.json()
+        console.log("[v0] TTS data:", ttsData)
         const audioUrl = ttsData.data?.url
         if (!audioUrl) throw new Error("No audio URL returned from HeyGen")
         
