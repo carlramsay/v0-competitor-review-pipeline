@@ -64,7 +64,19 @@ Do not add a Performance section unless the reviewer specifically commented on p
 
 Output raw HTML only — no markdown, no code fences, no explanation before or after the HTML.
 
-The post title sent to WordPress should be: [Competitor Name] Review — Is It Worth It? (2026)`
+The post title sent to WordPress should be: [Competitor Name] Review — Is It Worth It? (2026)
+
+At the end of your response, after all HTML content, add a clearly delimited section formatted exactly like this:
+
+---TITLES---
+Title 1: [question-based title that asks a compelling question about the competitor, must include competitor name and 2026]
+Title 2: [we tested style title like "We Tested [Competitor] So You Don't Have To", must include competitor name and 2026]
+Title 3: [comparison style title like "[Competitor] vs The Competition", must include competitor name and 2026]
+---META---
+Meta: [exactly 150-160 character meta description including competitor name, one specific finding from the review, and a hook that encourages clicking]
+---YOUTUBE---
+YouTube: [YouTube-optimized title under 70 characters, must include competitor name, "Review", and "2026"]
+---END---`
 
 const VIDEO_SYSTEM_PROMPT = `Write a 90-second spoken word podcast-style script based on this competitor review. The script must be grounded in the reviewer's actual experience — use their specific observations, their numbers, their reactions. Do not summarize vaguely.
 
