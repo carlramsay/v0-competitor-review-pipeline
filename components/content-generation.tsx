@@ -870,9 +870,11 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     }
 
     // Load avatar video for PiP overlay (right side of screen)
+    // Use portrait avatar for vertical videos, landscape avatar for horizontal
     let avatarVideo: HTMLVideoElement | null = null
-    const avatarBase64 = await getVideoAsset("avatar-video")
-    console.log("[v0] Avatar video loaded:", avatarBase64 ? `${avatarBase64.length} chars` : "NOT FOUND")
+    const avatarAssetKey = isVertical ? "avatar-video-portrait" : "avatar-video"
+    const avatarBase64 = await getVideoAsset(avatarAssetKey)
+    console.log(`[v0] Avatar video (${avatarAssetKey}) loaded:`, avatarBase64 ? `${avatarBase64.length} chars` : "NOT FOUND - Generate avatar video first")
     if (avatarBase64) {
       avatarVideo = document.createElement("video")
       avatarVideo.muted = true // Audio comes from main voiceover
@@ -1328,9 +1330,13 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       const portraitBlob = new Blob([portraitBytes], { type: "video/mp4" })
       const portraitUrl = URL.createObjectURL(portraitBlob)
       setAvatarVideoVerticalUrl(portraitUrl)
-
+      
+      // Save portrait avatar for use in vertical slideshow videos
+      await saveVideoAsset("avatar-video-portrait", base64Portrait)
+      console.log("[v0] Saved portrait avatar video for slideshow use")
+      
       setVideoProgress("Generating HeyGen avatar video (landscape)...")
-
+      
       // Generate landscape video (16:9)
       const base64Landscape = await generateHeyGenAvatarVideo(
         settings.heygenApiKey,
@@ -1349,6 +1355,10 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       const landscapeBlob = new Blob([landscapeBytes], { type: "video/mp4" })
       const landscapeUrl = URL.createObjectURL(landscapeBlob)
       setAvatarVideoUrl(landscapeUrl)
+
+      // Save landscape avatar for use in horizontal slideshow videos
+      await saveVideoAsset("avatar-video", base64Landscape)
+      console.log("[v0] Saved landscape avatar video for slideshow use")
 
       setVideoProgress(null)
     } catch (err) {
