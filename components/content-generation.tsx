@@ -299,7 +299,22 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     }
 
     const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write a LinkedIn post based on this competitor review of ${competitorName}. Tone: professional, analytical, business-appropriate. Frame it as an industry insight — not as promotion. Position the findings as useful intelligence for anyone evaluating adult entertainment platforms or digital subscription services. Structure: one opening hook sentence, 3–4 short paragraphs covering the key findings (signup experience, chat quality, pricing transparency, human vs AI question), one closing paragraph that naturally mentions Arousr as a platform that addresses the shortcomings found. End with 3–5 relevant professional hashtags. Length: 250–350 words. Do not use salesy language. Write as if sharing a genuine professional observation.`
+    const systemPrompt = `Write a LinkedIn post based on this competitor review of ${competitorName}. Follow these rules strictly:
+
+TONE: Conversational and opinion-led, like an industry professional sharing a genuine observation. Not corporate. Not formal. Not a press release. Write the way a real person posts on LinkedIn — direct, specific, a little opinionated.
+
+STRUCTURE:
+- One short opening hook that states the core finding immediately — no throat-clearing, no "the landscape continually evolves" type openers
+- Two or three short paragraphs covering the most interesting specific findings from the review — use real details, real numbers, real observations
+- One paragraph positioning what a better platform does differently — mention Arousr naturally, not as an ad
+- Three to five hashtags that are professional and platform-safe — avoid #AdultEntertainment or any tag likely to trigger LinkedIn content suppression. Use tags like #UserExperience #DigitalTrust #OnlineSafety #PlatformReview #DigitalWellness
+
+LENGTH: 200-280 words maximum.
+
+DO NOT mention: age policies, minimum age requirements, underage access, or any age-related safety concerns.
+DO NOT use: corporate filler phrases like "the landscape continually evolves", "it is crucial", "paramount", "highlighting room for improvement"
+DO NOT mention: the Arousr privacy score or any specific Arousr metrics — just mention it naturally as a platform that does things differently
+DO NOT use: #AdultEntertainment or similar hashtags that could trigger content suppression on LinkedIn`
 
     const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
 
