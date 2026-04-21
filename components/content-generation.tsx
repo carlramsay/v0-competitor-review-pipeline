@@ -373,9 +373,9 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     }
   }
 
-  async function generateSocialSnippets() {
+  async function generateTweet() {
     setError(null)
-    setLoading("social")
+    setLoading("tweet")
     const settings = await getSettings()
     if (!settings.openaiApiKey) {
       setError("No OpenAI API key found. Please add it in Settings.")
@@ -383,28 +383,169 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       return
     }
 
+    const competitorName = record.formData.competitorName || "Competitor"
+    const systemPrompt = `Write a tweet based on this competitor review of ${competitorName}. Follow these rules:
+TONE: Direct and factual. No fluff. State the finding, back it with a specific detail, mention Arousr.
+STRUCTURE:
+- One sentence stating the core finding about the competitor with a specific score or detail
+- One sentence with a specific observation from the review
+- One sentence mentioning Arousr by name with its score as contrast
+- Two to three hashtags
+LENGTH: Under 280 characters total including hashtags.
+DO NOT use: vague phrases like "users might want to look elsewhere", "worth considering", or any soft language.
+DO NOT skip: the Arousr mention with its score.
+DO NOT mention: age policies or age verification concerns.
+ALWAYS include: at least one specific number or score from the review.`
+
+    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "social", answers, apiKey: settings.openaiApiKey }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent },
+          ],
+          max_tokens: 300,
+        }),
       })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error?.message ?? "Tweet generation failed")
+      }
+
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Generation failed")
+      const content = data.choices?.[0]?.message?.content?.trim() || ""
+      const updated = await updateGeneratedContent(record.id, { tweetSnippet: content })
+      if (updated) setRecord(updated)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setLoading(null)
+    }
+  }
 
-      const content = data.content as string
-      const tweetMatch = content.match(/---TWEET---([\s\S]*?)(?=---INSTAGRAM---|$)/)
-      const igMatch = content.match(/---INSTAGRAM---([\s\S]*?)(?=---REDDIT---|$)/)
-      const redditMatch = content.match(/---REDDIT---([\s\S]*?)$/)
-      const tweet = tweetMatch?.[1]?.trim() ?? ""
-      const ig = igMatch?.[1]?.trim() ?? ""
-      const reddit = redditMatch?.[1]?.trim() ?? ""
+  async function generateInstagramCaption() {
+    setError(null)
+    setLoading("instagram")
+    const settings = await getSettings()
+    if (!settings.openaiApiKey) {
+      setError("No OpenAI API key found. Please add it in Settings.")
+      setLoading(null)
+      return
+    }
 
-      const updated = await updateGeneratedContent(record.id, {
-        tweetSnippet: tweet,
-        instagramSnippet: ig,
-        redditSnippet: reddit,
+    const competitorName = record.formData.competitorName || "Competitor"
+    const systemPrompt = `Write an Instagram caption based on this competitor review of ${competitorName}. Follow these rules:
+TONE: Casual, direct, written from a brand perspective — not first person singular. No "I found myself" or "if you're like me." Write as if the Arousr brand account is sharing a genuine platform review with their audience.
+STRUCTURE:
+- One hook sentence that states the core finding or creates curiosity
+- Two to three sentences covering the most interesting specific findings from the review — use real details from the reviewer's answers, not vague summaries
+- One sentence mentioning Arousr naturally as the alternative — not salesy, just factual
+- One engagement question to drive comments
+- Three to five relevant hashtags at the end
+LENGTH: 130-180 words.
+SPECIFIC DETAILS: Always include at least one concrete observation from the reviewer — a specific number, a specific moment, or a specific quote (cleaned up if needed for the platform). Vague phrases like "lack of safety features" should be replaced with what specifically was missing.
+MANDATORY REQUIREMENTS (every caption must have ALL of these):
+- Must include "Arousr" by name as an alternative — every single caption, no exceptions
+- Must end with 3-5 hashtags — never skip hashtags
+- Must include at least one specific number or detail from the reviewer's answers — never be vague
+DO NOT use: "here's the tea", "I found myself", "if you're like me", "might want to explore other options", or any other vague sign-offs.
+DO NOT mention: age policies, age verification bypass, or any age-related concerns.
+DO NOT end with: "stay safe", "chat wisely", "choose wisely", or any generic sign-off phrase.`
+
+    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent },
+          ],
+          max_tokens: 500,
+        }),
       })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error?.message ?? "Instagram caption generation failed")
+      }
+
+      const data = await res.json()
+      const content = data.choices?.[0]?.message?.content?.trim() || ""
+      const updated = await updateGeneratedContent(record.id, { instagramSnippet: content })
+      if (updated) setRecord(updated)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function generateRedditComment() {
+    setError(null)
+    setLoading("reddit")
+    const settings = await getSettings()
+    if (!settings.openaiApiKey) {
+      setError("No OpenAI API key found. Please add it in Settings.")
+      setLoading(null)
+      return
+    }
+
+    const competitorName = record.formData.competitorName || "Competitor"
+    const systemPrompt = `Write a Reddit comment based on this competitor review of ${competitorName}. Follow these rules:
+TONE: Genuine, first-person, like a real user sharing their experience. Conversational and unpolished. No brand voice. No promotional language whatsoever.
+STRUCTURE:
+- One sentence establishing that you personally tested the platform
+- Two to three sentences covering the most specific and interesting findings — use real numbers and real observations from the reviewer's answers
+- One honest closing sentence summarizing the experience without pushing an alternative
+LENGTH: 80-120 words maximum.
+DO NOT mention Arousr at all. Reddit users immediately recognize unprompted brand mentions as shilling and will downvote or report the comment. Arousr should only be mentioned if someone specifically asks for an alternative in a reply thread — never in the initial comment.
+DO NOT use: corporate language, "in contrast", "reflected in their score", "for those prioritizing", or any phrasing that sounds like marketing copy.
+DO NOT mention: age policies, age verification bypass, or any age-related concerns.
+DO write: like a real person who tested the platform and is sharing an honest take with no agenda.`
+
+    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent },
+          ],
+          max_tokens: 400,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error?.message ?? "Reddit comment generation failed")
+      }
+
+      const data = await res.json()
+      const content = data.choices?.[0]?.message?.content?.trim() || ""
+      const updated = await updateGeneratedContent(record.id, { redditSnippet: content })
       if (updated) setRecord(updated)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
@@ -1089,11 +1230,11 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         </div>
       )}
 
-      {/* Block 1: Blog Post Draft */}
+      {/* 1. Blog Post Draft */}
       <div className="rounded-lg border border-border bg-card p-5">
         <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
           <FileText size={16} />
-          Block 1: Blog Post Draft
+          1. Blog Post Draft
         </h2>
         <HTMLPreviewBlock
           label="Blog Post"
@@ -1128,11 +1269,11 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         </div>
       </div>
 
-      {/* Block 2: Thumbnails */}
+      {/* 2. Thumbnails */}
       <div className="rounded-lg border border-border bg-card p-5">
         <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
           <ImageIcon size={16} />
-          Block 2: Thumbnails
+          2. Thumbnails
         </h2>
 
         {/* Background image picker */}
@@ -1206,11 +1347,11 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         )}
       </div>
 
-      {/* Block 3: Video */}
+      {/* 3. Video Script */}
       <div className="rounded-lg border border-border bg-card p-5">
         <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
           <Video size={16} />
-          Block 3: Video Script
+          3. Video Script
         </h2>
         <EditableBlock
           label="Video Script"
@@ -1271,11 +1412,11 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         )}
       </div>
 
-      {/* Block 4: Voiceover */}
+      {/* 4. Voiceover */}
       <div className="rounded-lg border border-border bg-card p-5">
         <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
           <Video size={16} />
-          Block 4: Voiceover
+          4. Voiceover
         </h2>
         <button
           type="button"
@@ -1311,11 +1452,11 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         )}
       </div>
 
-      {/* Block 5: LinkedIn Post */}
+      {/* 5. LinkedIn Post */}
       <div className="rounded-lg border border-border bg-card p-5">
         <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
           <Linkedin size={16} />
-          Block 5: LinkedIn Post
+          5. LinkedIn Post
         </h2>
         <EditableBlock
           label="LinkedIn Post"
@@ -1330,11 +1471,11 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         />
       </div>
 
-      {/* Block 6: Facebook Post */}
+      {/* 6. Facebook Post */}
       <div className="rounded-lg border border-border bg-card p-5">
         <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
           <Facebook size={16} />
-          Block 6: Facebook Post
+          6. Facebook Post
         </h2>
         {record.generated.facebookImageUrl && (
           <div className="relative mb-4 rounded-lg overflow-hidden border border-border">
@@ -1362,18 +1503,18 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         />
       </div>
 
-      {/* Block 7: Tweet */}
+      {/* 7. Tweet */}
       <div className="rounded-lg border border-border bg-card p-5">
         <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
           <Twitter size={16} />
-          Block 7: Tweet
+          7. Tweet
         </h2>
         <EditableBlock
           label="Tweet"
           content={record.generated.tweetSnippet || ""}
-          onGenerate={generateSocialSnippets}
-          isGenerating={loading === "social"}
-          generateLabel="Generate All Social"
+          onGenerate={generateTweet}
+          isGenerating={loading === "tweet"}
+          generateLabel="Generate"
           onSave={async (v) => {
             const updated = await updateGeneratedContent(record.id, { tweetSnippet: v })
             if (updated) setRecord(updated)
@@ -1381,18 +1522,18 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         />
       </div>
 
-      {/* Block 8: Instagram Caption */}
+      {/* 8. Instagram Caption */}
       <div className="rounded-lg border border-border bg-card p-5">
         <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
           <Instagram size={16} />
-          Block 8: Instagram Caption
+          8. Instagram Caption
         </h2>
         <EditableBlock
           label="Instagram Caption"
           content={record.generated.instagramSnippet || ""}
-          onGenerate={generateSocialSnippets}
-          isGenerating={loading === "social"}
-          generateLabel="Generate All Social"
+          onGenerate={generateInstagramCaption}
+          isGenerating={loading === "instagram"}
+          generateLabel="Generate"
           onSave={async (v) => {
             const updated = await updateGeneratedContent(record.id, { instagramSnippet: v })
             if (updated) setRecord(updated)
@@ -1400,18 +1541,18 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         />
       </div>
 
-      {/* Block 9: Reddit Comment */}
+      {/* 9. Reddit Comment */}
       <div className="rounded-lg border border-border bg-card p-5">
         <h2 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-2">
           <MessageSquare size={16} />
-          Block 9: Reddit Comment
+          9. Reddit Comment
         </h2>
         <EditableBlock
           label="Reddit Comment"
           content={record.generated.redditSnippet || ""}
-          onGenerate={generateSocialSnippets}
-          isGenerating={loading === "social"}
-          generateLabel="Generate All Social"
+          onGenerate={generateRedditComment}
+          isGenerating={loading === "reddit"}
+          generateLabel="Generate"
           onSave={async (v) => {
             const updated = await updateGeneratedContent(record.id, { redditSnippet: v })
             if (updated) setRecord(updated)
