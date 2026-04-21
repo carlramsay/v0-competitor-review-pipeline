@@ -843,6 +843,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     captionGroups: Array<{ text: string; start: number; end: number }>
   ): Promise<Blob> {
     const settings = await getSettings()
+    const isVertical = height > width // Derive from dimensions
     const CROSSFADE_DURATION = 0.5
     const IMAGE_CYCLE_INTERVAL = 6
     const LOGO_DURATION = 3
