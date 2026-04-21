@@ -7,7 +7,7 @@ import { useParams, useRouter } from "next/navigation"
 import { TopNav } from "@/components/top-nav"
 import { ReviewForm } from "@/components/review-form"
 import { ReviewRecord } from "@/lib/types"
-import { getReviewById } from "@/lib/store"
+import { getReviewById } from "@/lib/supabase-store"
 
 export default function EditReviewPage() {
   const { id } = useParams<{ id: string }>()
