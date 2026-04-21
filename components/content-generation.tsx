@@ -3,7 +3,6 @@ import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, updatePipelineStatus, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
-import { generateHeyGenAvatarVideo } from "@/lib/heygen-service"
 import { cn } from "@/lib/utils"
 import { Download, ImageIcon, Save, Check, RefreshCw } from "lucide-react"
 import { CopyButton } from "./copy-button"
@@ -378,7 +377,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       })
       if (updated) {
         setRecord(updated)
-        await updatePipelineStatus(record.id, { avatarVideoGenerated: true })
+        await updatePipelineStatus(record.id, { voiceoverGenerated: true })
         const url = URL.createObjectURL(blob)
         setAudioBlob(blob)
         setAudioUrl(url)
@@ -843,6 +842,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     captionGroups: Array<{ text: string; start: number; end: number }>
   ): Promise<Blob> {
     const settings = await getSettings()
+    const isVertical = height > width // Derive from dimensions
     const CROSSFADE_DURATION = 0.5
     const IMAGE_CYCLE_INTERVAL = 6
     const LOGO_DURATION = 3
@@ -886,34 +886,6 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         logoVideo!.load()
       })
     }
-
-    // Load avatar video for PiP overlay (right side of screen)
-    // Use portrait avatar for vertical videos, landscape avatar for horizontal
-    let avatarVideo: HTMLVideoElement | null = null
-    const avatarAssetKey = isVertical ? "avatar-video-portrait" : "avatar-video"
-    const avatarBase64 = await getVideoAsset(avatarAssetKey)
-    console.log(`[v0] Avatar video (${avatarAssetKey}) loaded:`, avatarBase64 ? `${avatarBase64.length} chars` : "NOT FOUND - Generate avatar video first")
-    if (avatarBase64) {
-      avatarVideo = document.createElement("video")
-      avatarVideo.muted = true // Audio comes from main voiceover
-      avatarVideo.playsInline = true
-      avatarVideo.crossOrigin = "anonymous"
-      avatarVideo.loop = true // Loop if avatar video is shorter than audio
-      const avatarBlob = new Blob(
-        [Uint8Array.from(atob(avatarBase64), (c) => c.charCodeAt(0))],
-        { type: "video/mp4" }
-      )
-      avatarVideo.src = URL.createObjectURL(avatarBlob)
-      await new Promise<void>((resolve, reject) => {
-        avatarVideo!.onloadeddata = () => resolve()
-        avatarVideo!.onerror = () => reject(new Error("Failed to load avatar video"))
-        avatarVideo!.load()
-      })
-    }
-    
-    // Calculate avatar dimensions (25-30% of width on right side)
-    const avatarWidthRatio = avatarVideo ? 0.28 : 0
-    const avatarWidth = Math.round(width * avatarWidthRatio)
 
     const canvas = document.createElement("canvas")
     canvas.width = width
@@ -972,11 +944,8 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     })
 
     // Draw image with blurred/dimmed background fill
-    function drawImageWithBlurredBg(img: HTMLImageElement, alpha = 1, avatarWidth = 0) {
+    function drawImageWithBlurredBg(img: HTMLImageElement, alpha = 1) {
       ctx!.globalAlpha = alpha
-      
-      // Calculate available width (leaving room for avatar on right if needed)
-      const availableWidth = width - avatarWidth
       
       // First: draw blurred background that fills the entire canvas
       const bgScale = Math.max(width / img.width, height / img.height) * 1.2
@@ -992,15 +961,15 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       tempCtx.drawImage(img, bgX, bgY, img.width * bgScale, img.height * bgScale)
       ctx!.drawImage(tempCanvas, 0, 0)
       
-      // Second: draw the main image fitted (contain) within the available space
+      // Second: draw the main image fitted (contain) within the canvas
       const imgAspect = img.width / img.height
-      const areaAspect = availableWidth / height
+      const areaAspect = width / height
       
       let drawWidth: number, drawHeight: number, drawX: number, drawY: number
       
       if (imgAspect > areaAspect) {
         // Image is wider - fit to width
-        drawWidth = availableWidth * 0.92
+        drawWidth = width * 0.92
         drawHeight = drawWidth / imgAspect
       } else {
         // Image is taller - fit to height
@@ -1008,8 +977,8 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         drawWidth = drawHeight * imgAspect
       }
       
-      // Center in the available area (left side if avatar present)
-      drawX = (availableWidth - drawWidth) / 2
+      // Center in canvas
+      drawX = (width - drawWidth) / 2
       drawY = (height - drawHeight) / 2
       
       // Add a subtle shadow/border around the main image
@@ -1120,48 +1089,10 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       ctx!.fillText(group.text, width / 2, bottomY)
     }
 
-    // Function to draw avatar video overlay on the right side
-    function drawAvatarOverlay() {
-      if (!avatarVideo || avatarVideo.readyState < 2) return
-      
-      const avWidth = avatarWidth
-      const avHeight = height
-      const avX = width - avWidth
-      const avY = 0
-      
-      // Calculate aspect ratio to fit avatar video
-      const videoAspect = avatarVideo.videoWidth / avatarVideo.videoHeight
-      const areaAspect = avWidth / avHeight
-      
-      let drawW: number, drawH: number, drawX: number, drawY: number
-      
-      if (videoAspect > areaAspect) {
-        // Video is wider than area - fit to height
-        drawH = avHeight
-        drawW = drawH * videoAspect
-        drawX = avX + (avWidth - drawW) / 2
-        drawY = avY
-      } else {
-        // Video is taller than area - fit to width
-        drawW = avWidth
-        drawH = drawW / videoAspect
-        drawX = avX
-        drawY = avY + (avHeight - drawH) / 2
-      }
-      
-      // Draw semi-transparent background behind avatar
-      ctx!.fillStyle = "rgba(0, 0, 0, 0.3)"
-      ctx!.fillRect(avX, 0, avWidth, height)
-      
-      // Draw the avatar video
-      ctx!.drawImage(avatarVideo, drawX, drawY, drawW, drawH)
-    }
-
     let animationFrameId: number
     let isRecording = true
     const startTime = performance.now()
     let logoStarted = false
-    let avatarStarted = false
 
     function render() {
       if (!isRecording) return
@@ -1200,28 +1131,18 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           ctx!.globalAlpha = 1
         }
       } else {
-        // Start avatar video from the beginning for perfect lip sync
-        if (avatarVideo && !avatarStarted) {
-          avatarVideo.currentTime = 0
-          avatarVideo.play().catch(() => {})
-          avatarStarted = true
-        }
-        
         const cycleTime = elapsed % (IMAGE_CYCLE_INTERVAL * images.length)
         const currentImageIndex = Math.floor(cycleTime / IMAGE_CYCLE_INTERVAL) % images.length
         const timeInCurrentImage = cycleTime % IMAGE_CYCLE_INTERVAL
 
-        // Draw screenshot with blurred background, leaving room for avatar
-        drawImageWithBlurredBg(images[currentImageIndex], 1, avatarWidth)
+        // Draw screenshot with blurred background
+        drawImageWithBlurredBg(images[currentImageIndex])
 
         if (images.length > 1 && timeInCurrentImage >= IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION) {
           const nextImageIndex = (currentImageIndex + 1) % images.length
           const crossAlpha = (timeInCurrentImage - (IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION)) / CROSSFADE_DURATION
-          drawImageWithBlurredBg(images[nextImageIndex], crossAlpha, avatarWidth)
+          drawImageWithBlurredBg(images[nextImageIndex], crossAlpha)
         }
-
-        // Draw avatar overlay on the right side
-        drawAvatarOverlay()
 
         drawTitle(elapsed)
         drawCaption(elapsed)
@@ -1295,102 +1216,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     }
   }
 
-  // State for HeyGen avatar video
-  const [avatarVideoUrl, setAvatarVideoUrl] = useState<string | null>(null)
-  const [avatarVideoVerticalUrl, setAvatarVideoVerticalUrl] = useState<string | null>(null)
-
-  async function generateAvatarVideo() {
-    // Use the current script from ref (includes unsaved edits)
-    const currentScript = videoScriptRef.current
-    
-    if (!currentScript) {
-      setError("Generate a video script first before creating the avatar video.")
-      return
-    }
-
-    setError(null)
-    setLoading("avatarVideo")
-    setVideoProgress("Generating HeyGen avatar video (portrait)...")
-
-    try {
-      const settings = await getSettings()
-      
-      if (!settings.heygenApiKey) {
-        setError("HeyGen API key is missing. Add it in Admin Settings.")
-        setLoading(null)
-        return
-      }
-
-      if (!settings.heygenAvatarId) {
-        setError("HeyGen Avatar ID is missing. Add it in Admin Settings.")
-        setLoading(null)
-        return
-      }
-
-      if (!settings.heygenVoiceId) {
-        setError("HeyGen Voice ID is missing. Add it in Admin Settings.")
-        setLoading(null)
-        return
-      }
-
-      // Generate portrait video (9:16) - avatar appears immediately, no black bars
-      const base64Portrait = await generateHeyGenAvatarVideo(
-        settings.heygenApiKey,
-        settings.heygenAvatarId,
-        settings.heygenVoiceId,
-        currentScript,
-        true // isPortrait
-      )
-      
-      // Convert base64 to blob URL for portrait
-      const portraitBinary = atob(base64Portrait)
-      const portraitBytes = new Uint8Array(portraitBinary.length)
-      for (let i = 0; i < portraitBinary.length; i++) {
-        portraitBytes[i] = portraitBinary.charCodeAt(i)
-      }
-      const portraitBlob = new Blob([portraitBytes], { type: "video/mp4" })
-      const portraitUrl = URL.createObjectURL(portraitBlob)
-      setAvatarVideoVerticalUrl(portraitUrl)
-      
-      // Save portrait avatar for use in vertical slideshow videos
-      await saveVideoAsset("avatar-video-portrait", base64Portrait)
-      console.log("[v0] Saved portrait avatar video for slideshow use")
-      
-      setVideoProgress("Generating HeyGen avatar video (landscape)...")
-      
-      // Generate landscape video (16:9)
-      const base64Landscape = await generateHeyGenAvatarVideo(
-        settings.heygenApiKey,
-        settings.heygenAvatarId,
-        settings.heygenVoiceId,
-        currentScript,
-        false // isPortrait = false for landscape
-      )
-      
-      // Convert base64 to blob URL for landscape
-      const landscapeBinary = atob(base64Landscape)
-      const landscapeBytes = new Uint8Array(landscapeBinary.length)
-      for (let i = 0; i < landscapeBinary.length; i++) {
-        landscapeBytes[i] = landscapeBinary.charCodeAt(i)
-      }
-      const landscapeBlob = new Blob([landscapeBytes], { type: "video/mp4" })
-      const landscapeUrl = URL.createObjectURL(landscapeBlob)
-      setAvatarVideoUrl(landscapeUrl)
-
-      // Save landscape avatar for use in horizontal slideshow videos
-      await saveVideoAsset("avatar-video", base64Landscape)
-      console.log("[v0] Saved landscape avatar video for slideshow use")
-
-      setVideoProgress(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error generating avatar video")
-      setVideoProgress(null)
-    } finally {
-      setLoading(null)
-    }
-  }
-
-  // Unified function: generates avatar video first, then slideshow videos
+  // Generates slideshow videos with voiceover and captions
   async function generateFullVideo() {
     const currentScript = videoScriptRef.current
     
@@ -1408,64 +1234,19 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     setLoading("fullVideo")
     
     try {
-      const settings = await getSettings()
-      
-      // Step 1: Generate avatar videos (if HeyGen is configured)
-      if (settings.heygenApiKey && settings.heygenAvatarId && settings.heygenVoiceId) {
-        setVideoProgress("Step 1/3: Generating avatar video (portrait)...")
-        
-        const base64Portrait = await generateHeyGenAvatarVideo(
-          settings.heygenApiKey,
-          settings.heygenAvatarId,
-          settings.heygenVoiceId,
-          currentScript,
-          true
-        )
-        
-        const portraitBinary = atob(base64Portrait)
-        const portraitBytes = new Uint8Array(portraitBinary.length)
-        for (let i = 0; i < portraitBinary.length; i++) {
-          portraitBytes[i] = portraitBinary.charCodeAt(i)
-        }
-        const portraitBlob = new Blob([portraitBytes], { type: "video/mp4" })
-        setAvatarVideoVerticalUrl(URL.createObjectURL(portraitBlob))
-        await saveVideoAsset("avatar-video-portrait", base64Portrait)
-        
-        setVideoProgress("Step 1/3: Generating avatar video (landscape)...")
-        
-        const base64Landscape = await generateHeyGenAvatarVideo(
-          settings.heygenApiKey,
-          settings.heygenAvatarId,
-          settings.heygenVoiceId,
-          currentScript,
-          false
-        )
-        
-        const landscapeBinary = atob(base64Landscape)
-        const landscapeBytes = new Uint8Array(landscapeBinary.length)
-        for (let i = 0; i < landscapeBinary.length; i++) {
-          landscapeBytes[i] = landscapeBinary.charCodeAt(i)
-        }
-        const landscapeBlob = new Blob([landscapeBytes], { type: "video/mp4" })
-        setAvatarVideoUrl(URL.createObjectURL(landscapeBlob))
-        await saveVideoAsset("avatar-video", base64Landscape)
-      } else {
-        console.log("[v0] Skipping avatar generation - HeyGen not configured")
-      }
-      
-      // Step 2: Transcribe audio for captions
-      setVideoProgress("Step 2/4: Transcribing audio for captions...")
+      // Step 1: Transcribe audio for captions
+      setVideoProgress("Step 1/3: Transcribing audio for captions...")
       const words = await fetchWhisperCaptions(audioBlob!)
       const captionGroups = buildCaptionGroups(words)
       
-      // Step 3: Generate horizontal slideshow video
-      setVideoProgress("Step 3/4: Generating horizontal slideshow video...")
+      // Step 2: Generate horizontal slideshow video
+      setVideoProgress("Step 2/3: Generating horizontal video...")
       const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal", captionGroups)
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
       
-      // Step 4: Generate vertical slideshow video
-      setVideoProgress("Step 4/4: Generating vertical slideshow video...")
+      // Step 3: Generate vertical slideshow video
+      setVideoProgress("Step 3/3: Generating vertical video...")
       const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups)
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
@@ -1712,7 +1493,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         {(record.generated.videoScript || videoScriptRef.current) && audioBlob && (
           <div className="mt-4">
             <button type="button" onClick={generateFullVideo} disabled={loading !== null} className={btnClass}>
-              {(loading === "fullVideo" || loading === "generateVideo" || loading === "avatarVideo") ? (
+              {loading === "fullVideo" ? (
                 <Loader2 size={12} className="animate-spin" />
               ) : (
                 <Video size={12} />
@@ -1720,54 +1501,13 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
               Generate Video
             </button>
             <p className="mt-2 text-xs text-muted-foreground">
-              Generates avatar video (if HeyGen configured), then horizontal and vertical slideshow videos
+              Generates horizontal and vertical slideshow videos with voiceover and captions
             </p>
           </div>
         )}
 
         {videoProgress && (
           <div className="mt-4 text-sm text-muted-foreground">{videoProgress}</div>
-        )}
-
-        {/* Avatar Videos from HeyGen */}
-        {(avatarVideoUrl || avatarVideoVerticalUrl) && (
-          <div className="mt-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Avatar Videos</h3>
-            <div className="grid gap-6 lg:grid-cols-2">
-              {avatarVideoUrl && (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-foreground">Landscape (1920x1080)</span>
-                    <a
-                      href={avatarVideoUrl}
-                      download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-avatar-landscape.mp4`}
-                      className={btnClass}
-                    >
-                      <Download size={12} />
-                      Download
-                    </a>
-                  </div>
-                  <video controls src={avatarVideoUrl} className="w-full rounded-md" />
-                </div>
-              )}
-              {avatarVideoVerticalUrl && (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-foreground">Portrait (1080x1920)</span>
-                    <a
-                      href={avatarVideoVerticalUrl}
-                      download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-avatar-portrait.mp4`}
-                      className={btnClass}
-                    >
-                      <Download size={12} />
-                      Download
-                    </a>
-                  </div>
-                  <video controls src={avatarVideoVerticalUrl} className="aspect-[9/16] max-h-[400px] w-auto self-center rounded-md" />
-                </div>
-              )}
-            </div>
-          </div>
         )}
 
         {/* Slideshow Videos */}
