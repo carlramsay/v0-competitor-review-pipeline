@@ -76,9 +76,11 @@ export interface ReviewFormData {
 export interface GeneratedContent {
   blogPost?: string
   blogPostMarkdown?: string
-  blogPostTitles?: string[] // 3 title variations
+  blogPostTitle?: string // single editable blog post title
+  blogPostTitles?: string[] // 3 title variations (deprecated)
   blogPostMeta?: string // meta description 150-160 chars
-  blogPostYouTubeTitle?: string // YouTube title under 70 chars
+  videoTitle?: string // video title under 70 chars
+  blogPostYouTubeTitle?: string // YouTube title under 70 chars (deprecated, use videoTitle)
   videoScript?: string
   voiceoverBase64?: string
   voiceoverScriptHash?: string

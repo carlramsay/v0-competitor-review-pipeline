@@ -68,14 +68,12 @@ The post title sent to WordPress should be: [Competitor Name] Review — Is It W
 
 At the end of your response, after all HTML content, add a clearly delimited section formatted exactly like this:
 
----TITLES---
-Title 1: [question-based title that asks a compelling question about the competitor, must include competitor name and 2026]
-Title 2: [we tested style title like "We Tested [Competitor] So You Don't Have To", must include competitor name and 2026]
-Title 3: [comparison style title like "[Competitor] vs The Competition", must include competitor name and 2026]
+---TITLE---
+Title: [engaging blog post title that asks a compelling question or makes a bold statement about the competitor, must include competitor name and 2026]
 ---META---
 Meta: [exactly 150-160 character meta description including competitor name, one specific finding from the review, and a hook that encourages clicking]
----YOUTUBE---
-YouTube: [YouTube-optimized title under 70 characters, must include competitor name, "Review", and "2026"]
+---VIDEO---
+Video: [Video-optimized title under 70 characters, must include competitor name, "Review", and "2026"]
 ---END---`
 
 const VIDEO_SYSTEM_PROMPT = `Write a 90-second spoken word podcast-style script based on this competitor review. The script must be grounded in the reviewer's actual experience — use their specific observations, their numbers, their reactions. Do not summarize vaguely.
@@ -146,10 +144,38 @@ DO NOT mention: age policies, age verification bypass, or any age-related concer
 DO write: like a real person who tested the platform and is sharing an honest take with no agenda.`
 
 export async function POST(req: NextRequest) {
-  const { type, answers, apiKey } = await req.json()
+  const { type, answers, apiKey, prompt } = await req.json()
 
   if (!apiKey) {
     return NextResponse.json({ error: "OpenAI API key is required" }, { status: 400 })
+  }
+
+  // Handle custom prompt type for title generation
+  if (type === "custom" && prompt) {
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 200,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        return NextResponse.json({ error: data.error?.message ?? "API error" }, { status: response.status })
+      }
+
+      const content = data.choices?.[0]?.message?.content ?? ""
+      return NextResponse.json({ content })
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 500 })
+    }
   }
 
   const systemPrompt =
