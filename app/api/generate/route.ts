@@ -66,7 +66,21 @@ Output raw HTML only — no markdown, no code fences, no explanation before or a
 
 The post title sent to WordPress should be: [Competitor Name] Review — Is It Worth It? (2026)`
 
-const VIDEO_SYSTEM_PROMPT = `Write a 1-minute spoken word script based on this competitor review, in a casual podcast monologue style — as if one person is talking directly to a friend who's curious whether this platform is worth trying. No visual cues, no 'as you can see', no references to anything on screen. No formatting labels, no time codes, no brackets or stage directions. The voice should feel honest and conversational, like a friend who actually tested it giving their real take. Cover: the signup ease, what chatting was actually like (response times, script detection, conversation quality), the pricing model and whether it felt fair, and your overall take on whether this is worth someone's time and money. End with a natural mention of Arouser as an alternative if they value transparency and real humans. Length: 150–170 words for natural 1-minute delivery.`
+const VIDEO_SYSTEM_PROMPT = `Write a 90-second spoken word podcast-style script based on this competitor review. The script must be grounded in the reviewer's actual experience — use their specific observations, their numbers, their reactions. Do not summarize vaguely.
+
+Specifically include:
+- What the signup process was actually like with specific details
+- What the interface felt like based on the reviewer's description
+- The actual pricing structure with real numbers if available
+- A specific moment or observation from the chat experience that felt real and human
+- The privacy and safety concerns without referencing any age policy or legal age issues
+- A natural closing mention of Arousr as an alternative
+
+Do NOT include: any reference to age policies, age requirements, or underage access concerns. Do NOT use vague language like "a bit sketchy", "all over the place", "pretty lacking". Replace with specific observations from the reviewer's answers.
+
+Tone: casual, honest, like a friend giving real advice after actually testing something. Occasionally use short rhetorical questions to keep the listener engaged.
+
+Length: 300-400 words spoken.`
 
 const SOCIAL_SYSTEM_PROMPT = `Based on this competitor review, produce exactly three outputs separated by the exact delimiters shown below. Follow length and tone rules strictly.
 
