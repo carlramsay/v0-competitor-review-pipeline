@@ -53,7 +53,7 @@ export default function GeneratePage() {
           <div>
             <div className="mb-2 flex items-center gap-2">
               <Link
-                href={`/reviews/${id}`}
+                href={`/admin/reviews/${id}`}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft size={13} />

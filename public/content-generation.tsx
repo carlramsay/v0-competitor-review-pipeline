@@ -174,13 +174,13 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   const [backgroundLibrary, setBackgroundLibrary] = useState<ThumbnailImage[]>([])
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null)
   
-  // Collapsible section states
+  // Collapsible section states (collapsed by default)
   const [collapsed, setCollapsed] = useState({
-    blogPost: false,
-    thumbnails: false,
-    video: false,
-    voiceover: false,
-    social: false,
+    blogPost: true,
+    thumbnails: true,
+    video: true,
+    voiceover: true,
+    social: true,
   })
   
   // Ref to track the current video script value (including unsaved edits)
@@ -206,14 +206,45 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     }
   }, [initialRecord.generated.thumbnailDataUrl, initialRecord.generated.thumbnailVerticalDataUrl])
 
-  // Hydrate saved videos from Cloudinary on mount
+  // Hydrate saved videos from storage on mount
   useEffect(() => {
-    if (initialRecord.generated.videoDataUrl) {
-      setVideoUrl(initialRecord.generated.videoDataUrl)
+    async function loadVideos() {
+      // Load horizontal video
+      if (initialRecord.generated.videoDataUrl) {
+        try {
+          const videoKey = initialRecord.generated.videoDataUrl
+          const base64 = await getVideoAsset(videoKey)
+          if (base64) {
+            const binary = atob(base64)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+            const blob = new Blob([bytes], { type: "video/mp4" })
+            const url = URL.createObjectURL(blob)
+            setVideoUrl(url)
+          }
+        } catch (err) {
+          console.error("Failed to load horizontal video:", err)
+        }
+      }
+      // Load vertical video
+      if (initialRecord.generated.videoVerticalDataUrl) {
+        try {
+          const videoKey = initialRecord.generated.videoVerticalDataUrl
+          const base64 = await getVideoAsset(videoKey)
+          if (base64) {
+            const binary = atob(base64)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+            const blob = new Blob([bytes], { type: "video/mp4" })
+            const url = URL.createObjectURL(blob)
+            setVideoUrlVertical(url)
+          }
+        } catch (err) {
+          console.error("Failed to load vertical video:", err)
+        }
+      }
     }
-    if (initialRecord.generated.videoVerticalDataUrl) {
-      setVideoUrlVertical(initialRecord.generated.videoVerticalDataUrl)
-    }
+    loadVideos()
   }, [initialRecord.generated.videoDataUrl, initialRecord.generated.videoVerticalDataUrl])
 
   // Hydrate saved voiceover from Supabase on mount
@@ -1314,6 +1345,18 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
       
+      // Save horizontal video to storage
+      setVideoProgress("Saving horizontal video...")
+      const horizontalArrayBuffer = await horizontalBlob.arrayBuffer()
+      const horizontalBytes = new Uint8Array(horizontalArrayBuffer)
+      let horizontalBinary = ""
+      for (let i = 0; i < horizontalBytes.length; i++) {
+        horizontalBinary += String.fromCharCode(horizontalBytes[i])
+      }
+      const horizontalBase64 = btoa(horizontalBinary)
+      const horizontalKey = `video-horizontal-${record.id}`
+      await saveVideoAsset(horizontalKey, horizontalBase64)
+      
       // Generate vertical slideshow video
       const vStep = scriptChanged ? "Step 4/4" : "Step 3/3"
       setVideoProgress(`${vStep}: Generating vertical video...`)
@@ -1321,10 +1364,22 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
       
-      // Save to record
+      // Save vertical video to storage
+      setVideoProgress("Saving vertical video...")
+      const verticalArrayBuffer = await verticalBlob.arrayBuffer()
+      const verticalBytes = new Uint8Array(verticalArrayBuffer)
+      let verticalBinary = ""
+      for (let i = 0; i < verticalBytes.length; i++) {
+        verticalBinary += String.fromCharCode(verticalBytes[i])
+      }
+      const verticalBase64 = btoa(verticalBinary)
+      const verticalKey = `video-vertical-${record.id}`
+      await saveVideoAsset(verticalKey, verticalBase64)
+      
+      // Save keys to record (not blob URLs)
       const updatedRecord = await updateGeneratedContent(record.id, {
-        videoDataUrl: horizontalUrl,
-        videoVerticalDataUrl: verticalUrl,
+        videoDataUrl: horizontalKey,
+        videoVerticalDataUrl: verticalKey,
       })
       if (updatedRecord) setRecord(updatedRecord)
       
