@@ -1248,15 +1248,19 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           settings.heygenVoiceId,
           settings.heygenApiKey
         )
-        console.log("[v0] TTS result:", ttsResult)
+        console.log("[v0] TTS result:", JSON.stringify(ttsResult))
         
         if (!ttsResult.success) {
-          throw new Error(ttsResult.error)
+          console.log("[v0] TTS failed:", ttsResult.error)
+          throw new Error(ttsResult.error || "TTS generation failed")
         }
         
         const audioUrl = ttsResult.audioUrl
+        console.log("[v0] Audio URL:", audioUrl)
         
+        console.log("[v0] Fetching audio from URL...")
         const audioRes = await fetch(audioUrl)
+        console.log("[v0] Audio fetch status:", audioRes.status)
         if (!audioRes.ok) throw new Error("Failed to download voiceover audio")
         
         const blob = await audioRes.blob()
