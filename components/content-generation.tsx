@@ -310,29 +310,23 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       // Parse the response to extract blog post and metadata fields
       const fullContent = data.content as string
       let blogPost = fullContent
-      let blogPostTitles: string[] = []
+      let blogPostTitle = ""
       let blogPostMeta = ""
-      let blogPostYouTubeTitle = ""
+      let videoTitle = ""
 
       // Check if the response contains the metadata section
-      const titlesMatch = fullContent.match(/---TITLES---\s*([\s\S]*?)---META---/)
-      const metaMatch = fullContent.match(/---META---\s*([\s\S]*?)---YOUTUBE---/)
-      const youtubeMatch = fullContent.match(/---YOUTUBE---\s*([\s\S]*?)---END---/)
+      const titleMatch = fullContent.match(/---TITLE---\s*([\s\S]*?)---META---/)
+      const metaMatch = fullContent.match(/---META---\s*([\s\S]*?)---VIDEO---/)
+      const videoMatch = fullContent.match(/---VIDEO---\s*([\s\S]*?)---END---/)
 
-      if (titlesMatch) {
+      if (titleMatch) {
         // Strip metadata from blog post
-        blogPost = fullContent.split("---TITLES---")[0].trim()
+        blogPost = fullContent.split("---TITLE---")[0].trim()
         
-        // Parse titles
-        const titlesSection = titlesMatch[1]
-        const title1Match = titlesSection.match(/Title 1:\s*(.+)/)
-        const title2Match = titlesSection.match(/Title 2:\s*(.+)/)
-        const title3Match = titlesSection.match(/Title 3:\s*(.+)/)
-        blogPostTitles = [
-          title1Match?.[1]?.trim() || "",
-          title2Match?.[1]?.trim() || "",
-          title3Match?.[1]?.trim() || "",
-        ].filter(Boolean)
+        // Parse single title
+        const titleSection = titleMatch[1]
+        const titleLine = titleSection.match(/Title:\s*(.+)/)
+        blogPostTitle = titleLine?.[1]?.trim() || ""
       }
 
       if (metaMatch) {
@@ -341,20 +335,84 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         blogPostMeta = metaLine?.[1]?.trim() || ""
       }
 
-      if (youtubeMatch) {
-        const youtubeSection = youtubeMatch[1]
-        const youtubeLine = youtubeSection.match(/YouTube:\s*(.+)/)
-        blogPostYouTubeTitle = youtubeLine?.[1]?.trim() || ""
+      if (videoMatch) {
+        const videoSection = videoMatch[1]
+        const videoLine = videoSection.match(/Video:\s*(.+)/)
+        videoTitle = videoLine?.[1]?.trim() || ""
       }
 
       const updated = await updateGeneratedContent(record.id, { 
         blogPost,
-        blogPostTitles,
+        blogPostTitle,
         blogPostMeta,
-        blogPostYouTubeTitle,
+        videoTitle,
       })
       if (updated) setRecord(updated)
       await updatePipelineStatus(record.id, { blogPostGenerated: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function generateBlogTitle() {
+    setError(null)
+    setLoading("blogTitle")
+    const settings = await getSettings()
+    if (!settings.openaiApiKey) {
+      setError("No OpenAI API key found. Please add it in Settings.")
+      setLoading(null)
+      return
+    }
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          type: "custom", 
+          prompt: `Generate an engaging blog post title for a review of ${record.formData.competitorName}. The title should ask a compelling question or make a bold statement. Must include the competitor name and 2026. Output only the title, nothing else.`,
+          apiKey: settings.openaiApiKey 
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Generation failed")
+
+      const updated = await updateGeneratedContent(record.id, { blogPostTitle: data.content.trim() })
+      if (updated) setRecord(updated)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function generateVideoTitle() {
+    setError(null)
+    setLoading("videoTitle")
+    const settings = await getSettings()
+    if (!settings.openaiApiKey) {
+      setError("No OpenAI API key found. Please add it in Settings.")
+      setLoading(null)
+      return
+    }
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          type: "custom", 
+          prompt: `Generate a YouTube/video-optimized title for a review of ${record.formData.competitorName}. Must be under 70 characters, include the competitor name, "Review", and "2026". Output only the title, nothing else.`,
+          apiKey: settings.openaiApiKey 
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Generation failed")
+
+      const updated = await updateGeneratedContent(record.id, { videoTitle: data.content.trim() })
+      if (updated) setRecord(updated)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
     } finally {
@@ -797,7 +855,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       return null
     }
 
-    const competitorName = record.formData.competitorName || "Competitor"
+    const videoTitle = record.generated.videoTitle || record.generated.blogPostYouTubeTitle || `Review: ${record.formData.competitorName || "Competitor"}`
     const reviewerName = record.formData.reviewerName || "Reviewer"
     const settings = await getSettings()
 
@@ -831,7 +889,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       ctx.fillStyle = "rgba(0, 0, 0, 0.55)"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-      const titleSize = Math.round(width * 0.056)
+      const titleSize = Math.round(width * 0.045)
       const subtitleSize = Math.round(width * 0.028)
       const siteNameSize = Math.round(width * 0.022)
 
@@ -839,11 +897,37 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       ctx.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
-      ctx.fillText(`Review: ${competitorName}`, canvas.width / 2, canvas.height / 2 - titleSize * 0.55)
+      
+      // Word wrap the video title if needed
+      const maxWidth = canvas.width * 0.85
+      const words = videoTitle.split(" ")
+      const lines: string[] = []
+      let currentLine = ""
+      
+      for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word
+        const metrics = ctx.measureText(testLine)
+        if (metrics.width > maxWidth && currentLine) {
+          lines.push(currentLine)
+          currentLine = word
+        } else {
+          currentLine = testLine
+        }
+      }
+      if (currentLine) lines.push(currentLine)
+      
+      // Draw title lines centered
+      const lineHeight = titleSize * 1.2
+      const totalHeight = lines.length * lineHeight
+      const startY = canvas.height / 2 - totalHeight / 2 - subtitleSize * 0.5
+      
+      lines.forEach((line, idx) => {
+        ctx.fillText(line, canvas.width / 2, startY + idx * lineHeight)
+      })
 
       ctx.font = `${subtitleSize}px system-ui, -apple-system, sans-serif`
       ctx.fillStyle = "#cccccc"
-      ctx.fillText(`Tested by ${reviewerName}`, canvas.width / 2, canvas.height / 2 + subtitleSize * 1.4)
+      ctx.fillText(`Tested by ${reviewerName}`, canvas.width / 2, startY + totalHeight + subtitleSize * 0.8)
 
       const siteName = settings.thumbnailSiteName || "Arousr"
       ctx.font = `bold ${siteNameSize}px system-ui, -apple-system, sans-serif`
@@ -1537,7 +1621,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         </div>
       )}
 
-      {/* 1. Blog Post Draft */}
+      {/* 1. Blog Post */}
       <div className="rounded-lg border border-border bg-card">
         <button
           type="button"
@@ -1546,7 +1630,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         >
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <FileText size={16} />
-            1. Blog Post Draft
+            1. Blog Post
           </h2>
           <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", collapsed.blogPost && "-rotate-90")} />
         </button>
@@ -1578,25 +1662,20 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           }}
         />
         
-        {/* Blog Post Titles */}
-        {record.generated.blogPostTitles && record.generated.blogPostTitles.length > 0 && (
-          <div className="mt-6 space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Blog Post Titles</h3>
-            {record.generated.blogPostTitles.map((title, idx) => (
-              <div key={idx} className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
-                <span className="flex-1 text-sm text-foreground">{title}</span>
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(title, `title-${idx}`)}
-                  className="flex-shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  title="Copy to clipboard"
-                >
-                  {copiedItem === `title-${idx}` ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Blog Post Title */}
+        <div className="mt-6">
+          <EditableBlock
+            label="Blog Post Title"
+            content={record.generated.blogPostTitle || ""}
+            onGenerate={generateBlogTitle}
+            isGenerating={loading === "blogTitle"}
+            generateLabel="Generate"
+            onSave={async (v) => {
+              const updated = await updateGeneratedContent(record.id, { blogPostTitle: v })
+              if (updated) setRecord(updated)
+            }}
+          />
+        </div>
         
         {/* Meta Description */}
         {record.generated.blogPostMeta && (
@@ -1636,96 +1715,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         )}
       </div>
 
-      {/* 2. Thumbnails */}
-      <div className="rounded-lg border border-border bg-card">
-        <button
-          type="button"
-          onClick={() => setCollapsed(c => ({ ...c, thumbnails: !c.thumbnails }))}
-          className="flex w-full items-center justify-between p-5"
-        >
-          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <ImageIcon size={16} />
-            2. Thumbnails
-          </h2>
-          <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", collapsed.thumbnails && "-rotate-90")} />
-        </button>
-        {!collapsed.thumbnails && (
-        <div className="px-5 pb-5">
-
-        {/* Background image picker */}
-        {backgroundLibrary.length > 0 && (
-          <div className="mb-4">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">Select Background Image</p>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {backgroundLibrary.map((img) => (
-                <button
-                  key={img.id}
-                  type="button"
-                  onClick={() => setSelectedBackgroundId(img.id)}
-                  className={cn(
-                    "group relative overflow-hidden rounded-md border-2 transition-all",
-                    selectedBackgroundId === img.id
-                      ? "border-primary ring-2 ring-primary/30"
-                      : "border-border hover:border-muted-foreground"
-                  )}
-                >
-                  <img src={img.dataUrl} alt={img.label} className="aspect-video w-full object-cover" />
-                  <span className="absolute bottom-0 left-0 right-0 truncate bg-black/60 px-1 py-0.5 text-center text-xs text-white">
-                    {img.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <button type="button" onClick={generateThumbnail} disabled={loading !== null} className={btnClass}>
-          {loading === "thumbnail" ? <Loader2 size={12} className="animate-spin" /> : <ImageIcon size={12} />}
-          Generate Thumbnails
-        </button>
-
-        {/* Generated Thumbnails */}
-        {(thumbnailUrl || thumbnailUrlVertical) && (
-          <div className="mt-4 grid gap-6 lg:grid-cols-2">
-            {thumbnailUrl && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Horizontal (1280x720)</span>
-                  <a
-                    href={thumbnailUrl}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.jpg`}
-                    className={btnClass}
-                  >
-                    <Download size={12} />
-                    Download
-                  </a>
-                </div>
-                <img src={thumbnailUrl} alt="Horizontal thumbnail" className="w-full rounded-md" />
-              </div>
-            )}
-            {thumbnailUrlVertical && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Vertical (720x1280)</span>
-                  <a
-                    href={thumbnailUrlVertical}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.jpg`}
-                    className={btnClass}
-                  >
-                    <Download size={12} />
-                    Download
-                  </a>
-                </div>
-                <img src={thumbnailUrlVertical} alt="Vertical thumbnail" className="aspect-[9/16] max-h-[400px] w-auto self-center rounded-md" />
-              </div>
-            )}
-          </div>
-        )}
-        </div>
-        )}
-      </div>
-
-      {/* 3. Video */}
+      {/* 2. Video */}
       <div className="rounded-lg border border-border bg-card">
         <button
           type="button"
@@ -1734,40 +1724,37 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         >
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Video size={16} />
-            3. Video
+            2. Video
           </h2>
           <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", collapsed.video && "-rotate-90")} />
         </button>
         {!collapsed.video && (
         <div className="px-5 pb-5">
         
-        {/* YouTube Video Title */}
-        {record.generated.blogPostYouTubeTitle && (
-          <div className="mb-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">YouTube Video Title</h3>
-              <span className={cn(
-                "text-xs",
-                record.generated.blogPostYouTubeTitle.length <= 70
-                  ? "text-green-500"
-                  : "text-red-500"
-              )}>
-                {record.generated.blogPostYouTubeTitle.length}/70 characters
-              </span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
-              <span className="flex-1 text-sm text-foreground">{record.generated.blogPostYouTubeTitle}</span>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(record.generated.blogPostYouTubeTitle!, "youtube")}
-                className="flex-shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                title="Copy to clipboard"
-              >
-                {copiedItem === "youtube" ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Video Title */}
+        <div className="mb-6">
+          <EditableBlock
+            label="Video Title"
+            content={record.generated.videoTitle || record.generated.blogPostYouTubeTitle || ""}
+            onGenerate={generateVideoTitle}
+            isGenerating={loading === "videoTitle"}
+            generateLabel="Generate"
+            onSave={async (v) => {
+              const updated = await updateGeneratedContent(record.id, { videoTitle: v })
+              if (updated) setRecord(updated)
+            }}
+          />
+          {(record.generated.videoTitle || record.generated.blogPostYouTubeTitle) && (
+            <p className={cn(
+              "mt-1 text-xs",
+              (record.generated.videoTitle || record.generated.blogPostYouTubeTitle || "").length <= 70
+                ? "text-green-500"
+                : "text-red-500"
+            )}>
+              {(record.generated.videoTitle || record.generated.blogPostYouTubeTitle || "").length}/70 characters
+            </p>
+          )}
+        </div>
         
         <EditableBlock
           label="Video Script"
@@ -1840,6 +1827,107 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
               </div>
             )}
             </div>
+          </div>
+        )}
+        </div>
+        )}
+      </div>
+
+      {/* 3. Thumbnails */}
+      <div className="rounded-lg border border-border bg-card">
+        <button
+          type="button"
+          onClick={() => setCollapsed(c => ({ ...c, thumbnails: !c.thumbnails }))}
+          className="flex w-full items-center justify-between p-5"
+        >
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <ImageIcon size={16} />
+            3. Thumbnails
+          </h2>
+          <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", collapsed.thumbnails && "-rotate-90")} />
+        </button>
+        {!collapsed.thumbnails && (
+        <div className="px-5 pb-5">
+
+        {/* Video title requirement notice */}
+        {!record.generated.videoTitle && !record.generated.blogPostYouTubeTitle && (
+          <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
+            Please generate a Video Title in the Video section first. The title will appear on the thumbnails.
+          </div>
+        )}
+
+        {/* Background image picker */}
+        {backgroundLibrary.length > 0 && (
+          <div className="mb-4">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Select Background Image</p>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {backgroundLibrary.map((img) => (
+                <button
+                  key={img.id}
+                  type="button"
+                  onClick={() => setSelectedBackgroundId(img.id)}
+                  className={cn(
+                    "group relative overflow-hidden rounded-md border-2 transition-all",
+                    selectedBackgroundId === img.id
+                      ? "border-primary ring-2 ring-primary/30"
+                      : "border-border hover:border-muted-foreground"
+                  )}
+                >
+                  <img src={img.dataUrl} alt={img.label} className="aspect-video w-full object-cover" />
+                  <span className="absolute bottom-0 left-0 right-0 truncate bg-black/60 px-1 py-0.5 text-center text-xs text-white">
+                    {img.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button 
+          type="button" 
+          onClick={generateThumbnail} 
+          disabled={loading !== null || (!record.generated.videoTitle && !record.generated.blogPostYouTubeTitle)} 
+          className={btnClass}
+        >
+          {loading === "thumbnail" ? <Loader2 size={12} className="animate-spin" /> : <ImageIcon size={12} />}
+          Generate Thumbnails
+        </button>
+
+        {/* Generated Thumbnails */}
+        {(thumbnailUrl || thumbnailUrlVertical) && (
+          <div className="mt-4 grid gap-6 lg:grid-cols-2">
+            {thumbnailUrl && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">Horizontal (1280x720)</span>
+                  <a
+                    href={thumbnailUrl}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.jpg`}
+                    className={btnClass}
+                  >
+                    <Download size={12} />
+                    Download
+                  </a>
+                </div>
+                <img src={thumbnailUrl} alt="Horizontal thumbnail" className="w-full rounded-md" />
+              </div>
+            )}
+            {thumbnailUrlVertical && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">Vertical (720x1280)</span>
+                  <a
+                    href={thumbnailUrlVertical}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.jpg`}
+                    className={btnClass}
+                  >
+                    <Download size={12} />
+                    Download
+                  </a>
+                </div>
+                <img src={thumbnailUrlVertical} alt="Vertical thumbnail" className="aspect-[9/16] max-h-[400px] w-auto self-center rounded-md" />
+              </div>
+            )}
           </div>
         )}
         </div>
