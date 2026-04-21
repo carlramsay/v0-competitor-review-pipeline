@@ -3,6 +3,7 @@ import { ReviewRecord, ThumbnailImage } from "@/lib/types"
 import { getSettings, updateGeneratedContent, updatePipelineStatus, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
+import { generateHeyGenAvatarVideo } from "@/lib/heygen-service"
 import { cn } from "@/lib/utils"
 import { Download, ImageIcon, Save, Check, RefreshCw } from "lucide-react"
 import { CopyButton } from "./copy-button"
@@ -1143,6 +1144,90 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     }
   }
 
+  // State for HeyGen avatar video
+  const [avatarVideoUrl, setAvatarVideoUrl] = useState<string | null>(null)
+  const [avatarVideoVerticalUrl, setAvatarVideoVerticalUrl] = useState<string | null>(null)
+
+  async function generateAvatarVideo() {
+    if (!record.generated.videoScript) {
+      setError("Generate a video script first before creating the avatar video.")
+      return
+    }
+
+    setError(null)
+    setLoading("avatarVideo")
+    setVideoProgress("Generating HeyGen avatar video (portrait)...")
+
+    try {
+      const settings = await getSettings()
+      
+      if (!settings.heygenApiKey) {
+        setError("HeyGen API key is missing. Add it in Admin Settings.")
+        setLoading(null)
+        return
+      }
+
+      if (!settings.heygenAvatarId) {
+        setError("HeyGen Avatar ID is missing. Add it in Admin Settings.")
+        setLoading(null)
+        return
+      }
+
+      if (!settings.heygenVoiceId) {
+        setError("HeyGen Voice ID is missing. Add it in Admin Settings.")
+        setLoading(null)
+        return
+      }
+
+      // Generate portrait video (9:16) - avatar appears immediately, no black bars
+      const base64Portrait = await generateHeyGenAvatarVideo(
+        settings.heygenApiKey,
+        settings.heygenAvatarId,
+        settings.heygenVoiceId,
+        record.generated.videoScript,
+        true // isPortrait
+      )
+      
+      // Convert base64 to blob URL for portrait
+      const portraitBinary = atob(base64Portrait)
+      const portraitBytes = new Uint8Array(portraitBinary.length)
+      for (let i = 0; i < portraitBinary.length; i++) {
+        portraitBytes[i] = portraitBinary.charCodeAt(i)
+      }
+      const portraitBlob = new Blob([portraitBytes], { type: "video/mp4" })
+      const portraitUrl = URL.createObjectURL(portraitBlob)
+      setAvatarVideoVerticalUrl(portraitUrl)
+
+      setVideoProgress("Generating HeyGen avatar video (landscape)...")
+
+      // Generate landscape video (16:9)
+      const base64Landscape = await generateHeyGenAvatarVideo(
+        settings.heygenApiKey,
+        settings.heygenAvatarId,
+        settings.heygenVoiceId,
+        record.generated.videoScript,
+        false // isPortrait = false for landscape
+      )
+      
+      // Convert base64 to blob URL for landscape
+      const landscapeBinary = atob(base64Landscape)
+      const landscapeBytes = new Uint8Array(landscapeBinary.length)
+      for (let i = 0; i < landscapeBinary.length; i++) {
+        landscapeBytes[i] = landscapeBinary.charCodeAt(i)
+      }
+      const landscapeBlob = new Blob([landscapeBytes], { type: "video/mp4" })
+      const landscapeUrl = URL.createObjectURL(landscapeBlob)
+      setAvatarVideoUrl(landscapeUrl)
+
+      setVideoProgress(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error generating avatar video")
+      setVideoProgress(null)
+    } finally {
+      setLoading(null)
+    }
+  }
+
   async function pushToWordPress() {
     setError(null)
     setLoading("wp")
@@ -1364,17 +1449,70 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             if (updated) setRecord(updated)
           }}
         />
-        {record.generated.videoScript && audioBlob && (
-          <div className="mt-4">
-            <button type="button" onClick={generateVideo} disabled={loading !== null} className={btnClass}>
-              {loading === "generateVideo" ? <Loader2 size={12} className="animate-spin" /> : <Video size={12} />}
-              Generate Video
+        {record.generated.videoScript && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {audioBlob && (
+              <button type="button" onClick={generateVideo} disabled={loading !== null} className={btnClass}>
+                {loading === "generateVideo" ? <Loader2 size={12} className="animate-spin" /> : <Video size={12} />}
+                Generate Slideshow Video
+              </button>
+            )}
+            <button type="button" onClick={generateAvatarVideo} disabled={loading !== null} className={btnClass}>
+              {loading === "avatarVideo" ? <Loader2 size={12} className="animate-spin" /> : <Video size={12} />}
+              Generate Avatar Video
             </button>
           </div>
         )}
 
-        {/* Generated Videos */}
+        {videoProgress && (
+          <div className="mt-4 text-sm text-muted-foreground">{videoProgress}</div>
+        )}
+
+        {/* Avatar Videos from HeyGen */}
+        {(avatarVideoUrl || avatarVideoVerticalUrl) && (
+          <div className="mt-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Avatar Videos</h3>
+            <div className="grid gap-6 lg:grid-cols-2">
+              {avatarVideoUrl && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">Landscape (1920x1080)</span>
+                    <a
+                      href={avatarVideoUrl}
+                      download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-avatar-landscape.mp4`}
+                      className={btnClass}
+                    >
+                      <Download size={12} />
+                      Download
+                    </a>
+                  </div>
+                  <video controls src={avatarVideoUrl} className="w-full rounded-md" />
+                </div>
+              )}
+              {avatarVideoVerticalUrl && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">Portrait (1080x1920)</span>
+                    <a
+                      href={avatarVideoVerticalUrl}
+                      download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-avatar-portrait.mp4`}
+                      className={btnClass}
+                    >
+                      <Download size={12} />
+                      Download
+                    </a>
+                  </div>
+                  <video controls src={avatarVideoVerticalUrl} className="aspect-[9/16] max-h-[400px] w-auto self-center rounded-md" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Slideshow Videos */}
         {(videoUrl || videoUrlVertical) && (
+          <div className="mt-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Slideshow Videos</h3>
           <div className="mt-4 grid gap-6 lg:grid-cols-2">
             {videoUrl && (
               <div className="flex flex-col gap-3">
@@ -1408,6 +1546,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
                 <video controls src={videoUrlVertical} className="aspect-[9/16] max-h-[400px] w-auto self-center rounded-md" />
               </div>
             )}
+            </div>
           </div>
         )}
       </div>
