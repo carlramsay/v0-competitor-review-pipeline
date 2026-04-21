@@ -341,6 +341,58 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         videoTitle = videoLine?.[1]?.trim() || ""
       }
 
+      // Embed screenshots into the blog post HTML
+      const screenshots = record.formData.reviewScreenshots || []
+      const competitorName = record.formData.competitorName || "Competitor"
+      
+      if (screenshots.length > 0) {
+        const imageHtml = (src: string) => `
+<div style="margin: 1.5em 0; text-align: center;">
+  <img src="${src}" alt="${competitorName} screenshot" style="max-width: 100%; border-radius: 8px; border: 1px solid #444;" />
+</div>`
+
+        // Insert after Introduction section (look for </section> or </h2> patterns)
+        // Section markers: Introduction, Interface and Navigation, Privacy and Safety
+        const sectionPatterns = [
+          { marker: /(<\/section>|<\/div>)(\s*<!--\s*End Introduction\s*-->|\s*<h2[^>]*>.*?Interface)/i, screenshot: screenshots[0] },
+          { marker: /(<\/section>|<\/div>)(\s*<!--\s*End Interface\s*-->|\s*<h2[^>]*>.*?Privacy)/i, screenshot: screenshots[1] },
+          { marker: /(<\/section>|<\/div>)(\s*<!--\s*End Privacy\s*-->|\s*<h2[^>]*>.*?(Pricing|Chat|Conclusion))/i, screenshot: screenshots[2] },
+        ]
+
+        // Try to find section headers and insert images after them
+        // More reliable: look for h2 headers by section name
+        const insertAfterH2 = (html: string, sectionName: string, imgSrc: string | undefined): string => {
+          if (!imgSrc) return html
+          
+          // Find the section by h2 header containing the section name
+          const h2Regex = new RegExp(`(<h2[^>]*>[^<]*${sectionName}[^<]*<\\/h2>)([\\s\\S]*?)(<h2|$)`, 'i')
+          const match = html.match(h2Regex)
+          
+          if (match) {
+            // Find the first paragraph or div end in this section to insert after
+            const sectionContent = match[2]
+            const firstParaEnd = sectionContent.indexOf('</p>')
+            
+            if (firstParaEnd !== -1) {
+              const insertPos = html.indexOf(match[0]) + match[1].length + firstParaEnd + 4
+              return html.slice(0, insertPos) + imageHtml(imgSrc) + html.slice(insertPos)
+            }
+          }
+          return html
+        }
+
+        // Insert screenshots after specific sections
+        if (screenshots[0]) {
+          blogPost = insertAfterH2(blogPost, 'Introduction', screenshots[0])
+        }
+        if (screenshots[1]) {
+          blogPost = insertAfterH2(blogPost, 'Interface', screenshots[1])
+        }
+        if (screenshots[2]) {
+          blogPost = insertAfterH2(blogPost, 'Privacy', screenshots[2])
+        }
+      }
+
       const updated = await updateGeneratedContent(record.id, { 
         blogPost,
         blogPostTitle,
