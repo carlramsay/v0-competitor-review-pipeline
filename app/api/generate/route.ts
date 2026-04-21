@@ -16,7 +16,7 @@ CRITICAL RULES — read these before writing a single word:
 
 6. AROUSR MENTION: Only mention Arousr as an alternative in the conclusion paragraph. One natural mention. Not in every section. Not in every table.
 
-7. SCORE: Use the exact total score from the reviewer's form. Do not recalculate or change it.
+7. SCORE: The SCORES section at the end of the input contains the exact scores entered by the reviewer. Use these numbers as-is in the final scores table. Do not add them up yourself. Do not change any value. The total shown is the correct total.
 
 Follow this exact HTML structure and styling:
 
