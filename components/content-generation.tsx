@@ -872,6 +872,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     // Load avatar video for PiP overlay (right side of screen)
     let avatarVideo: HTMLVideoElement | null = null
     const avatarBase64 = await getVideoAsset("avatar-video")
+    console.log("[v0] Avatar video loaded:", avatarBase64 ? `${avatarBase64.length} chars` : "NOT FOUND")
     if (avatarBase64) {
       avatarVideo = document.createElement("video")
       avatarVideo.muted = true // Audio comes from main voiceover
@@ -1015,8 +1016,9 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     }
 
     const captionFontSize = width >= height ? 38 : 52
-
-    function drawTitle(elapsed: number) {
+    console.log(`[v0] Video format: ${formatLabel}, dimensions: ${width}x${height}, captionFontSize: ${captionFontSize}, captionGroups: ${captionGroups.length}`)
+  
+  function drawTitle(elapsed: number) {
       const TITLE_HOLD = 4.0
       const TITLE_FADE = 0.5
       if (elapsed >= TITLE_HOLD + TITLE_FADE) return
