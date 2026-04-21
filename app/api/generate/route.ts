@@ -100,10 +100,14 @@ STRUCTURE:
 - Three to five relevant hashtags at the end
 LENGTH: 130-180 words.
 SPECIFIC DETAILS: Always include at least one concrete observation from the reviewer — a specific number, a specific moment, or a specific quote (cleaned up if needed for the platform). Vague phrases like "lack of safety features" should be replaced with what specifically was missing.
+MANDATORY REQUIREMENTS (every caption must have ALL of these):
+- Must include "Arousr" by name as an alternative — every single caption, no exceptions
+- Must end with 3-5 hashtags — never skip hashtags
+- Must include at least one specific number or detail from the reviewer's answers — never be vague
+
 DO NOT use: "here's the tea", "I found myself", "if you're like me", "might want to explore other options", or any other vague sign-offs.
 DO NOT mention: age policies, age verification bypass, or any age-related concerns.
-DO NOT skip the Arousr mention — it must appear naturally in every caption.
-DO NOT skip hashtags.
+DO NOT end with: "stay safe", "chat wisely", "choose wisely", or any generic sign-off phrase.
 
 ---REDDIT---
 A Reddit-style comment in a neutral tone. No overt promotion. Reads like a genuine recommendation if someone asks about the platform. Under 200 words.`
