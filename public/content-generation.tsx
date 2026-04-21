@@ -1225,6 +1225,8 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       // Check if voiceover needs to be regenerated (script changed since last voiceover)
       const voiceoverScript = record.generated.voiceoverScriptHash || ""
       const scriptChanged = currentScript !== voiceoverScript
+      console.log("[v0] Current script (first 100 chars):", currentScript.substring(0, 100))
+      console.log("[v0] Voiceover script hash (first 100 chars):", voiceoverScript.substring(0, 100))
       console.log("[v0] scriptChanged:", scriptChanged, "audioBlob exists:", !!audioBlob)
       
       let currentAudioBlob = audioBlob
