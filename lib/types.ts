@@ -62,7 +62,8 @@ export interface ReviewFormData {
   q28: string
 
   // Section 6.5 — Review Screenshots (for video backgrounds)
-  reviewScreenshots?: string[] // array of base64 data URLs
+  // Array of base64 data URLs, ordered by priority (index 0 = first in video)
+  reviewScreenshots?: string[]
 
   // Section 7 — Scores
   scores: ScoreRow[]
@@ -75,6 +76,9 @@ export interface ReviewFormData {
 export interface GeneratedContent {
   blogPost?: string
   blogPostMarkdown?: string
+  blogPostTitles?: string[] // 3 title variations
+  blogPostMeta?: string // meta description 150-160 chars
+  blogPostYouTubeTitle?: string // YouTube title under 70 chars
   videoScript?: string
   voiceoverBase64?: string
   voiceoverScriptHash?: string
