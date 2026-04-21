@@ -72,18 +72,14 @@ export async function generateHeyGenAvatarVideo(
     video_inputs: [
       {
         character: {
-          type: "avatar",
-          avatar_id: avatarId,
-          avatar_style: "closeUp", // Close-up for better lip sync visibility
-          scale: 1.0,
-          offset: { x: 0, y: 0 }, // Centered
+          type: "talking_photo",
+          talking_photo_id: avatarId,
         },
         voice: {
           type: "text",
           input_text: script,
           voice_id: voiceId,
           speed: 1.0,
-          emotion: "Friendly",
         },
         background: {
           type: "color",
