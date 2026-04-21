@@ -71,6 +71,34 @@ export function buildAnswersString(formData: ReviewFormData): string {
 
   lines.push("=== SECTION 8: Meta ===")
   lines.push(`Discovery method: ${formData.q29 || "(not specified)"}`)
+  lines.push("")
+
+  // Calculate totals from stored scores
+  const totals = calcTotalScore(formData.scores)
+  
+  // Build structured SCORES section for GPT-4o
+  lines.push("=== SCORES (use these exact numbers — do not change, recalculate, or omit any of them) ===")
+  
+  // Map feature names to their scores
+  const scoreMap: Record<string, { competitor: number | ""; arousr: number | "" }> = {}
+  formData.scores.forEach((row) => {
+    scoreMap[row.feature] = { competitor: row.competitorScore, arousr: row.arousrScore }
+  })
+  
+  const getScore = (feature: string, type: "competitor" | "arousr") => {
+    const val = scoreMap[feature]?.[type]
+    return typeof val === "number" ? val : "N/A"
+  }
+  
+  lines.push(`Ease of Signup: ${getScore("Ease of Signup", "competitor")}/10 (Arousr: ${getScore("Ease of Signup", "arousr")}/10)`)
+  lines.push(`Interface / UX: ${getScore("Interface / UX", "competitor")}/10 (Arousr: ${getScore("Interface / UX", "arousr")}/10)`)
+  lines.push(`Mobile Experience: ${getScore("Mobile Experience", "competitor")}/10 (Arousr: ${getScore("Mobile Experience", "arousr")}/10)`)
+  lines.push(`Host Variety: ${getScore("Host Variety", "competitor")}/10 (Arousr: ${getScore("Host Variety", "arousr")}/10)`)
+  lines.push(`Response Time: ${getScore("Response Time", "competitor")}/10 (Arousr: ${getScore("Response Time", "arousr")}/10)`)
+  lines.push(`Chat Quality: ${getScore("Chat Quality", "competitor")}/10 (Arousr: ${getScore("Chat Quality", "arousr")}/10)`)
+  lines.push(`Pricing Transparency: ${getScore("Pricing Transparency", "competitor")}/10 (Arousr: ${getScore("Pricing Transparency", "arousr")}/10)`)
+  lines.push(`Privacy & Safety: ${getScore("Privacy & Safety", "competitor")}/10 (Arousr: ${getScore("Privacy & Safety", "arousr")}/10)`)
+  lines.push(`Total: ${totals.competitor}/80 (Arousr: ${totals.arousr}/80)`)
 
   return lines.join("\n")
 }
