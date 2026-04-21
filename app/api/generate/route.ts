@@ -121,7 +121,17 @@ DO NOT mention: age policies, age verification bypass, or any age-related concer
 DO NOT end with: "stay safe", "chat wisely", "choose wisely", or any generic sign-off phrase.
 
 ---REDDIT---
-A Reddit-style comment in a neutral tone. No overt promotion. Reads like a genuine recommendation if someone asks about the platform. Under 200 words.`
+Write a Reddit comment based on this competitor review. Follow these rules:
+TONE: Genuine, first-person, like a real user sharing their experience. Conversational and unpolished. No brand voice. No promotional language whatsoever.
+STRUCTURE:
+- One sentence establishing that you personally tested the platform
+- Two to three sentences covering the most specific and interesting findings — use real numbers and real observations from the reviewer's answers
+- One honest closing sentence summarizing the experience without pushing an alternative
+LENGTH: 80-120 words maximum.
+DO NOT mention Arousr at all. Reddit users immediately recognize unprompted brand mentions as shilling and will downvote or report the comment. Arousr should only be mentioned if someone specifically asks for an alternative in a reply thread — never in the initial comment.
+DO NOT use: corporate language, "in contrast", "reflected in their score", "for those prioritizing", or any phrasing that sounds like marketing copy.
+DO NOT mention: age policies, age verification bypass, or any age-related concerns.
+DO write: like a real person who tested the platform and is sharing an honest take with no agenda.`
 
 export async function POST(req: NextRequest) {
   const { type, answers, apiKey } = await req.json()
