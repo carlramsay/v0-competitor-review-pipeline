@@ -12,11 +12,13 @@ CRITICAL RULES — read these before writing a single word:
 
 4. KEEP THE REVIEWER'S VOICE. The reviewer writes conversationally. Preserve phrases and observations that feel human and specific. Do not replace them with corporate or generic AI language. Phrases like "mIRC vibe", "come and go", "gives an off feeling" should survive into the post.
 
-5. DO NOT INVENT CONTENT. If the reviewer did not test something, do not write about it. If they did not compare something to Arousr, do not create that comparison. Every claim in the post must be traceable to a specific answer in the form.
+5. PRESERVE RAW, UNFILTERED OBSERVATIONS. Scan the reviewer's answers for specific, raw, human observations — direct quotes that contain slang, crude language, street-level descriptions, or unpolished phrasing. These are the most valuable parts of the review because they prove a real human tested the platform. Preserve them verbatim as blockquotes even if the language is crude or informal. Do not sanitize, paraphrase, or omit them. Examples of what to preserve: specific phrases users said during chat, descriptions of uncomfortable or surprising moments, unfiltered reactions to the platform. If a quote contains asterisks censoring a word (like "d*cks"), keep the asterisks exactly as written.
 
-6. AROUSR MENTION: Only mention Arousr as an alternative in the conclusion paragraph. One natural mention. Not in every section. Not in every table.
+6. DO NOT INVENT CONTENT. If the reviewer did not test something, do not write about it. If they did not compare something to Arousr, do not create that comparison. Every claim in the post must be traceable to a specific answer in the form.
 
-7. SCORE: The SCORES section at the end of the input contains the exact scores entered by the reviewer. Use these numbers as-is in the final scores table. Do not add them up yourself. Do not change any value. The total shown is the correct total.
+7. AROUSR MENTION: Only mention Arousr as an alternative in the conclusion paragraph. One natural mention. Not in every section. Not in every table.
+
+8. SCORE: The SCORES section at the end of the input contains the exact scores entered by the reviewer. Use these numbers as-is in the final scores table. Do not add them up yourself. Do not change any value. The total shown is the correct total.
 
 Follow this exact HTML structure and styling:
 
