@@ -1,43 +1,55 @@
-import { Suspense } from "react"
-import { notFound } from "next/navigation"
+"use client"
+
+export const dynamic = "force-dynamic"
+
+import { useEffect, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
+import { TopNav } from "@/components/top-nav"
 import { ReviewForm } from "@/components/review-form"
+import { ReviewRecord } from "@/lib/types"
 import { getReviewById } from "@/lib/supabase-store"
 
-interface PageProps {
-  params: Promise<{ id: string }>
-}
+export default function EditReviewPage() {
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+  const [record, setRecord] = useState<ReviewRecord | null>(null)
+  const [loading, setLoading] = useState(true)
 
-async function EditFormContent({ id }: { id: string }) {
-  const record = await getReviewById(id)
-  
+  useEffect(() => {
+    getReviewById(id).then((r) => {
+      if (!r) {
+        router.replace("/reviews")
+        return
+      }
+      setRecord(r)
+      setLoading(false)
+    })
+  }, [id, router])
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-background">
+        <TopNav />
+        <div className="flex h-64 items-center justify-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </main>
+    )
+  }
+
   if (!record) {
-    notFound()
+    return null
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-4xl px-4 py-8">
-        <h1 className="mb-8 text-center text-3xl font-bold text-foreground">
+    <main className="min-h-screen bg-background">
+      <TopNav />
+      <div className="mx-auto max-w-2xl px-4 py-12">
+        <h1 className="mb-8 text-2xl font-bold text-foreground text-center">
           {record.formData.competitorName} Review
         </h1>
-        <ReviewForm reviewId={id} />
+        <ReviewForm initialData={record.formData} reviewId={record.id} />
       </div>
-    </div>
-  )
-}
-
-export default async function EditFormPage({ params }: PageProps) {
-  const { id } = await params
-
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-background">
-          <div className="text-muted-foreground">Loading...</div>
-        </div>
-      }
-    >
-      <EditFormContent id={id} />
-    </Suspense>
+    </main>
   )
 }
