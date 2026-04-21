@@ -10,11 +10,11 @@ export async function generateHeyGenTTS(
       return { success: false, error: "Missing required fields: text, voiceId, apiKey" }
     }
 
-    const response = await fetch("https://api.heygen.com/v1/voice.tts", {
+    const response = await fetch("https://api.heygen.com/v1/audio/text_to_speech", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Api-Key": apiKey,
+        "X-API-KEY": apiKey,
       },
       body: JSON.stringify({
         text,
@@ -28,7 +28,7 @@ export async function generateHeyGenTTS(
     }
 
     const data = await response.json()
-    const audioUrl = data.data?.url
+    const audioUrl = data.data?.audio_url
     
     if (!audioUrl) {
       return { success: false, error: "No audio URL returned from HeyGen" }
