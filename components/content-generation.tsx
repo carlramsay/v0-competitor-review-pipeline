@@ -377,7 +377,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       })
       if (updated) {
         setRecord(updated)
-        await updatePipelineStatus(record.id, { avatarVideoGenerated: true })
+        await updatePipelineStatus(record.id, { voiceoverGenerated: true })
         const url = URL.createObjectURL(blob)
         setAudioBlob(blob)
         setAudioUrl(url)
@@ -1493,7 +1493,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         {(record.generated.videoScript || videoScriptRef.current) && audioBlob && (
           <div className="mt-4">
             <button type="button" onClick={generateFullVideo} disabled={loading !== null} className={btnClass}>
-              {(loading === "fullVideo" || loading === "generateVideo" || loading === "avatarVideo") ? (
+              {loading === "fullVideo" ? (
                 <Loader2 size={12} className="animate-spin" />
               ) : (
                 <Video size={12} />
@@ -1501,7 +1501,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
               Generate Video
             </button>
             <p className="mt-2 text-xs text-muted-foreground">
-              Generates avatar video (if HeyGen configured), then horizontal and vertical slideshow videos
+              Generates horizontal and vertical slideshow videos with voiceover and captions
             </p>
           </div>
         )}
