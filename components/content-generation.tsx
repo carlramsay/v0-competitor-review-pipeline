@@ -209,11 +209,15 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   // Hydrate saved videos from storage on mount
   useEffect(() => {
     async function loadVideos() {
+      console.log("[v0] Loading videos, videoDataUrl:", initialRecord.generated.videoDataUrl)
+      console.log("[v0] Loading videos, videoVerticalDataUrl:", initialRecord.generated.videoVerticalDataUrl)
       // Load horizontal video
       if (initialRecord.generated.videoDataUrl) {
         try {
           const videoKey = initialRecord.generated.videoDataUrl
+          console.log("[v0] Fetching horizontal video with key:", videoKey)
           const base64 = await getVideoAsset(videoKey)
+          console.log("[v0] Got horizontal video base64, length:", base64?.length)
           if (base64) {
             const binary = atob(base64)
             const bytes = new Uint8Array(binary.length)
