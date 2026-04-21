@@ -1626,34 +1626,6 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           </div>
         )}
         
-        {/* YouTube Video Title */}
-        {record.generated.blogPostYouTubeTitle && (
-          <div className="mt-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">YouTube Video Title</h3>
-              <span className={cn(
-                "text-xs",
-                record.generated.blogPostYouTubeTitle.length <= 70
-                  ? "text-green-500"
-                  : "text-red-500"
-              )}>
-                {record.generated.blogPostYouTubeTitle.length}/70 characters
-              </span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
-              <span className="flex-1 text-sm text-foreground">{record.generated.blogPostYouTubeTitle}</span>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(record.generated.blogPostYouTubeTitle!, "youtube")}
-                className="flex-shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                title="Copy to clipboard"
-              >
-                {copiedItem === "youtube" ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-              </button>
-            </div>
-          </div>
-        )}
-        
         <div className="mt-6 flex gap-2">
           <button type="button" onClick={pushToWordPress} disabled={loading !== null} className={btnClass}>
             {loading === "wp" ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
@@ -1768,6 +1740,35 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         </button>
         {!collapsed.video && (
         <div className="px-5 pb-5">
+        
+        {/* YouTube Video Title */}
+        {record.generated.blogPostYouTubeTitle && (
+          <div className="mb-6 space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">YouTube Video Title</h3>
+              <span className={cn(
+                "text-xs",
+                record.generated.blogPostYouTubeTitle.length <= 70
+                  ? "text-green-500"
+                  : "text-red-500"
+              )}>
+                {record.generated.blogPostYouTubeTitle.length}/70 characters
+              </span>
+            </div>
+            <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+              <span className="flex-1 text-sm text-foreground">{record.generated.blogPostYouTubeTitle}</span>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(record.generated.blogPostYouTubeTitle!, "youtube")}
+                className="flex-shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                title="Copy to clipboard"
+              >
+                {copiedItem === "youtube" ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+              </button>
+            </div>
+          </div>
+        )}
+        
         <EditableBlock
           label="Video Script"
           content={record.generated.videoScript || ""}
