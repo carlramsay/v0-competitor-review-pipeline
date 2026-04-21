@@ -128,7 +128,7 @@ export async function updateGeneratedContent(
 ): Promise<ReviewRecord | null> {
   const supabase = createClient()
   
-  // First get the current record
+  // First get the current record to preserve existing data
   const { data: current, error: fetchError } = await supabase
     .from("reviews")
     .select("*")
@@ -140,8 +140,19 @@ export async function updateGeneratedContent(
     return null
   }
 
-  // Merge the generated content
-  const updatedGenerated = { ...current.generated, ...content }
+  // Safely merge the generated content, preserving all existing fields
+  // Handle case where current.generated might be null/undefined
+  const existingGenerated = (current.generated || {}) as GeneratedContent
+  const updatedGenerated: GeneratedContent = {
+    ...existingGenerated,
+    ...content,
+  }
+  
+  // Log what we're updating for debugging
+  console.log("[v0] Updating generated content for review:", id)
+  console.log("[v0] Existing keys:", Object.keys(existingGenerated))
+  console.log("[v0] New keys being added/updated:", Object.keys(content))
+  console.log("[v0] Final keys:", Object.keys(updatedGenerated))
 
   const { data, error } = await supabase
     .from("reviews")
