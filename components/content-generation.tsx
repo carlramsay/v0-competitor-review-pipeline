@@ -1455,30 +1455,40 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       
       // Step 2: Transcribe audio for captions
       setVideoProgress("Step 2/4: Transcribing audio for captions...")
+      console.log("[v0] Starting transcription, audioBlob size:", audioBlob?.size)
       const words = await fetchWhisperCaptions(audioBlob!)
+      console.log("[v0] Transcription complete, words:", words.length)
       const captionGroups = buildCaptionGroups(words)
+      console.log("[v0] Caption groups:", captionGroups.length)
       
       // Step 3: Generate horizontal slideshow video
       setVideoProgress("Step 3/4: Generating horizontal slideshow video...")
+      console.log("[v0] Starting horizontal video generation...")
       const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal", captionGroups)
+      console.log("[v0] Horizontal video complete, blob size:", horizontalBlob.size)
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
       
       // Step 4: Generate vertical slideshow video
       setVideoProgress("Step 4/4: Generating vertical slideshow video...")
+      console.log("[v0] Starting vertical video generation...")
       const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups)
+      console.log("[v0] Vertical video complete, blob size:", verticalBlob.size)
       const verticalUrl = URL.createObjectURL(verticalBlob)
       setVideoUrlVertical(verticalUrl)
       
       // Save to record
+      console.log("[v0] Saving video URLs to record...")
       const updated = await updateGeneratedContent(record.id, {
         videoDataUrl: horizontalUrl,
         videoVerticalDataUrl: verticalUrl,
       })
       if (updated) setRecord(updated)
+      console.log("[v0] All videos generated successfully!")
       
       setVideoProgress(null)
     } catch (err) {
+      console.error("[v0] Error in generateFullVideo:", err)
       setError(err instanceof Error ? err.message : "Unknown error generating videos")
       setVideoProgress(null)
     } finally {
