@@ -90,7 +90,20 @@ const SOCIAL_SYSTEM_PROMPT = `Based on this competitor review, produce exactly t
 A single tweet under 280 characters. Honest, punchy take.
 
 ---INSTAGRAM---
-An Instagram caption of 150 words max. No hashtags. Conversational.
+Write an Instagram caption based on this competitor review. Follow these rules:
+TONE: Casual, direct, written from a brand perspective — not first person singular. No "I found myself" or "if you're like me." Write as if the Arousr brand account is sharing a genuine platform review with their audience.
+STRUCTURE:
+- One hook sentence that states the core finding or creates curiosity
+- Two to three sentences covering the most interesting specific findings from the review — use real details from the reviewer's answers, not vague summaries
+- One sentence mentioning Arousr naturally as the alternative — not salesy, just factual
+- One engagement question to drive comments
+- Three to five relevant hashtags at the end
+LENGTH: 130-180 words.
+SPECIFIC DETAILS: Always include at least one concrete observation from the reviewer — a specific number, a specific moment, or a specific quote (cleaned up if needed for the platform). Vague phrases like "lack of safety features" should be replaced with what specifically was missing.
+DO NOT use: "here's the tea", "I found myself", "if you're like me", "might want to explore other options", or any other vague sign-offs.
+DO NOT mention: age policies, age verification bypass, or any age-related concerns.
+DO NOT skip the Arousr mention — it must appear naturally in every caption.
+DO NOT skip hashtags.
 
 ---REDDIT---
 A Reddit-style comment in a neutral tone. No overt promotion. Reads like a genuine recommendation if someone asks about the platform. Under 200 words.`
