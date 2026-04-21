@@ -1390,6 +1390,86 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     }
   }
 
+  // Unified function: generates avatar video first, then slideshow videos
+  async function generateFullVideo() {
+    const currentScript = videoScriptRef.current
+    
+    if (!currentScript) {
+      setError("Generate a video script first.")
+      return
+    }
+    
+    if (!audioBlob) {
+      setError("Generate voiceover first before creating videos.")
+      return
+    }
+
+    setError(null)
+    setLoading("fullVideo")
+    
+    try {
+      const settings = await getSettings()
+      
+      // Step 1: Generate avatar videos (if HeyGen is configured)
+      if (settings.heygenApiKey && settings.heygenAvatarId && settings.heygenVoiceId) {
+        setVideoProgress("Step 1/3: Generating avatar video (portrait)...")
+        
+        const base64Portrait = await generateHeyGenAvatarVideo(
+          settings.heygenApiKey,
+          settings.heygenAvatarId,
+          settings.heygenVoiceId,
+          currentScript,
+          true
+        )
+        
+        const portraitBinary = atob(base64Portrait)
+        const portraitBytes = new Uint8Array(portraitBinary.length)
+        for (let i = 0; i < portraitBinary.length; i++) {
+          portraitBytes[i] = portraitBinary.charCodeAt(i)
+        }
+        const portraitBlob = new Blob([portraitBytes], { type: "video/mp4" })
+        setAvatarVideoVerticalUrl(URL.createObjectURL(portraitBlob))
+        await saveVideoAsset("avatar-video-portrait", base64Portrait)
+        
+        setVideoProgress("Step 1/3: Generating avatar video (landscape)...")
+        
+        const base64Landscape = await generateHeyGenAvatarVideo(
+          settings.heygenApiKey,
+          settings.heygenAvatarId,
+          settings.heygenVoiceId,
+          currentScript,
+          false
+        )
+        
+        const landscapeBinary = atob(base64Landscape)
+        const landscapeBytes = new Uint8Array(landscapeBinary.length)
+        for (let i = 0; i < landscapeBinary.length; i++) {
+          landscapeBytes[i] = landscapeBinary.charCodeAt(i)
+        }
+        const landscapeBlob = new Blob([landscapeBytes], { type: "video/mp4" })
+        setAvatarVideoUrl(URL.createObjectURL(landscapeBlob))
+        await saveVideoAsset("avatar-video", base64Landscape)
+      } else {
+        console.log("[v0] Skipping avatar generation - HeyGen not configured")
+      }
+      
+      // Step 2: Generate horizontal slideshow video
+      setVideoProgress("Step 2/3: Generating horizontal slideshow video...")
+      await generateVideoWithFormat(false) // horizontal
+      
+      // Step 3: Generate vertical slideshow video
+      setVideoProgress("Step 3/3: Generating vertical slideshow video...")
+      await generateVideoWithFormat(true) // vertical
+      
+      setVideoProgress(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error generating videos")
+      setVideoProgress(null)
+    } finally {
+      setLoading(null)
+    }
+  }
+
   async function pushToWordPress() {
     setError(null)
     setLoading("wp")
@@ -1613,18 +1693,19 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             if (updated) setRecord(updated)
           }}
         />
-        {(record.generated.videoScript || videoScriptRef.current) && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {audioBlob && (
-              <button type="button" onClick={generateVideo} disabled={loading !== null} className={btnClass}>
-                {loading === "generateVideo" ? <Loader2 size={12} className="animate-spin" /> : <Video size={12} />}
-                Generate Slideshow Video
-              </button>
-            )}
-            <button type="button" onClick={generateAvatarVideo} disabled={loading !== null} className={btnClass}>
-              {loading === "avatarVideo" ? <Loader2 size={12} className="animate-spin" /> : <Video size={12} />}
-              Generate Avatar Video
+        {(record.generated.videoScript || videoScriptRef.current) && audioBlob && (
+          <div className="mt-4">
+            <button type="button" onClick={generateFullVideo} disabled={loading !== null} className={btnClass}>
+              {(loading === "fullVideo" || loading === "generateVideo" || loading === "avatarVideo") ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Video size={12} />
+              )}
+              Generate Video
             </button>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Generates avatar video (if HeyGen configured), then horizontal and vertical slideshow videos
+            </p>
           </div>
         )}
 
