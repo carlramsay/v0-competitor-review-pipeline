@@ -130,14 +130,18 @@ export async function generateHeyGenAvatarVideo(
   console.log("[v0] HeyGen video ID received:", videoId)
 
   // Poll for completion
-  let status = "processing"
+  let status = "pending"
   let videoUrl: string | undefined
   let attempts = 0
   const maxAttempts = 120 // 10 minutes with 5s polling
 
-  while (status === "processing" && attempts < maxAttempts) {
+  console.log("[v0] Starting to poll for video status...")
+
+  while ((status === "pending" || status === "processing") && attempts < maxAttempts) {
     await new Promise((resolve) => setTimeout(resolve, 5000))
     attempts++
+
+    console.log(`[v0] Polling attempt ${attempts}/${maxAttempts}...`)
 
     const statusRes = await fetch(
       `https://api.heygen.com/v1/video_status.get?video_id=${videoId}`,
@@ -150,6 +154,7 @@ export async function generateHeyGenAvatarVideo(
     )
 
     if (!statusRes.ok) {
+      console.error("[v0] Status check failed:", statusRes.status, statusRes.statusText)
       throw new Error(`Failed to check HeyGen video status: ${statusRes.statusText}`)
     }
 
@@ -157,22 +162,33 @@ export async function generateHeyGenAvatarVideo(
     status = statusData.data.status
     videoUrl = statusData.data.video_url
 
+    console.log(`[v0] Video status: ${status}`, videoUrl ? `URL: ${videoUrl.substring(0, 50)}...` : "")
+
     if (status === "failed") {
+      console.error("[v0] Video generation failed:", statusData.data.error)
       throw new Error(`HeyGen video generation failed: ${statusData.data.error || "Unknown error"}`)
     }
   }
 
   if (status !== "completed" || !videoUrl) {
+    console.error("[v0] Video did not complete. Status:", status, "Attempts:", attempts)
     throw new Error("HeyGen video generation timed out or did not complete")
   }
+
+  console.log("[v0] Video completed! Downloading from:", videoUrl)
 
   // Download the MP4
   const videoRes = await fetch(videoUrl)
   if (!videoRes.ok) {
+    console.error("[v0] Download failed:", videoRes.status, videoRes.statusText)
     throw new Error(`Failed to download HeyGen video: ${videoRes.statusText}`)
   }
 
+  console.log("[v0] Download successful, converting to base64...")
+
   const arrayBuffer = await videoRes.arrayBuffer()
+  console.log("[v0] Video size:", arrayBuffer.byteLength, "bytes")
+  
   // Convert to base64 in a browser-compatible way
   const bytes = new Uint8Array(arrayBuffer)
   let binary = ""
@@ -180,5 +196,6 @@ export async function generateHeyGenAvatarVideo(
     binary += String.fromCharCode(bytes[i])
   }
   const base64 = btoa(binary)
+  console.log("[v0] Base64 conversion complete, length:", base64.length)
   return base64
 }
