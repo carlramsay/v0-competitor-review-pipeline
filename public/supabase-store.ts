@@ -1,8 +1,47 @@
 "use client"
 
 // Supabase-backed store - migrated from localStorage for persistent storage
+// Updated for RLS: all operations require authenticated user
 import { createClient } from "@/lib/supabase/client"
 import { ReviewRecord, AppSettings, GeneratedContent, ThumbnailImage, QueueItem, ReviewFormData, PipelineStatus, TaskStatus } from "./types"
+
+// RLS Error handling
+export class RLSError extends Error {
+  constructor(message: string, public originalError?: unknown) {
+    super(message)
+    this.name = "RLSError"
+  }
+}
+
+function handleSupabaseError(error: unknown, operation: string): never {
+  const errMsg = error instanceof Error ? error.message : String(error)
+  
+  // Check for common RLS/permission errors
+  if (errMsg.includes("new row violates row-level security") ||
+      errMsg.includes("violates row-level security policy") ||
+      errMsg.includes("permission denied") ||
+      errMsg.includes("RLS")) {
+    throw new RLSError(`Permission denied: You don't have access to ${operation}. Please ensure you're logged in.`, error)
+  }
+  
+  throw new Error(`${operation} failed: ${errMsg}`)
+}
+
+// Get current authenticated user ID
+export async function getCurrentUserId(): Promise<string | null> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return user?.id ?? null
+}
+
+// Check if user is authenticated
+export async function requireAuth(): Promise<string> {
+  const userId = await getCurrentUserId()
+  if (!userId) {
+    throw new RLSError("You must be logged in to perform this action.")
+  }
+  return userId
+}
 
 const DEFAULT_SETTINGS: AppSettings = {
   wpSiteUrl: "",
@@ -22,9 +61,17 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 export async function getReviews(): Promise<ReviewRecord[]> {
   const supabase = createClient()
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    console.warn("[v0] No authenticated user, returning empty reviews")
+    return []
+  }
+
   const { data, error } = await supabase
     .from("reviews")
     .select("*")
+    .eq("user_id", userId)
     .order("submitted_at", { ascending: false })
 
   if (error) {
@@ -34,6 +81,7 @@ export async function getReviews(): Promise<ReviewRecord[]> {
 
   return (data || []).map((row) => ({
     id: row.id,
+    userId: row.user_id,
     submittedAt: row.submitted_at,
     formData: row.form_data as ReviewFormData,
     generated: row.generated as GeneratedContent,
@@ -43,28 +91,43 @@ export async function getReviews(): Promise<ReviewRecord[]> {
 }
 
 export async function saveReview(record: ReviewRecord): Promise<void> {
+  const userId = await requireAuth()
   const supabase = createClient()
-  const { error } = await supabase.from("reviews").upsert({
-    id: record.id,
-    submitted_at: record.submittedAt,
-    form_data: record.formData,
-    generated: record.generated,
-    pipeline_status: record.pipelineStatus || { reviewSubmitted: true, reviewApproved: false, blogPostGenerated: false, videoScriptGenerated: false, avatarVideoGenerated: false, allContentReady: false },
-    tasks: record.tasks || { blogPublishedArousr: false, videoPostedYouTube: false, videoPostedXBIZ: false, videoEmbeddedBlog: false, blogPostedMedium: false, linkedInArticle: false, xPost: false, facebookPost: false, instagramPost: false },
-    updated_at: new Date().toISOString(),
-  })
+  
+  try {
+    const { error } = await supabase.from("reviews").upsert({
+      id: record.id,
+      user_id: userId, // Always set to current authenticated user
+      submitted_at: record.submittedAt,
+      form_data: record.formData,
+      generated: record.generated,
+      pipeline_status: record.pipelineStatus || { reviewSubmitted: true, reviewApproved: false, blogPostGenerated: false, videoScriptGenerated: false, avatarVideoGenerated: false, allContentReady: false },
+      tasks: record.tasks || { blogPublishedArousr: false, videoPostedYouTube: false, videoPostedXBIZ: false, videoEmbeddedBlog: false, blogPostedMedium: false, linkedInArticle: false, xPost: false, facebookPost: false, instagramPost: false },
+      updated_at: new Date().toISOString(),
+    })
 
-  if (error) {
-    console.error("[v0] Error saving review:", error)
-    throw error
+    if (error) {
+      handleSupabaseError(error, "save review")
+    }
+  } catch (err) {
+    if (err instanceof RLSError) throw err
+    handleSupabaseError(err, "save review")
   }
 }
 
 export async function getReviewByCompetitorName(name: string, url?: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    console.warn("[v0] No authenticated user for getReviewByCompetitorName")
+    return null
+  }
+
   const { data, error } = await supabase
     .from("reviews")
     .select("*")
+    .eq("user_id", userId)
     .order("submitted_at", { ascending: false })
 
   if (error || !data) {
@@ -92,6 +155,7 @@ export async function getReviewByCompetitorName(name: string, url?: string): Pro
   console.log("[v0] Found matching review:", match.id)
   return {
     id: match.id,
+    userId: match.user_id,
     submittedAt: match.submitted_at,
     formData: match.form_data as ReviewFormData,
     generated: match.generated as GeneratedContent,
@@ -102,11 +166,20 @@ export async function getReviewByCompetitorName(name: string, url?: string): Pro
 
 export async function getReviewById(id: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
-  const { data, error } = await supabase
+  const userId = await getCurrentUserId()
+  
+  // RLS will automatically filter by user_id, but we add explicit check for clarity
+  const query = supabase
     .from("reviews")
     .select("*")
     .eq("id", id)
-    .single()
+  
+  // Only filter by user_id if user is authenticated
+  if (userId) {
+    query.eq("user_id", userId)
+  }
+  
+  const { data, error } = await query.single()
 
   if (error || !data) {
     return null
@@ -114,6 +187,7 @@ export async function getReviewById(id: string): Promise<ReviewRecord | null> {
 
   return {
     id: data.id,
+    userId: data.user_id,
     submittedAt: data.submitted_at,
     formData: data.form_data as ReviewFormData,
     generated: data.generated as GeneratedContent,
@@ -126,13 +200,15 @@ export async function updateGeneratedContent(
   id: string,
   content: Partial<GeneratedContent>
 ): Promise<ReviewRecord | null> {
+  const userId = await requireAuth()
   const supabase = createClient()
   
-  // First get the current record to preserve existing data
+  // First get the current record to preserve existing data (filtered by user_id via RLS)
   const { data: current, error: fetchError } = await supabase
     .from("reviews")
     .select("*")
     .eq("id", id)
+    .eq("user_id", userId)
     .single()
 
   if (fetchError || !current) {
@@ -154,26 +230,37 @@ export async function updateGeneratedContent(
   console.log("[v0] New keys being added/updated:", Object.keys(content))
   console.log("[v0] Final keys:", Object.keys(updatedGenerated))
 
-  const { data, error } = await supabase
-    .from("reviews")
-    .update({
-      generated: updatedGenerated,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
-    .single()
+  try {
+    const { data, error } = await supabase
+      .from("reviews")
+      .update({
+        generated: updatedGenerated,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", userId) // Ensure we only update own reviews
+      .select()
+      .single()
 
-  if (error || !data) {
-    console.error("[v0] Error updating generated content:", error)
+    if (error) {
+      handleSupabaseError(error, "update generated content")
+    }
+    
+    if (!data) {
+      return null
+    }
+
+    return {
+      id: data.id,
+      userId: data.user_id,
+      submittedAt: data.submitted_at,
+      formData: data.form_data as ReviewFormData,
+      generated: data.generated as GeneratedContent,
+    }
+  } catch (err) {
+    if (err instanceof RLSError) throw err
+    console.error("[v0] Error updating generated content:", err)
     return null
-  }
-
-  return {
-    id: data.id,
-    submittedAt: data.submitted_at,
-    formData: data.form_data as ReviewFormData,
-    generated: data.generated as GeneratedContent,
   }
 }
 
@@ -183,12 +270,14 @@ export async function updatePipelineStatus(
   id: string,
   updates: Partial<PipelineStatus>
 ): Promise<ReviewRecord | null> {
+  const userId = await requireAuth()
   const supabase = createClient()
   
   const { data: current, error: fetchError } = await supabase
     .from("reviews")
     .select("*")
     .eq("id", id)
+    .eq("user_id", userId)
     .single()
 
   if (fetchError || !current) {
@@ -198,28 +287,37 @@ export async function updatePipelineStatus(
 
   const updatedPipeline = { ...current.pipeline_status, ...updates }
 
-  const { data, error } = await supabase
-    .from("reviews")
-    .update({
-      pipeline_status: updatedPipeline,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
-    .single()
+  try {
+    const { data, error } = await supabase
+      .from("reviews")
+      .update({
+        pipeline_status: updatedPipeline,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select()
+      .single()
 
-  if (error || !data) {
-    console.error("[v0] Error updating pipeline status:", error)
+    if (error) {
+      handleSupabaseError(error, "update pipeline status")
+    }
+
+    if (!data) return null
+
+    return {
+      id: data.id,
+      userId: data.user_id,
+      submittedAt: data.submitted_at,
+      formData: data.form_data as ReviewFormData,
+      generated: data.generated as GeneratedContent,
+      pipelineStatus: data.pipeline_status as PipelineStatus | undefined,
+      tasks: data.tasks as TaskStatus | undefined,
+    }
+  } catch (err) {
+    if (err instanceof RLSError) throw err
+    console.error("[v0] Error updating pipeline status:", err)
     return null
-  }
-
-  return {
-    id: data.id,
-    submittedAt: data.submitted_at,
-    formData: data.form_data as ReviewFormData,
-    generated: data.generated as GeneratedContent,
-    pipelineStatus: data.pipeline_status as PipelineStatus | undefined,
-    tasks: data.tasks as TaskStatus | undefined,
   }
 }
 
@@ -227,12 +325,14 @@ export async function updateTaskStatus(
   id: string,
   updates: Partial<TaskStatus>
 ): Promise<ReviewRecord | null> {
+  const userId = await requireAuth()
   const supabase = createClient()
   
   const { data: current, error: fetchError } = await supabase
     .from("reviews")
     .select("*")
     .eq("id", id)
+    .eq("user_id", userId)
     .single()
 
   if (fetchError || !current) {
@@ -242,28 +342,37 @@ export async function updateTaskStatus(
 
   const updatedTasks = { ...current.tasks, ...updates }
 
-  const { data, error } = await supabase
-    .from("reviews")
-    .update({
-      tasks: updatedTasks,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
-    .single()
+  try {
+    const { data, error } = await supabase
+      .from("reviews")
+      .update({
+        tasks: updatedTasks,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select()
+      .single()
 
-  if (error || !data) {
-    console.error("[v0] Error updating task status:", error)
+    if (error) {
+      handleSupabaseError(error, "update task status")
+    }
+
+    if (!data) return null
+
+    return {
+      id: data.id,
+      userId: data.user_id,
+      submittedAt: data.submitted_at,
+      formData: data.form_data as ReviewFormData,
+      generated: data.generated as GeneratedContent,
+      pipelineStatus: data.pipeline_status as PipelineStatus | undefined,
+      tasks: data.tasks as TaskStatus | undefined,
+    }
+  } catch (err) {
+    if (err instanceof RLSError) throw err
+    console.error("[v0] Error updating task status:", err)
     return null
-  }
-
-  return {
-    id: data.id,
-    submittedAt: data.submitted_at,
-    formData: data.form_data as ReviewFormData,
-    generated: data.generated as GeneratedContent,
-    pipelineStatus: data.pipeline_status as PipelineStatus | undefined,
-    tasks: data.tasks as TaskStatus | undefined,
   }
 }
 

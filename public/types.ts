@@ -120,6 +120,7 @@ export interface TaskStatus {
 
 export interface ReviewRecord {
   id: string
+  userId?: string // Owner user ID for RLS
   submittedAt: string
   formData: ReviewFormData
   generated: GeneratedContent
