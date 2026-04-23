@@ -133,29 +133,20 @@ export async function getReviewByCompetitorName(name: string, url?: string): Pro
     .order("submitted_at", { ascending: false })
 
   if (error || !data) {
-    console.error("[v0] Error fetching reviews by name:", error)
     return null
   }
-
-  console.log("[v0] Looking for review with name:", name, "url:", url)
-  console.log("[v0] Found", data.length, "reviews to search")
 
   // Find review where competitorName or competitorUrl matches (case-insensitive)
   const match = data.find((row) => {
     const formData = row.form_data as ReviewFormData
     const nameMatch = formData.competitorName?.toLowerCase() === name?.toLowerCase()
     const urlMatch = url && formData.competitorUrl?.toLowerCase() === url?.toLowerCase()
-    console.log("[v0] Checking review:", formData.competitorName, "nameMatch:", nameMatch, "urlMatch:", urlMatch)
     return nameMatch || urlMatch
   })
 
   if (!match) {
-    console.log("[v0] No matching review found")
     return null
   }
-
-  console.log("[v0] Found matching review:", match.id)
-  console.log("[v0] match.tasks from DB:", JSON.stringify(match.tasks))
   return {
     id: match.id,
     userId: match.user_id,
@@ -171,8 +162,6 @@ export async function getReviewById(id: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
   const userId = await getCurrentUserId()
   
-  console.log("[v0] getReviewById called for id:", id, "userId:", userId)
-  
   // RLS will automatically filter by user_id, but we add explicit check for clarity
   const query = supabase
     .from("reviews")
@@ -187,11 +176,8 @@ export async function getReviewById(id: string): Promise<ReviewRecord | null> {
   const { data, error } = await query.single()
 
   if (error || !data) {
-    console.log("[v0] getReviewById error or no data:", error)
     return null
   }
-
-  console.log("[v0] getReviewById - id:", data.id, "tasks from DB:", JSON.stringify(data.tasks))
 
   return {
     id: data.id,
@@ -336,8 +322,6 @@ export async function updateTaskStatus(
   const userId = await requireAuth()
   const supabase = createClient()
   
-  console.log("[v0] updateTaskStatus - authenticated userId:", userId)
-  
   const { data: current, error: fetchError } = await supabase
     .from("reviews")
     .select("*")
@@ -346,11 +330,8 @@ export async function updateTaskStatus(
     .single()
 
   if (fetchError || !current) {
-    console.error("[v0] Error fetching review for task update:", fetchError)
     return null
   }
-  
-  console.log("[v0] updateTaskStatus - record.user_id:", current.user_id)
 
   const updatedTasks = { ...current.tasks, ...updates }
 
@@ -366,17 +347,7 @@ export async function updateTaskStatus(
       .select()
       .single()
     
-    // Verify by re-fetching
-    const { data: verify } = await supabase
-      .from("reviews")
-      .select("tasks")
-      .eq("id", id)
-      .single()
-    
-    console.log("[v0] updateTaskStatus - verify fetch tasks:", JSON.stringify(verify?.tasks))
-    
     if (error) {
-      console.error("[v0] updateTaskStatus - error:", error)
       handleSupabaseError(error, "update task status")
     }
 

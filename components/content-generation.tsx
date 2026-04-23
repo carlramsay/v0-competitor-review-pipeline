@@ -109,28 +109,31 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
-  const [initialized, setInitialized] = useState(false)
+  const [loadingTasks, setLoadingTasks] = useState(true)
 
-  // Sync local state when record.tasks has actual data (some tasks completed)
+  // Fetch tasks directly from API on mount to bypass stale parent data
   useEffect(() => {
-    const tasks = record.tasks || DEFAULT_TASKS
-    const hasCompletedTasks = Object.values(tasks).some(Boolean)
-    
-    // Only sync if we haven't initialized yet, or if the new data has completed tasks
-    // This prevents overwriting with stale/default data from race conditions
-    if (!initialized || hasCompletedTasks) {
-      console.log("[v0] TasksSection syncing tasks:", JSON.stringify(tasks), "hasCompletedTasks:", hasCompletedTasks)
-      setLocalTasks(tasks)
-      setHasChanges(false)
-      setInitialized(true)
+    async function fetchTasks() {
+      try {
+        const res = await fetch(`/api/reviews/${record.id}/tasks`, { cache: "no-store" })
+        if (res.ok) {
+          const data = await res.json()
+          setLocalTasks(data.tasks || DEFAULT_TASKS)
+        } else {
+          setLocalTasks(record.tasks || DEFAULT_TASKS)
+        }
+      } catch (err) {
+        setLocalTasks(record.tasks || DEFAULT_TASKS)
+      } finally {
+        setLoadingTasks(false)
+      }
     }
-  }, [record.id, record.tasks, initialized])
+    fetchTasks()
+  }, [record.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggle = (key: keyof TaskStatus) => {
-    console.log("[v0] handleToggle called for key:", key)
     setLocalTasks(prev => {
       const updated = { ...prev, [key]: !prev[key] }
-      console.log("[v0] Updated localTasks:", updated)
       setHasChanges(true)
       return updated
     })
@@ -139,11 +142,8 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   const handleSave = async () => {
     setSaving(true)
     try {
-      console.log("[v0] handleSave called, record.id:", record.id, "localTasks:", localTasks)
       const updated = await updateTaskStatus(record.id, localTasks)
-      console.log("[v0] updateTaskStatus returned:", updated)
       if (updated) {
-        console.log("[v0] updated.tasks:", updated.tasks)
         setRecord(updated)
         setSaved(true)
         setHasChanges(false)
@@ -154,11 +154,9 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
         if (allComplete && record.formData.competitorUrl) {
           await updateQueueItemStatusByUrl(record.formData.competitorUrl, "Completed")
         }
-      } else {
-        console.log("[v0] updateTaskStatus returned null/undefined - save failed")
       }
     } catch (err) {
-      console.error("[v0] handleSave error:", err)
+      console.error("Error saving tasks:", err)
     } finally {
       setSaving(false)
     }
@@ -166,6 +164,17 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
 
   const tasksComplete = Object.values(localTasks).filter(Boolean).length
   const tasksTotal = Object.keys(localTasks).length
+
+  if (loadingTasks) {
+    return (
+      <div className="mt-8 rounded-lg border border-border bg-card overflow-hidden">
+        <div className="flex items-center justify-center p-8">
+          <Loader2 size={20} className="animate-spin text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading tasks...</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mt-8 rounded-lg border border-border bg-card overflow-hidden">
