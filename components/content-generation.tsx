@@ -428,36 +428,69 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     // Calculate gap
     const gap = arousrTotal - competitorTotal
 
-    // Get existing title to avoid starting with same word
-    const existingTitle = record.generated.blogPostTitle || ""
-    const existingFirstWord = existingTitle.split(" ")[0]?.toLowerCase() || ""
-
     // Get one-line verdict if available
     const oneLineVerdict = record.generated.oneLineVerdict || ""
 
-    const prompt = `Generate a blog post title for a hands-on review of ${record.formData.competitorName}.
+    // Track previous hook style to ensure variety
+    const existingTitle = record.generated.blogPostTitle || ""
+    const usedScoreHook = existingTitle.includes("/80") || /\d{2}\/80/.test(existingTitle)
+    const usedGapHook = existingTitle.toLowerCase().includes("point") || existingTitle.toLowerCase().includes("vs")
+    
+    let hookGuidance = ""
+    if (usedScoreHook) {
+      hookGuidance = "The previous title used a score hook. Use verdict-led, gap-led, or user-fit style instead."
+    } else if (usedGapHook) {
+      hookGuidance = "The previous title used a gap/comparison hook. Use score-led (if surprising), verdict-led, or user-fit style instead."
+    }
 
-DATA:
-COMPETITOR: ${record.formData.competitorName}
+    const prompt = `COMPETITOR: ${record.formData.competitorName}
 COMPETITOR SCORE: ${competitorTotal}/80
 AROUSR SCORE: ${arousrTotal}/80
-SCORE GAP: ${gap} points${oneLineVerdict ? `
-KEY FINDINGS: ${oneLineVerdict}` : ""}
-Year: 2026
+SCORE GAP: ${gap} points (pre-calculated — never recalculate this yourself)
+KEY FINDINGS: ${oneLineVerdict || "Not provided"}
 
-STYLE: Randomly pick ONE of these approaches (do not mention which):
-1. Score-led: lead with the exact score (e.g. "${competitorTotal}/80")
-2. Verdict-led: direct statement of what was found
-3. Comparison-led: Arousr vs competitor with score gap
-4. Tester-voice: signals first-hand human test
+Rules:
+- Competitor name must appear in every title, ideally near the front
+- Maximum 50 characters
+- Present-tense, hands-on review framing — never speculative or future-facing
+- Never use exclamation marks
+- Never wrap the title in quotes — output plain text only
+- Never start with "Exploring" or "Testing"
+- Never use: "deep-dive", "firsthand", "in-depth", "iconic", 
+  "emerging rivals", "survive", "dominating", "relevant", "hold up",
+  "experience" as a noun
+- Never reference age, age verification, legal issues, or compliance
+- Never use provocative or potentially defamatory words like:
+  fake, scam, fraud, dangerous, illegal
+- Score must NOT appear in every title — only use it when it is 
+  surprisingly low or high
+- Each regeneration must use a different hook style — if the previous 
+  title used the score, use verdict or gap next time
+${hookGuidance ? `\n${hookGuidance}` : ""}
 
-RULES:
-- Maximum 70 characters
-- Must feel like a present-tense hands-on review, never speculative
-- NEVER use: "iconic", "emerging rivals", "survive", "dominating", "vs. the world", "vs. the future", "relevant", "hold up"
-- Include either the score, a specific finding, or a direct verdict
-- Do NOT start with "${existingFirstWord}" (the previous title started with that word)
-- Output only the title, nothing else.`
+Choose the strongest hook for this specific review:
+- Score-led: only if the score is surprisingly low or high
+- Gap-led: use the Arousr vs competitor gap if it is significant
+- Verdict-led: capture the overall tone or feeling of the review
+- User-fit: describe who this platform is or is not for
+
+Good examples:
+"Chat Avenue (2026): Clunky, Free, and Oddly Addictive"
+"We Tested Chat Avenue — Arousr Won by 17 Points"
+"Chat Avenue Review: Free, But at What Cost?"
+"Chat Avenue vs Arousr — One Wasn't Close"
+"Chat Avenue (2026): Poor Moderation, 51/80"
+
+Bad examples (never produce these):
+"Exploring Chat Avenue: A Deep-Dive into a 51/80 Rating Experience"
+"Chat Avenue: A Firsthand Test of Its 51/80 Performance"
+"Testing Chat Avenue: A 51/80 Experience Compared to Arousr"
+"Chat Avenue's 51/80: What Works and What Doesn't?"
+"Will Chat Avenue Survive Against Emerging Rivals in 2026?"
+"Chat Avenue vs. the World: Will It Still be Relevant in 2026?"
+
+Output: one title only, no explanation, no quotes, no punctuation 
+outside the title itself.`
 
     try {
       const res = await fetch("/api/generate", {
