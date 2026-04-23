@@ -29,12 +29,6 @@ export default function Home() {
             Queue
           </Link>
           <Link
-            href="/reviews"
-            className="px-6 py-3 rounded-lg bg-secondary text-secondary-foreground font-medium text-center transition-colors hover:bg-secondary/80"
-          >
-            Reviews
-          </Link>
-          <Link
             href="/admin"
             className="px-6 py-3 rounded-lg border border-border text-foreground font-medium text-center transition-colors hover:bg-secondary"
           >
