@@ -155,6 +155,7 @@ export async function getReviewByCompetitorName(name: string, url?: string): Pro
   }
 
   console.log("[v0] Found matching review:", match.id)
+  console.log("[v0] match.tasks from DB:", JSON.stringify(match.tasks))
   return {
     id: match.id,
     userId: match.user_id,
