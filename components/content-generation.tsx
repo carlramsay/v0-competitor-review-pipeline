@@ -443,7 +443,9 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       hookGuidance = "The previous title used a gap/comparison hook. Use score-led (if surprising), verdict-led, or user-fit style instead."
     }
 
-    const prompt = `COMPETITOR: ${record.formData.competitorName}
+    const prompt = `blog post title for this competitor review.
+
+COMPETITOR: ${record.formData.competitorName}
 COMPETITOR SCORE: ${competitorTotal}/80
 AROUSR SCORE: ${arousrTotal}/80
 SCORE GAP: ${gap} points (pre-calculated — never recalculate this yourself)
@@ -458,7 +460,7 @@ Rules:
 - Never start with "Exploring" or "Testing"
 - Never use: "deep-dive", "firsthand", "in-depth", "iconic", 
   "emerging rivals", "survive", "dominating", "relevant", "hold up",
-  "experience" as a noun
+  "experience" as a noun, "suitable for", "worth joining", "a good option"
 - Never reference age, age verification, legal issues, or compliance
 - Never use provocative or potentially defamatory words like:
   fake, scam, fraud, dangerous, illegal
@@ -466,6 +468,10 @@ Rules:
   surprisingly low or high
 - Each regeneration must use a different hook style — if the previous 
   title used the score, use verdict or gap next time
+- Use specific details and observations from KEY FINDINGS — 
+  avoid generic descriptors
+- Aim for wit and personality — a title someone would actually 
+  want to click, not a product label
 ${hookGuidance ? `\n${hookGuidance}` : ""}
 
 Choose the strongest hook for this specific review:
@@ -473,13 +479,14 @@ Choose the strongest hook for this specific review:
 - Gap-led: use the Arousr vs competitor gap if it is significant
 - Verdict-led: capture the overall tone or feeling of the review
 - User-fit: describe who this platform is or is not for
+- Detail-led: use a specific observation from the review that stands out
 
 Good examples:
-"Chat Avenue (2026): Clunky, Free, and Oddly Addictive"
+"Chat Avenue (2026): mIRC Vibes, Modern Expectations"
+"Chat Avenue Review: Free Comes With a Cost"
 "We Tested Chat Avenue — Arousr Won by 17 Points"
-"Chat Avenue Review: Free, But at What Cost?"
-"Chat Avenue vs Arousr — One Wasn't Close"
-"Chat Avenue (2026): Poor Moderation, 51/80"
+"Chat Avenue: Great for 2003, Clunky for 2026"
+"Chat Avenue vs Arousr — Not Even Close"
 
 Bad examples (never produce these):
 "Exploring Chat Avenue: A Deep-Dive into a 51/80 Rating Experience"
@@ -487,7 +494,9 @@ Bad examples (never produce these):
 "Testing Chat Avenue: A 51/80 Experience Compared to Arousr"
 "Chat Avenue's 51/80: What Works and What Doesn't?"
 "Will Chat Avenue Survive Against Emerging Rivals in 2026?"
-"Chat Avenue vs. the World: Will It Still be Relevant in 2026?"
+"Chat Avenue vs Arousr — One Wasn't Close"
+"Chat Avenue Review: Suitable for Casual Chatters"
+"Chat Avenue in 2026: Is It Worth Joining"
 
 Output: one title only, no explanation, no quotes, no punctuation 
 outside the title itself.`
