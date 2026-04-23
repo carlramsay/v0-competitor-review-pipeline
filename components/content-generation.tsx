@@ -18,9 +18,10 @@ interface EditableBlockProps {
   isGenerating?: boolean
   generateLabel?: string
   onChange?: (value: string) => void // Called on every edit to track current value
+  rows?: number // Number of rows for the textarea (default: auto based on min-h-[160px])
 }
 
-function EditableBlock({ label, content, onSave, onGenerate, isGenerating, generateLabel = "Generate", onChange }: EditableBlockProps) {
+function EditableBlock({ label, content, onSave, onGenerate, isGenerating, generateLabel = "Generate", onChange, rows }: EditableBlockProps) {
   const [value, setValue] = useState(content)
   const [saved, setSaved] = useState(false)
   const isDirty = value !== content
@@ -69,7 +70,11 @@ function EditableBlock({ label, content, onSave, onGenerate, isGenerating, gener
       <textarea
         value={value}
         onChange={(e) => { handleChange(e.target.value); setSaved(false) }}
-        className="min-h-[160px] w-full resize-y rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        rows={rows}
+        className={cn(
+          "w-full resize-y rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-ring",
+          rows ? "" : "min-h-[160px]"
+        )}
       />
     </div>
   )
@@ -1839,6 +1844,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             onGenerate={generateBlogTitle}
             isGenerating={loading === "blogTitle"}
             generateLabel="Generate"
+            rows={1}
             onSave={async (v) => {
               const updated = await updateGeneratedContent(record.id, { blogPostTitle: v })
               if (updated) setRecord(updated)
