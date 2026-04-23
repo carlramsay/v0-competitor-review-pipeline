@@ -127,9 +127,7 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   const handleSave = async () => {
     setSaving(true)
     try {
-      console.log("[v0] Saving tasks:", localTasks)
       const updated = await updateTaskStatus(record.id, localTasks)
-      console.log("[v0] Tasks saved, updated record:", updated?.tasks)
       if (updated) {
         setRecord(updated)
         setSaved(true)
@@ -138,15 +136,8 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
         
         // If all tasks are complete, mark the queue item as completed
         const allComplete = Object.values(localTasks).every(Boolean)
-        console.log("[v0] All tasks complete:", allComplete, "competitorUrl:", record.formData.competitorUrl)
         if (allComplete && record.formData.competitorUrl) {
-          console.log("[v0] Updating queue item status to Completed for URL:", record.formData.competitorUrl)
-          try {
-            await updateQueueItemStatusByUrl(record.formData.competitorUrl, "Completed")
-            console.log("[v0] Queue item status updated successfully")
-          } catch (err) {
-            console.error("[v0] Error updating queue item status:", err)
-          }
+          await updateQueueItemStatusByUrl(record.formData.competitorUrl, "Completed")
         }
       }
     } finally {
