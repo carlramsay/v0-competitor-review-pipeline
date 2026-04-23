@@ -284,8 +284,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     loadVoiceover()
   }, [initialRecord.generated.voiceoverBase64])
 
-  const answers = buildAnswersString(record.formData)
-
   // ==================== GENERATION FUNCTIONS ====================
 
   async function generateBlogPost() {
@@ -297,6 +295,9 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       setLoading(null)
       return
     }
+
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
 
     try {
       const res = await fetch("/api/generate", {
@@ -418,13 +419,47 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       return
     }
 
+    // Calculate scores for the prompt
+    const scores = record.formData.scores || []
+    const competitorTotal = scores.reduce((sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0)
+    const arousrTotal = scores.reduce((sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0)
+    const maxScore = scores.length * 10 // Assuming max 10 per feature
+    const scoreGap = arousrTotal - competitorTotal
+
+    // Get existing title to avoid starting with same word
+    const existingTitle = record.generated.blogPostTitle || ""
+    const existingFirstWord = existingTitle.split(" ")[0]?.toLowerCase() || ""
+
+    const prompt = `Generate a blog post title for a hands-on review of ${record.formData.competitorName}.
+
+DATA:
+- Competitor: ${record.formData.competitorName}
+- Competitor score: ${competitorTotal}/${maxScore}
+- Arousr score: ${arousrTotal}/${maxScore}
+- Score gap: Arousr leads by ${scoreGap > 0 ? scoreGap : "N/A"} points
+- Year: 2026
+
+STYLE: Randomly pick ONE of these approaches (do not mention which):
+1. Score-led: lead with the exact score (e.g. "${competitorTotal}/${maxScore}")
+2. Verdict-led: direct statement of what was found
+3. Comparison-led: Arousr vs competitor with score gap
+4. Tester-voice: signals first-hand human test
+
+RULES:
+- Maximum 70 characters
+- Must feel like a present-tense hands-on review, never speculative
+- NEVER use: "iconic", "emerging rivals", "survive", "dominating", "vs. the world", "vs. the future", "relevant", "hold up"
+- Include either the score, a specific finding, or a direct verdict
+- Do NOT start with "${existingFirstWord}" (the previous title started with that word)
+- Output only the title, nothing else.`
+
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           type: "custom", 
-          prompt: `Generate an engaging blog post title for a review of ${record.formData.competitorName}. The title should ask a compelling question or make a bold statement. Must include the competitor name and 2026. Output only the title, nothing else.`,
+          prompt,
           apiKey: settings.openaiApiKey 
         }),
       })
@@ -481,6 +516,9 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       setLoading(null)
       return
     }
+
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
 
     try {
       const res = await fetch("/api/generate", {
@@ -598,6 +636,9 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       return
     }
 
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
+
     const competitorName = record.formData.competitorName || "Competitor"
     const systemPrompt = `Write a tweet based on this competitor review of ${competitorName}. Follow these rules:
 TONE: Direct and factual. No fluff. State the finding, back it with a specific detail, mention Arousr.
@@ -656,6 +697,9 @@ ALWAYS include: at least one specific number or score from the review.`
       setLoading(null)
       return
     }
+
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
 
     const competitorName = record.formData.competitorName || "Competitor"
     const systemPrompt = `Write an Instagram caption based on this competitor review of ${competitorName}. Follow these rules:
@@ -720,6 +764,9 @@ DO NOT end with: "stay safe", "chat wisely", "choose wisely", or any generic sig
       setLoading(null)
       return
     }
+
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
 
     const competitorName = record.formData.competitorName || "Competitor"
     const systemPrompt = `Write a Reddit comment based on this competitor review of ${competitorName}. Follow these rules:
