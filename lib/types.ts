@@ -95,6 +95,7 @@ export interface GeneratedContent {
   thumbnailVerticalDataUrl?: string
   videoDataUrl?: string
   videoVerticalDataUrl?: string
+  oneLineVerdict?: string // VA-entered one-sentence summary of the platform
 }
 
 export interface PipelineStatus {

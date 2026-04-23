@@ -419,28 +419,34 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       return
     }
 
-    // Calculate scores for the prompt
-    const scores = record.formData.scores || []
-    const competitorTotal = scores.reduce((sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0)
-    const arousrTotal = scores.reduce((sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0)
-    const maxScore = scores.length * 10 // Assuming max 10 per feature
-    const scoreGap = arousrTotal - competitorTotal
+    // Calculate competitor total score from form_data.scores
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    // Get Arousr total from app_settings
+    const arousrTotal = settings.arousrScores?.total || 0
+    // Calculate gap
+    const gap = arousrTotal - competitorTotal
 
     // Get existing title to avoid starting with same word
     const existingTitle = record.generated.blogPostTitle || ""
     const existingFirstWord = existingTitle.split(" ")[0]?.toLowerCase() || ""
 
+    // Get one-line verdict if available
+    const oneLineVerdict = record.generated.oneLineVerdict || ""
+
     const prompt = `Generate a blog post title for a hands-on review of ${record.formData.competitorName}.
 
 DATA:
-- Competitor: ${record.formData.competitorName}
-- Competitor score: ${competitorTotal}/${maxScore}
-- Arousr score: ${arousrTotal}/${maxScore}
-- Score gap: Arousr leads by ${scoreGap > 0 ? scoreGap : "N/A"} points
-- Year: 2026
+COMPETITOR: ${record.formData.competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+SCORE GAP: ${gap} points${oneLineVerdict ? `
+KEY FINDINGS: ${oneLineVerdict}` : ""}
+Year: 2026
 
 STYLE: Randomly pick ONE of these approaches (do not mention which):
-1. Score-led: lead with the exact score (e.g. "${competitorTotal}/${maxScore}")
+1. Score-led: lead with the exact score (e.g. "${competitorTotal}/80")
 2. Verdict-led: direct statement of what was found
 3. Comparison-led: Arousr vs competitor with score gap
 4. Tester-voice: signals first-hand human test
@@ -1667,7 +1673,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             reviewerName: record.formData.reviewerName,
             competitorName: record.formData.competitorName,
             competitorUrl: record.formData.competitorUrl,
-            oneLineVerdict: record.formData.oneLineVerdict,
+            oneLineVerdict: record.generated.oneLineVerdict,
             scores: record.formData.scores,
           },
         }),
@@ -1761,6 +1767,28 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           }}
         />
         
+        {/* One-Line Verdict */}
+        <div className="mt-6 space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            One-Line Verdict
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Enter a one-sentence summary of the platform. This will be used in title generation.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={record.generated.oneLineVerdict || ""}
+              onChange={async (e) => {
+                const updated = await updateGeneratedContent(record.id, { oneLineVerdict: e.target.value })
+                if (updated) setRecord(updated)
+              }}
+              placeholder="e.g. Clunky interface and high prices make this a hard pass"
+              className="flex-1 rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+            />
+          </div>
+        </div>
+
         {/* Blog Post Title */}
         <div className="mt-6">
           <EditableBlock
