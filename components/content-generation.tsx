@@ -110,15 +110,17 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   const [saved, setSaved] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
 
-  // Sync local state when record changes
+  // Sync local state only when record ID changes (not when tasks update from our own save)
   useEffect(() => {
     setLocalTasks(record.tasks || DEFAULT_TASKS)
     setHasChanges(false)
-  }, [record.id, record.tasks])
+  }, [record.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggle = (key: keyof TaskStatus) => {
+    console.log("[v0] handleToggle called for key:", key)
     setLocalTasks(prev => {
       const updated = { ...prev, [key]: !prev[key] }
+      console.log("[v0] Updated localTasks:", updated)
       setHasChanges(true)
       return updated
     })
