@@ -318,12 +318,10 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       let blogPost = fullContent
       let blogPostTitle = ""
       let blogPostMeta = ""
-      let videoTitle = ""
 
       // Check if the response contains the metadata section
       const titleMatch = fullContent.match(/---TITLE---\s*([\s\S]*?)---META---/)
-      const metaMatch = fullContent.match(/---META---\s*([\s\S]*?)---VIDEO---/)
-      const videoMatch = fullContent.match(/---VIDEO---\s*([\s\S]*?)---END---/)
+      const metaMatch = fullContent.match(/---META---\s*([\s\S]*?)---END---/)
 
       if (titleMatch) {
         // Strip metadata from blog post
@@ -339,12 +337,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         const metaSection = metaMatch[1]
         const metaLine = metaSection.match(/Meta:\s*(.+)/)
         blogPostMeta = metaLine?.[1]?.trim() || ""
-      }
-
-      if (videoMatch) {
-        const videoSection = videoMatch[1]
-        const videoLine = videoSection.match(/Video:\s*(.+)/)
-        videoTitle = videoLine?.[1]?.trim() || ""
       }
 
       // Embed screenshots into the blog post HTML
@@ -403,7 +395,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         blogPost,
         blogPostTitle,
         blogPostMeta,
-        videoTitle,
       })
       if (updated) setRecord(updated)
       await updatePipelineStatus(record.id, { blogPostGenerated: true })
@@ -516,38 +507,6 @@ outside the title itself.`
       if (!res.ok) throw new Error(data.error ?? "Generation failed")
 
       const updated = await updateGeneratedContent(record.id, { blogPostTitle: data.content.trim() })
-      if (updated) setRecord(updated)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error")
-    } finally {
-      setLoading(null)
-    }
-  }
-
-  async function generateVideoTitle() {
-    setError(null)
-    setLoading("videoTitle")
-    const settings = await getSettings()
-    if (!settings.openaiApiKey) {
-      setError("No OpenAI API key found. Please add it in Settings.")
-      setLoading(null)
-      return
-    }
-
-    try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          type: "custom", 
-          prompt: `Generate a YouTube/video-optimized title for a review of ${record.formData.competitorName}. Must be under 70 characters, include the competitor name, "Review", and "2026". Output only the title, nothing else.`,
-          apiKey: settings.openaiApiKey 
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Generation failed")
-
-      const updated = await updateGeneratedContent(record.id, { videoTitle: data.content.trim() })
       if (updated) setRecord(updated)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
@@ -1003,7 +962,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       return null
     }
 
-    const videoTitle = record.generated.videoTitle || record.generated.blogPostYouTubeTitle || `Review: ${record.formData.competitorName || "Competitor"}`
+    const thumbnailTitle = record.generated.blogPostTitle || `Review: ${record.formData.competitorName || "Competitor"}`
     const reviewerName = record.formData.reviewerName || "Reviewer"
     const settings = await getSettings()
 
@@ -1046,9 +1005,9 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
       
-      // Word wrap the video title if needed
+      // Word wrap the thumbnail title if needed
       const maxWidth = canvas.width * 0.85
-      const words = videoTitle.split(" ")
+      const words = thumbnailTitle.split(" ")
       const lines: string[] = []
       let currentLine = ""
       
@@ -1879,31 +1838,6 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         {!collapsed.video && (
         <div className="px-5 pb-5">
         
-        {/* Video Title */}
-        <div className="mb-6">
-          <EditableBlock
-            label="Video Title"
-            content={record.generated.videoTitle || record.generated.blogPostYouTubeTitle || ""}
-            onGenerate={generateVideoTitle}
-            isGenerating={loading === "videoTitle"}
-            generateLabel="Generate"
-            onSave={async (v) => {
-              const updated = await updateGeneratedContent(record.id, { videoTitle: v })
-              if (updated) setRecord(updated)
-            }}
-          />
-          {(record.generated.videoTitle || record.generated.blogPostYouTubeTitle) && (
-            <p className={cn(
-              "mt-1 text-xs",
-              (record.generated.videoTitle || record.generated.blogPostYouTubeTitle || "").length <= 70
-                ? "text-green-500"
-                : "text-red-500"
-            )}>
-              {(record.generated.videoTitle || record.generated.blogPostYouTubeTitle || "").length}/70 characters
-            </p>
-          )}
-        </div>
-        
         <EditableBlock
           label="Video Script"
           content={record.generated.videoScript || ""}
@@ -1997,10 +1931,10 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         {!collapsed.thumbnails && (
         <div className="px-5 pb-5">
 
-        {/* Video title requirement notice */}
-        {!record.generated.videoTitle && !record.generated.blogPostYouTubeTitle && (
+        {/* Blog title requirement notice */}
+        {!record.generated.blogPostTitle && (
           <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
-            Please generate a Video Title in the Video section first. The title will appear on the thumbnails.
+            Please generate a Blog Post Title first. The title will appear on the thumbnails.
           </div>
         )}
 
@@ -2034,7 +1968,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         <button 
           type="button" 
           onClick={generateThumbnail} 
-          disabled={loading !== null || (!record.generated.videoTitle && !record.generated.blogPostYouTubeTitle)} 
+          disabled={loading !== null || !record.generated.blogPostTitle} 
           className={btnClass}
         >
           {loading === "thumbnail" ? <Loader2 size={12} className="animate-spin" /> : <ImageIcon size={12} />}
