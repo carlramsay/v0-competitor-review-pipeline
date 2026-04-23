@@ -343,9 +343,9 @@ export async function updateTaskStatus(
   }
 
   const updatedTasks = { ...current.tasks, ...updates }
-  console.log("[v0] updateTaskStatus - current.tasks:", current.tasks)
-  console.log("[v0] updateTaskStatus - updates:", updates)
-  console.log("[v0] updateTaskStatus - updatedTasks:", updatedTasks)
+  console.log("[v0] updateTaskStatus - current.tasks:", JSON.stringify(current.tasks))
+  console.log("[v0] updateTaskStatus - updates:", JSON.stringify(updates))
+  console.log("[v0] updateTaskStatus - updatedTasks:", JSON.stringify(updatedTasks))
 
   try {
     const { data, error } = await supabase
@@ -359,7 +359,7 @@ export async function updateTaskStatus(
       .select()
       .single()
 
-    console.log("[v0] updateTaskStatus - after update, data.tasks:", data?.tasks)
+    console.log("[v0] updateTaskStatus - after update, data.tasks:", JSON.stringify(data?.tasks))
     
     if (error) {
       console.error("[v0] updateTaskStatus - error:", error)
