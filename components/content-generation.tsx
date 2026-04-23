@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { ReviewRecord, ThumbnailImage, TaskStatus } from "@/lib/types"
-import { getSettings, updateGeneratedContent, updatePipelineStatus, updateTaskStatus, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
+import { getSettings, updateGeneratedContent, updatePipelineStatus, updateTaskStatus, updateQueueItemStatusByUrl, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { generateHeyGenTTS, generateHeyGenAudioTTS } from "@/lib/heygen-actions"
@@ -133,6 +133,12 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
         setSaved(true)
         setHasChanges(false)
         setTimeout(() => setSaved(false), 2000)
+        
+        // If all tasks are complete, mark the queue item as completed
+        const allComplete = Object.values(localTasks).every(Boolean)
+        if (allComplete && record.formData.competitorUrl) {
+          await updateQueueItemStatusByUrl(record.formData.competitorUrl, "Completed")
+        }
       }
     } finally {
       setSaving(false)

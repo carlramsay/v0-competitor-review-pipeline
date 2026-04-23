@@ -638,6 +638,25 @@ export async function updateQueueItemStatus(
   }
 }
 
+export async function updateQueueItemStatusByUrl(
+  url: string,
+  status: "Not Started" | "In Progress" | "Completed"
+): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("queue_items")
+    .update({
+      status,
+      status_updated_at: new Date().toISOString(),
+    })
+    .eq("url", url)
+
+  if (error) {
+    console.error("[v0] Error updating queue item status by URL:", error)
+    throw error
+  }
+}
+
 export async function updateQueueItemName(id: string, name: string): Promise<void> {
   const supabase = createClient()
   const { error } = await supabase
