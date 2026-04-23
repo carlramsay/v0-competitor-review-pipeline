@@ -171,6 +171,8 @@ export async function getReviewById(id: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
   const userId = await getCurrentUserId()
   
+  console.log("[v0] getReviewById called for id:", id)
+  
   // RLS will automatically filter by user_id, but we add explicit check for clarity
   const query = supabase
     .from("reviews")
@@ -185,8 +187,11 @@ export async function getReviewById(id: string): Promise<ReviewRecord | null> {
   const { data, error } = await query.single()
 
   if (error || !data) {
+    console.log("[v0] getReviewById error or no data:", error)
     return null
   }
+
+  console.log("[v0] getReviewById - tasks from DB:", JSON.stringify(data.tasks))
 
   return {
     id: data.id,
