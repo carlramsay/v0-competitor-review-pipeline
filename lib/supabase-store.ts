@@ -400,8 +400,11 @@ export async function getSettings(): Promise<AppSettings> {
     heygenApiKey: data.heygen_api_key || "",
     heygenAvatarId: data.heygen_avatar_id || "",
     heygenVoiceId: data.heygen_voice_id || "",
+    elevenLabsApiKey: data.elevenlabs_api_key || "",
+    elevenLabsVoiceId: data.elevenlabs_voice_id || "",
     logoVideoBase64: "",  // Large videos stored separately
     avatarVideoBase64: "", // Large videos stored separately
+    arousrScores: data.arousr_scores || undefined,
   }
 }
 
@@ -418,6 +421,9 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
     heygen_api_key: settings.heygenApiKey,
     heygen_avatar_id: settings.heygenAvatarId,
     heygen_voice_id: settings.heygenVoiceId,
+    elevenlabs_api_key: settings.elevenLabsApiKey,
+    elevenlabs_voice_id: settings.elevenLabsVoiceId,
+    arousr_scores: settings.arousrScores,
     updated_at: new Date().toISOString(),
   })
 

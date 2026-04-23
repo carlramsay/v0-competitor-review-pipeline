@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic"
 import { useEffect, useState } from "react"
 import { AdminGuard } from "@/components/admin-guard"
 import { AdminNav } from "@/components/admin-nav"
-import { AppSettings, ThumbnailImage } from "@/lib/types"
+import { AppSettings, ThumbnailImage, ArousrScores } from "@/lib/types"
 import { getSettings, saveSettings, getThumbnailLibrary, saveThumbnailLibrary, saveVideoAsset, getVideoAsset, deleteVideoAsset } from "@/lib/store"
 import { Eye, EyeOff, Check, Trash2, Video } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -74,6 +74,18 @@ function AdminSettingsContent() {
     elevenLabsVoiceId: "",
     logoVideoBase64: "",
     avatarVideoBase64: "",
+    arousrScores: undefined,
+  })
+  const [arousrScores, setArousrScores] = useState<ArousrScores>({
+    ease_of_signup: 0,
+    interface_ux: 0,
+    mobile_experience: 0,
+    host_variety: 0,
+    response_time: 0,
+    chat_quality: 0,
+    pricing_transparency: 0,
+    privacy_safety: 0,
+    total: 0,
   })
   const [saved, setSaved] = useState(false)
   const [library, setLibrary] = useState<ThumbnailImage[]>([])
@@ -84,7 +96,12 @@ function AdminSettingsContent() {
   const [avatarVideoLoaded, setAvatarVideoLoaded] = useState(false)
 
   useEffect(() => {
-    getSettings().then(setSettings)
+    getSettings().then((s) => {
+      setSettings(s)
+      if (s.arousrScores) {
+        setArousrScores(s.arousrScores)
+      }
+    })
     getThumbnailLibrary().then(setLibrary)
     // Load video asset states from Supabase
     getVideoAsset("logo-video").then((exists) => setLogoVideoLoaded(!!exists))
@@ -193,11 +210,33 @@ function AdminSettingsContent() {
     setSettings((prev) => ({ ...prev, [key]: value }))
   }
 
+  function setArousrScore(key: keyof Omit<ArousrScores, 'total'>, value: number) {
+    const clampedValue = Math.max(0, Math.min(10, value))
+    setArousrScores((prev) => {
+      const updated = { ...prev, [key]: clampedValue }
+      updated.total = 
+        updated.ease_of_signup +
+        updated.interface_ux +
+        updated.mobile_experience +
+        updated.host_variety +
+        updated.response_time +
+        updated.chat_quality +
+        updated.pricing_transparency +
+        updated.privacy_safety
+      return updated
+    })
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     try {
       // Don't save video base64s to settings table - they're stored separately
-      const settingsToSave = { ...settings, logoVideoBase64: "", avatarVideoBase64: "" }
+      const settingsToSave = { 
+        ...settings, 
+        logoVideoBase64: "", 
+        avatarVideoBase64: "",
+        arousrScores: arousrScores,
+      }
       await saveSettings(settingsToSave)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -288,6 +327,136 @@ function AdminSettingsContent() {
               onChange={(v) => set("openaiApiKey", v)}
               placeholder="sk-..."
             />
+          </div>
+
+          {/* Arousr Benchmark Scores */}
+          <div className="rounded-lg border border-border bg-card p-5">
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Arousr Benchmark Scores
+            </h2>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Set Arousr&apos;s baseline scores (0-10) used in comparison tables and content generation.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="score-signup" className="text-xs font-medium text-muted-foreground">
+                  Ease of Signup
+                </label>
+                <input
+                  id="score-signup"
+                  type="number"
+                  min={0}
+                  max={10}
+                  className={inputClass}
+                  value={arousrScores.ease_of_signup}
+                  onChange={(e) => setArousrScore("ease_of_signup", parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="score-ux" className="text-xs font-medium text-muted-foreground">
+                  Interface / UX
+                </label>
+                <input
+                  id="score-ux"
+                  type="number"
+                  min={0}
+                  max={10}
+                  className={inputClass}
+                  value={arousrScores.interface_ux}
+                  onChange={(e) => setArousrScore("interface_ux", parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="score-mobile" className="text-xs font-medium text-muted-foreground">
+                  Mobile Experience
+                </label>
+                <input
+                  id="score-mobile"
+                  type="number"
+                  min={0}
+                  max={10}
+                  className={inputClass}
+                  value={arousrScores.mobile_experience}
+                  onChange={(e) => setArousrScore("mobile_experience", parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="score-variety" className="text-xs font-medium text-muted-foreground">
+                  Host Variety
+                </label>
+                <input
+                  id="score-variety"
+                  type="number"
+                  min={0}
+                  max={10}
+                  className={inputClass}
+                  value={arousrScores.host_variety}
+                  onChange={(e) => setArousrScore("host_variety", parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="score-response" className="text-xs font-medium text-muted-foreground">
+                  Response Time
+                </label>
+                <input
+                  id="score-response"
+                  type="number"
+                  min={0}
+                  max={10}
+                  className={inputClass}
+                  value={arousrScores.response_time}
+                  onChange={(e) => setArousrScore("response_time", parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="score-chat" className="text-xs font-medium text-muted-foreground">
+                  Chat Quality
+                </label>
+                <input
+                  id="score-chat"
+                  type="number"
+                  min={0}
+                  max={10}
+                  className={inputClass}
+                  value={arousrScores.chat_quality}
+                  onChange={(e) => setArousrScore("chat_quality", parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="score-pricing" className="text-xs font-medium text-muted-foreground">
+                  Pricing Transparency
+                </label>
+                <input
+                  id="score-pricing"
+                  type="number"
+                  min={0}
+                  max={10}
+                  className={inputClass}
+                  value={arousrScores.pricing_transparency}
+                  onChange={(e) => setArousrScore("pricing_transparency", parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="score-privacy" className="text-xs font-medium text-muted-foreground">
+                  Privacy &amp; Safety
+                </label>
+                <input
+                  id="score-privacy"
+                  type="number"
+                  min={0}
+                  max={10}
+                  className={inputClass}
+                  value={arousrScores.privacy_safety}
+                  onChange={(e) => setArousrScore("privacy_safety", parseInt(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+            <div className="mt-4 rounded-md bg-muted/50 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Total</span>
+                <span className="text-lg font-bold text-foreground">{arousrScores.total}/80</span>
+              </div>
+            </div>
           </div>
 
           {/* ElevenLabs */}

@@ -1,4 +1,4 @@
-import { ReviewFormData, ScoreRow } from "./types"
+import { ReviewFormData, ScoreRow, ArousrScores } from "./types"
 import {
   SECTION_1_QUESTIONS,
   SECTION_2_QUESTIONS,
@@ -8,7 +8,7 @@ import {
   SECTION_6_QUESTIONS,
 } from "./questions"
 
-export function buildAnswersString(formData: ReviewFormData): string {
+export function buildAnswersString(formData: ReviewFormData, arousrBenchmark?: ArousrScores): string {
   const lines: string[] = []
 
   lines.push(`Reviewer: ${formData.reviewerName}`)
@@ -73,32 +73,53 @@ export function buildAnswersString(formData: ReviewFormData): string {
   lines.push(`Discovery method: ${formData.q29 || "(not specified)"}`)
   lines.push("")
 
-  // Calculate totals from stored scores
-  const totals = calcTotalScore(formData.scores)
+  // Calculate competitor total from review scores
+  const competitorTotal = formData.scores.reduce((sum, row) => 
+    sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+  )
+  
+  // Use Arousr benchmark from settings if provided, otherwise fall back to per-review scores
+  const arousrTotal = arousrBenchmark?.total ?? formData.scores.reduce((sum, row) => 
+    sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+  )
+  
+  // Calculate gap (in code, not by GPT-4o)
+  const scoreGap = arousrTotal - competitorTotal
   
   // Build structured SCORES section for GPT-4o
   lines.push("=== SCORES (use these exact numbers — do not change, recalculate, or omit any of them) ===")
   
-  // Map feature names to their scores
-  const scoreMap: Record<string, { competitor: number | ""; arousr: number | "" }> = {}
+  // Map feature names to competitor scores from review
+  const scoreMap: Record<string, number | ""> = {}
   formData.scores.forEach((row) => {
-    scoreMap[row.feature] = { competitor: row.competitorScore, arousr: row.arousrScore }
+    scoreMap[row.feature] = row.competitorScore
   })
   
-  const getScore = (feature: string, type: "competitor" | "arousr") => {
-    const val = scoreMap[feature]?.[type]
+  const getCompetitorScore = (feature: string) => {
+    const val = scoreMap[feature]
     return typeof val === "number" ? val : "N/A"
   }
   
-  lines.push(`Ease of Signup: ${getScore("Ease of Signup", "competitor")}/10 (Arousr: ${getScore("Ease of Signup", "arousr")}/10)`)
-  lines.push(`Interface / UX: ${getScore("Interface / UX", "competitor")}/10 (Arousr: ${getScore("Interface / UX", "arousr")}/10)`)
-  lines.push(`Mobile Experience: ${getScore("Mobile Experience", "competitor")}/10 (Arousr: ${getScore("Mobile Experience", "arousr")}/10)`)
-  lines.push(`Host Variety: ${getScore("Host Variety", "competitor")}/10 (Arousr: ${getScore("Host Variety", "arousr")}/10)`)
-  lines.push(`Response Time: ${getScore("Response Time", "competitor")}/10 (Arousr: ${getScore("Response Time", "arousr")}/10)`)
-  lines.push(`Chat Quality: ${getScore("Chat Quality", "competitor")}/10 (Arousr: ${getScore("Chat Quality", "arousr")}/10)`)
-  lines.push(`Pricing Transparency: ${getScore("Pricing Transparency", "competitor")}/10 (Arousr: ${getScore("Pricing Transparency", "arousr")}/10)`)
-  lines.push(`Privacy & Safety: ${getScore("Privacy & Safety", "competitor")}/10 (Arousr: ${getScore("Privacy & Safety", "arousr")}/10)`)
-  lines.push(`Total: ${totals.competitor}/80 (Arousr: ${totals.arousr}/80)`)
+  // Use Arousr benchmark scores from settings if available
+  const getArousrScore = (key: keyof Omit<ArousrScores, 'total'>, fallbackFeature: string) => {
+    if (arousrBenchmark && typeof arousrBenchmark[key] === "number") {
+      return arousrBenchmark[key]
+    }
+    // Fallback to per-review score
+    const row = formData.scores.find(r => r.feature === fallbackFeature)
+    return typeof row?.arousrScore === "number" ? row.arousrScore : "N/A"
+  }
+  
+  lines.push(`Ease of Signup: ${getCompetitorScore("Ease of Signup")}/10 (Arousr: ${getArousrScore("ease_of_signup", "Ease of Signup")}/10)`)
+  lines.push(`Interface / UX: ${getCompetitorScore("Interface / UX")}/10 (Arousr: ${getArousrScore("interface_ux", "Interface / UX")}/10)`)
+  lines.push(`Mobile Experience: ${getCompetitorScore("Mobile Experience")}/10 (Arousr: ${getArousrScore("mobile_experience", "Mobile Experience")}/10)`)
+  lines.push(`Host Variety: ${getCompetitorScore("Host Variety")}/10 (Arousr: ${getArousrScore("host_variety", "Host Variety")}/10)`)
+  lines.push(`Response Time: ${getCompetitorScore("Response Time")}/10 (Arousr: ${getArousrScore("response_time", "Response Time")}/10)`)
+  lines.push(`Chat Quality: ${getCompetitorScore("Chat Quality")}/10 (Arousr: ${getArousrScore("chat_quality", "Chat Quality")}/10)`)
+  lines.push(`Pricing Transparency: ${getCompetitorScore("Pricing Transparency")}/10 (Arousr: ${getArousrScore("pricing_transparency", "Pricing Transparency")}/10)`)
+  lines.push(`Privacy & Safety: ${getCompetitorScore("Privacy & Safety")}/10 (Arousr: ${getArousrScore("privacy_safety", "Privacy & Safety")}/10)`)
+  lines.push(`Total: ${competitorTotal}/80 (Arousr: ${arousrTotal}/80)`)
+  lines.push(`Score Gap: Arousr leads by ${scoreGap} points`)
 
   return lines.join("\n")
 }

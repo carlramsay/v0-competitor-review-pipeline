@@ -134,6 +134,18 @@ export interface ThumbnailImage {
   dataUrl: string // resized base64 JPEG
 }
 
+export interface ArousrScores {
+  ease_of_signup: number
+  interface_ux: number
+  mobile_experience: number
+  host_variety: number
+  response_time: number
+  chat_quality: number
+  pricing_transparency: number
+  privacy_safety: number
+  total: number
+}
+
 export interface AppSettings {
   wpSiteUrl: string
   wpUsername: string
@@ -148,4 +160,5 @@ export interface AppSettings {
   elevenLabsVoiceId: string
   logoVideoBase64?: string // base64 encoded MP4 for video ending screen
   avatarVideoBase64?: string // base64 encoded MP4 for presenter avatar PiP
+  arousrScores?: ArousrScores // Arousr benchmark scores for content generation
 }

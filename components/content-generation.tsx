@@ -284,8 +284,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     loadVoiceover()
   }, [initialRecord.generated.voiceoverBase64])
 
-  const answers = buildAnswersString(record.formData)
-
   // ==================== GENERATION FUNCTIONS ====================
 
   async function generateBlogPost() {
@@ -297,6 +295,9 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       setLoading(null)
       return
     }
+
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
 
     try {
       const res = await fetch("/api/generate", {
@@ -516,6 +517,9 @@ RULES:
       return
     }
 
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
+
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -632,6 +636,9 @@ RULES:
       return
     }
 
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
+
     const competitorName = record.formData.competitorName || "Competitor"
     const systemPrompt = `Write a tweet based on this competitor review of ${competitorName}. Follow these rules:
 TONE: Direct and factual. No fluff. State the finding, back it with a specific detail, mention Arousr.
@@ -690,6 +697,9 @@ ALWAYS include: at least one specific number or score from the review.`
       setLoading(null)
       return
     }
+
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
 
     const competitorName = record.formData.competitorName || "Competitor"
     const systemPrompt = `Write an Instagram caption based on this competitor review of ${competitorName}. Follow these rules:
@@ -754,6 +764,9 @@ DO NOT end with: "stay safe", "chat wisely", "choose wisely", or any generic sig
       setLoading(null)
       return
     }
+
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
 
     const competitorName = record.formData.competitorName || "Competitor"
     const systemPrompt = `Write a Reddit comment based on this competitor review of ${competitorName}. Follow these rules:
