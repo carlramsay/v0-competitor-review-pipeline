@@ -127,8 +127,11 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   const handleSave = async () => {
     setSaving(true)
     try {
+      console.log("[v0] handleSave called, record.id:", record.id, "localTasks:", localTasks)
       const updated = await updateTaskStatus(record.id, localTasks)
+      console.log("[v0] updateTaskStatus returned:", updated)
       if (updated) {
+        console.log("[v0] updated.tasks:", updated.tasks)
         setRecord(updated)
         setSaved(true)
         setHasChanges(false)
@@ -139,7 +142,11 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
         if (allComplete && record.formData.competitorUrl) {
           await updateQueueItemStatusByUrl(record.formData.competitorUrl, "Completed")
         }
+      } else {
+        console.log("[v0] updateTaskStatus returned null/undefined - save failed")
       }
+    } catch (err) {
+      console.error("[v0] handleSave error:", err)
     } finally {
       setSaving(false)
     }
