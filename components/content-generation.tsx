@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
-import { ReviewRecord, ThumbnailImage } from "@/lib/types"
-import { getSettings, updateGeneratedContent, updatePipelineStatus, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
+import { ReviewRecord, ThumbnailImage, TaskStatus } from "@/lib/types"
+import { getSettings, updateGeneratedContent, updatePipelineStatus, updateTaskStatus, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { generateHeyGenTTS, generateHeyGenAudioTTS } from "@/lib/heygen-actions"
@@ -76,6 +76,139 @@ function EditableBlock({ label, content, onSave, onGenerate, isGenerating, gener
           rows ? "" : "min-h-[160px]"
         )}
       />
+    </div>
+  )
+}
+
+// Task labels and defaults
+const DEFAULT_TASKS: TaskStatus = {
+  blogPublishedArousr: false,
+  videoPostedYouTube: false,
+  videoPostedXBIZ: false,
+  videoEmbeddedBlog: false,
+  blogPostedMedium: false,
+  linkedInArticle: false,
+  xPost: false,
+  facebookPost: false,
+}
+
+const TASK_LABELS: { key: keyof TaskStatus; label: string }[] = [
+  { key: "blogPublishedArousr", label: "Blog Post Published on Arousr" },
+  { key: "videoPostedYouTube", label: "Video Posted on YouTube" },
+  { key: "videoPostedXBIZ", label: "Video Posted on XBIZ.tv" },
+  { key: "videoEmbeddedBlog", label: "Video Embedded in Arousr Blog Post" },
+  { key: "blogPostedMedium", label: "Blog Posted on Medium (with canonical link to Arousr)" },
+  { key: "linkedInArticle", label: "LinkedIn Article Posted" },
+  { key: "xPost", label: "X.com Post with Link to Arousr Blog" },
+  { key: "facebookPost", label: "Facebook Post with Link to Medium Article" },
+]
+
+// Tasks section component
+function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: (r: ReviewRecord) => void }) {
+  const [localTasks, setLocalTasks] = useState<TaskStatus>(record.tasks || DEFAULT_TASKS)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [hasChanges, setHasChanges] = useState(false)
+
+  // Sync local state when record changes
+  useEffect(() => {
+    setLocalTasks(record.tasks || DEFAULT_TASKS)
+    setHasChanges(false)
+  }, [record.id, record.tasks])
+
+  const handleToggle = (key: keyof TaskStatus) => {
+    setLocalTasks(prev => {
+      const updated = { ...prev, [key]: !prev[key] }
+      setHasChanges(true)
+      return updated
+    })
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const updated = await updateTaskStatus(record.id, localTasks)
+      if (updated) {
+        setRecord(updated)
+        setSaved(true)
+        setHasChanges(false)
+        setTimeout(() => setSaved(false), 2000)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const tasksComplete = Object.values(localTasks).filter(Boolean).length
+  const tasksTotal = Object.keys(localTasks).length
+
+  return (
+    <div className="mt-8 rounded-lg border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border bg-secondary/30 px-5 py-3">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Distribution Tasks
+        </h2>
+        <span className={cn(
+          "text-xs font-medium",
+          tasksComplete === tasksTotal ? "text-green-500" : "text-muted-foreground"
+        )}>
+          {tasksComplete}/{tasksTotal} complete
+        </span>
+      </div>
+      <div className="p-5 space-y-3">
+        {TASK_LABELS.map(({ key, label }) => {
+          const isComplete = localTasks[key]
+          return (
+            <label
+              key={key}
+              className="flex items-center gap-3 cursor-pointer group"
+            >
+              <input
+                type="checkbox"
+                checked={isComplete}
+                onChange={() => handleToggle(key)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
+              />
+              <span className={cn(
+                "text-sm transition-colors",
+                isComplete ? "text-foreground line-through" : "text-muted-foreground",
+                "group-hover:text-foreground"
+              )}>
+                {label}
+              </span>
+            </label>
+          )
+        })}
+      </div>
+      <div className="flex items-center justify-between border-t border-border bg-secondary/20 px-5 py-3">
+        <div className="flex items-center gap-2">
+          {saved && <span className="text-xs text-green-500">Saved!</span>}
+          {hasChanges && !saved && <span className="text-xs text-amber-400">Unsaved changes</span>}
+        </div>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !hasChanges}
+          className={cn(
+            "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
+            hasChanges
+              ? "bg-primary text-primary-foreground hover:opacity-90"
+              : "bg-secondary text-muted-foreground cursor-not-allowed"
+          )}
+        >
+          {saving ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save size={14} />
+              Save Progress
+            </>
+          )}
+        </button>
+      </div>
     </div>
   )
 }
@@ -2192,6 +2325,9 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         </div>
         </div>
         )}
+
+        {/* Distribution Tasks */}
+        <TasksSection record={record} setRecord={setRecord} />
       </div>
     </div>
   )

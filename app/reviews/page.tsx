@@ -28,7 +28,6 @@ const DEFAULT_TASKS: TaskStatus = {
   linkedInArticle: false,
   xPost: false,
   facebookPost: false,
-  instagramPost: false,
 }
 
 const PIPELINE_LABELS: { key: keyof PipelineStatus; label: string; requiresAdmin?: boolean }[] = [
@@ -49,7 +48,6 @@ const TASK_LABELS: { key: keyof TaskStatus; label: string }[] = [
   { key: "linkedInArticle", label: "LinkedIn Article Posted" },
   { key: "xPost", label: "X.com Post with Link to Arousr Blog" },
   { key: "facebookPost", label: "Facebook Post with Link to Medium Article" },
-  { key: "instagramPost", label: "Instagram Post" },
 ]
 
 function ReviewCard({ record, onTaskUpdate }: { record: ReviewRecord; onTaskUpdate: (id: string, tasks: TaskStatus) => void }) {
