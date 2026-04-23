@@ -80,6 +80,47 @@ function EditableBlock({ label, content, onSave, onGenerate, isGenerating, gener
   )
 }
 
+// One-line verdict input with local state and save on blur
+function OneLineVerdictInput({ value: initialValue, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [value, setValue] = useState(initialValue)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setValue(initialValue)
+  }, [initialValue])
+
+  function handleSave() {
+    if (value !== initialValue) {
+      onSave(value)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }
+  }
+
+  return (
+    <div className="mt-6 space-y-2">
+      <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        One-Line Verdict
+      </label>
+      <p className="text-xs text-muted-foreground">
+        Enter a one-sentence summary of the platform. This will be used in title generation.
+      </p>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSave() }}
+          placeholder="e.g. Clunky interface and high prices make this a hard pass"
+          className="flex-1 rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+        />
+        {saved && <span className="text-xs text-green-500">Saved</span>}
+      </div>
+    </div>
+  )
+}
+
 // HTML preview block with View Markdown toggle
 interface HTMLPreviewBlockProps {
   label: string
@@ -1815,26 +1856,13 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         />
         
         {/* One-Line Verdict */}
-        <div className="mt-6 space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            One-Line Verdict
-          </label>
-          <p className="text-xs text-muted-foreground">
-            Enter a one-sentence summary of the platform. This will be used in title generation.
-          </p>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={record.generated.oneLineVerdict || ""}
-              onChange={async (e) => {
-                const updated = await updateGeneratedContent(record.id, { oneLineVerdict: e.target.value })
-                if (updated) setRecord(updated)
-              }}
-              placeholder="e.g. Clunky interface and high prices make this a hard pass"
-              className="flex-1 rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
-        </div>
+        <OneLineVerdictInput
+          value={record.generated.oneLineVerdict || ""}
+          onSave={async (v) => {
+            const updated = await updateGeneratedContent(record.id, { oneLineVerdict: v })
+            if (updated) setRecord(updated)
+          }}
+        />
 
         {/* Blog Post Title */}
         <div className="mt-6">
