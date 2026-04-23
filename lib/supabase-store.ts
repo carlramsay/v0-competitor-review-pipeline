@@ -331,6 +331,8 @@ export async function updateTaskStatus(
   const userId = await requireAuth()
   const supabase = createClient()
   
+  console.log("[v0] updateTaskStatus - authenticated userId:", userId)
+  
   const { data: current, error: fetchError } = await supabase
     .from("reviews")
     .select("*")
@@ -342,11 +344,10 @@ export async function updateTaskStatus(
     console.error("[v0] Error fetching review for task update:", fetchError)
     return null
   }
+  
+  console.log("[v0] updateTaskStatus - record.user_id:", current.user_id)
 
   const updatedTasks = { ...current.tasks, ...updates }
-  console.log("[v0] updateTaskStatus - current.tasks:", JSON.stringify(current.tasks))
-  console.log("[v0] updateTaskStatus - updates:", JSON.stringify(updates))
-  console.log("[v0] updateTaskStatus - updatedTasks:", JSON.stringify(updatedTasks))
 
   try {
     const { data, error } = await supabase
@@ -359,8 +360,15 @@ export async function updateTaskStatus(
       .eq("user_id", userId)
       .select()
       .single()
-
-    console.log("[v0] updateTaskStatus - after update, data.tasks:", JSON.stringify(data?.tasks))
+    
+    // Verify by re-fetching
+    const { data: verify } = await supabase
+      .from("reviews")
+      .select("tasks")
+      .eq("id", id)
+      .single()
+    
+    console.log("[v0] updateTaskStatus - verify fetch tasks:", JSON.stringify(verify?.tasks))
     
     if (error) {
       console.error("[v0] updateTaskStatus - error:", error)
