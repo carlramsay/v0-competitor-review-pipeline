@@ -105,16 +105,26 @@ const TASK_LABELS: { key: keyof TaskStatus; label: string }[] = [
 
 // Tasks section component
 function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: (r: ReviewRecord) => void }) {
-  const [localTasks, setLocalTasks] = useState<TaskStatus>(record.tasks || DEFAULT_TASKS)
+  const [localTasks, setLocalTasks] = useState<TaskStatus>(DEFAULT_TASKS)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+  const [initialized, setInitialized] = useState(false)
 
-  // Sync local state only when record ID changes (not when tasks update from our own save)
+  // Sync local state when record.tasks has actual data (some tasks completed)
   useEffect(() => {
-    setLocalTasks(record.tasks || DEFAULT_TASKS)
-    setHasChanges(false)
-  }, [record.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    const tasks = record.tasks || DEFAULT_TASKS
+    const hasCompletedTasks = Object.values(tasks).some(Boolean)
+    
+    // Only sync if we haven't initialized yet, or if the new data has completed tasks
+    // This prevents overwriting with stale/default data from race conditions
+    if (!initialized || hasCompletedTasks) {
+      console.log("[v0] TasksSection syncing tasks:", JSON.stringify(tasks), "hasCompletedTasks:", hasCompletedTasks)
+      setLocalTasks(tasks)
+      setHasChanges(false)
+      setInitialized(true)
+    }
+  }, [record.id, record.tasks, initialized])
 
   const handleToggle = (key: keyof TaskStatus) => {
     console.log("[v0] handleToggle called for key:", key)
