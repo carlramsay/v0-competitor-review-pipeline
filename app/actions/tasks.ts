@@ -43,6 +43,8 @@ export async function saveTasks(reviewId: string, tasks: Record<string, boolean>
 }
 
 export async function getTasks(reviewId: string) {
+  console.log("[v0] getTasks called, reviewId:", reviewId)
+  
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false }
   })
@@ -52,6 +54,8 @@ export async function getTasks(reviewId: string) {
     .select("tasks")
     .eq("id", reviewId)
     .single()
+
+  console.log("[v0] getTasks result:", JSON.stringify(data?.tasks))
 
   if (error) {
     console.error("Get tasks error:", error)
