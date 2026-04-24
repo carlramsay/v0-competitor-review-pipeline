@@ -115,22 +115,27 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   
-  // Fetch tasks using raw fetch API
+  // Fetch tasks using raw fetch API with cache busting
   useEffect(() => {
     async function fetchTasks() {
+      const cacheBuster = `_t=${Date.now()}&_r=${Math.random()}`
+      console.log("[v0] Fetching tasks from:", supabaseUrl)
       try {
         const res = await fetch(
-          `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}&select=tasks`,
+          `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}&select=tasks&${cacheBuster}`,
           {
+            method: "GET",
             headers: {
               "apikey": supabaseKey,
               "Authorization": `Bearer ${supabaseKey}`,
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+              "Pragma": "no-cache",
             },
             cache: "no-store",
           }
         )
         const data = await res.json()
-        console.log("[v0] Raw fetch tasks:", JSON.stringify(data))
+        console.log("[v0] Fetched tasks:", JSON.stringify(data))
         if (data && data[0]?.tasks) {
           setLocalTasks(data[0].tasks)
         } else {
@@ -158,10 +163,12 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
     setSaving(true)
     setError(null)
     try {
-      console.log("[v0] Saving tasks via raw PATCH:", JSON.stringify(localTasks))
+      const cacheBuster = `_t=${Date.now()}&_r=${Math.random()}`
+      console.log("[v0] Saving tasks to:", supabaseUrl)
+      console.log("[v0] Tasks to save:", JSON.stringify(localTasks))
       
       const res = await fetch(
-        `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}`,
+        `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}&${cacheBuster}`,
         {
           method: "PATCH",
           headers: {
@@ -169,6 +176,7 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
             "Authorization": `Bearer ${supabaseKey}`,
             "Content-Type": "application/json",
             "Prefer": "return=representation",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
           },
           body: JSON.stringify({ 
             tasks: localTasks, 
@@ -185,13 +193,17 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
         return
       }
       
-      // Verify with a fresh fetch
+      // Verify with a completely fresh fetch using different cache buster
+      const verifyCacheBuster = `_t=${Date.now() + 1}&_r=${Math.random()}`
       const verifyRes = await fetch(
-        `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}&select=tasks`,
+        `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}&select=tasks&${verifyCacheBuster}`,
         {
+          method: "GET",
           headers: {
             "apikey": supabaseKey,
             "Authorization": `Bearer ${supabaseKey}`,
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
           },
           cache: "no-store",
         }
