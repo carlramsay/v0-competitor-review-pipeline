@@ -8,6 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  console.log("[v0] GET /api/reviews/tasks - id:", id)
   const supabase = await createClient()
   
   const { data, error } = await supabase
@@ -15,6 +16,8 @@ export async function GET(
     .select("tasks")
     .eq("id", id)
     .single()
+
+  console.log("[v0] GET tasks result:", JSON.stringify(data?.tasks), "error:", error?.message)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -29,6 +32,7 @@ export async function POST(
 ) {
   const { id } = await params
   const { tasks } = await request.json()
+  console.log("[v0] POST /api/reviews/tasks - id:", id, "tasks:", JSON.stringify(tasks))
   const supabase = await createClient()
   
   const { data, error } = await supabase
@@ -37,6 +41,8 @@ export async function POST(
     .eq("id", id)
     .select("tasks")
     .single()
+
+  console.log("[v0] POST tasks result:", JSON.stringify(data?.tasks), "error:", error?.message)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
