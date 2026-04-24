@@ -105,24 +105,24 @@ const TASK_LABELS: { key: keyof TaskStatus; label: string }[] = [
 
 // Tasks section component
 function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: (r: ReviewRecord) => void }) {
-  const [localTasks, setLocalTasks] = useState<TaskStatus>(record.tasks || DEFAULT_TASKS)
+  const [localTasks, setLocalTasks] = useState<TaskStatus | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [loadingTasks, setLoadingTasks] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch tasks using server action
+  // Always fetch fresh tasks from database on mount
   useEffect(() => {
     async function fetchTasks() {
+      setLoadingTasks(true)
       try {
         const { getTasks } = await import("@/app/actions/tasks")
         const tasks = await getTasks(record.id)
-        if (tasks) {
-          setLocalTasks(tasks)
-        }
+        setLocalTasks(tasks || DEFAULT_TASKS)
       } catch (err) {
         console.error("Fetch tasks error:", err)
+        setLocalTasks(DEFAULT_TASKS)
       } finally {
         setLoadingTasks(false)
       }
@@ -167,10 +167,11 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
     }
   }
 
-  const tasksComplete = Object.values(localTasks).filter(Boolean).length
-  const tasksTotal = Object.keys(localTasks).length
+  const tasks = localTasks || DEFAULT_TASKS
+  const tasksComplete = Object.values(tasks).filter(Boolean).length
+  const tasksTotal = Object.keys(tasks).length
 
-  if (loadingTasks) {
+  if (loadingTasks || !localTasks) {
     return (
       <div className="mt-8 rounded-lg border border-border bg-card overflow-hidden">
         <div className="flex items-center justify-center p-8">
@@ -196,7 +197,7 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
       </div>
       <div className="p-5 space-y-3">
         {TASK_LABELS.map(({ key, label }) => {
-          const isComplete = localTasks[key]
+          const isComplete = tasks[key]
           return (
             <label
               key={key}
