@@ -142,9 +142,13 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   const handleSave = async () => {
     setSaving(true)
     try {
-      const updated = await updateTaskStatus(record.id, localTasks)
-      if (updated) {
-        setRecord(updated)
+      const res = await fetch(`/api/reviews/${record.id}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tasks: localTasks }),
+      })
+      
+      if (res.ok) {
         setSaved(true)
         setHasChanges(false)
         setTimeout(() => setSaved(false), 2000)
