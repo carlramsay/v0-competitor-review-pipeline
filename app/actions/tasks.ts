@@ -1,48 +1,29 @@
 "use server"
 
 import { createClient } from "@supabase/supabase-js"
-import postgres from "postgres"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const connectionString = process.env.DATABASE_URL
 
 export async function saveTasks(reviewId: string, tasks: Record<string, boolean> | string) {
+  console.log("[v0] saveTasks called - reviewId:", reviewId)
+  
   // Handle case where tasks is passed as a string or corrupted object
   let tasksObj: Record<string, boolean>
   if (typeof tasks === "string") {
     tasksObj = JSON.parse(tasks)
   } else if (tasks && typeof tasks === "object" && "0" in tasks) {
+    // Fix corrupted object where keys are indices
     const str = Object.values(tasks).join("")
     tasksObj = JSON.parse(str)
   } else {
     tasksObj = tasks as Record<string, boolean>
   }
+  
+  console.log("[v0] saveTasks - parsed tasksObj:", JSON.stringify(tasksObj))
 
-  // Try direct Postgres first if available
-  if (connectionString) {
-    try {
-      const sql = postgres(connectionString, { ssl: "require", prepare: false })
-      const tasksJson = JSON.stringify(tasksObj)
-      
-      await sql`
-        UPDATE reviews 
-        SET tasks = ${tasksJson}::jsonb, updated_at = NOW() 
-        WHERE id = ${reviewId}
-      `
-      
-      // Verify immediately
-      const verify = await sql`SELECT tasks FROM reviews WHERE id = ${reviewId}`
-      await sql.end()
-      
-      return { success: true, tasks: verify[0]?.tasks }
-    } catch (e) {
-      console.error("Postgres error:", e)
-    }
-  }
-
-  // Fallback to Supabase REST API
   if (!supabaseServiceKey) {
+    console.error("[v0] saveTasks - No service key!")
     return { success: false, error: "No database connection configured" }
   }
   
@@ -50,39 +31,38 @@ export async function saveTasks(reviewId: string, tasks: Record<string, boolean>
     auth: { persistSession: false }
   })
   
+  console.log("[v0] saveTasks - calling supabase update")
+  
   const { data, error } = await supabase
     .from("reviews")
     .update({ tasks: tasksObj, updated_at: new Date().toISOString() })
     .eq("id", reviewId)
     .select("tasks")
   
+  console.log("[v0] saveTasks - supabase response data:", JSON.stringify(data))
+  console.log("[v0] saveTasks - supabase response error:", error?.message)
+  
   if (error) {
     return { success: false, error: error.message }
   }
+  
+  // Double check with a fresh read
+  const { data: verifyData } = await supabase
+    .from("reviews")
+    .select("tasks")
+    .eq("id", reviewId)
+    .single()
+  
+  console.log("[v0] saveTasks - verify read:", JSON.stringify(verifyData?.tasks))
   
   return { success: true, tasks: data?.[0]?.tasks }
 }
 
 export async function getTasks(reviewId: string) {
-  // Try direct Postgres first
-  if (connectionString) {
-    try {
-      const sql = postgres(connectionString, { ssl: "require", prepare: false })
-      const result = await sql`SELECT tasks FROM reviews WHERE id = ${reviewId}`
-      await sql.end()
-      
-      const tasks = result[0]?.tasks
-      if (typeof tasks === "string") {
-        return JSON.parse(tasks)
-      }
-      return tasks
-    } catch (e) {
-      console.error("Postgres error:", e)
-    }
-  }
-
-  // Fallback to Supabase
+  console.log("[v0] getTasks called - reviewId:", reviewId)
+  
   if (!supabaseServiceKey) {
+    console.error("[v0] getTasks - No service key!")
     return null
   }
   
@@ -95,6 +75,9 @@ export async function getTasks(reviewId: string) {
     .select("tasks")
     .eq("id", reviewId)
     .single()
+  
+  console.log("[v0] getTasks - data:", JSON.stringify(data?.tasks))
+  console.log("[v0] getTasks - error:", error?.message)
   
   if (error || !data) {
     return null
