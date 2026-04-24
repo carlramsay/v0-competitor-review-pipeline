@@ -24,6 +24,7 @@ export {
   saveQueue,
   addToQueue,
   updateQueueItemStatus,
+  updateQueueItemStatusByUrl,
   updateQueueItemName,
   removeFromQueue,
   getSortedQueue,

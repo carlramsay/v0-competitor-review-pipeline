@@ -115,7 +115,6 @@ export interface TaskStatus {
   linkedInArticle: boolean
   xPost: boolean
   facebookPost: boolean
-  instagramPost: boolean
 }
 
 export interface ReviewRecord {

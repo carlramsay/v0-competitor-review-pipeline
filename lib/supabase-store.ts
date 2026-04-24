@@ -133,28 +133,20 @@ export async function getReviewByCompetitorName(name: string, url?: string): Pro
     .order("submitted_at", { ascending: false })
 
   if (error || !data) {
-    console.error("[v0] Error fetching reviews by name:", error)
     return null
   }
-
-  console.log("[v0] Looking for review with name:", name, "url:", url)
-  console.log("[v0] Found", data.length, "reviews to search")
 
   // Find review where competitorName or competitorUrl matches (case-insensitive)
   const match = data.find((row) => {
     const formData = row.form_data as ReviewFormData
     const nameMatch = formData.competitorName?.toLowerCase() === name?.toLowerCase()
     const urlMatch = url && formData.competitorUrl?.toLowerCase() === url?.toLowerCase()
-    console.log("[v0] Checking review:", formData.competitorName, "nameMatch:", nameMatch, "urlMatch:", urlMatch)
     return nameMatch || urlMatch
   })
 
   if (!match) {
-    console.log("[v0] No matching review found")
     return null
   }
-
-  console.log("[v0] Found matching review:", match.id)
   return {
     id: match.id,
     userId: match.user_id,
@@ -338,7 +330,6 @@ export async function updateTaskStatus(
     .single()
 
   if (fetchError || !current) {
-    console.error("[v0] Error fetching review for task update:", fetchError)
     return null
   }
 
@@ -355,7 +346,7 @@ export async function updateTaskStatus(
       .eq("user_id", userId)
       .select()
       .single()
-
+    
     if (error) {
       handleSupabaseError(error, "update task status")
     }
@@ -634,6 +625,25 @@ export async function updateQueueItemStatus(
 
   if (error) {
     console.error("[v0] Error updating queue item status:", error)
+    throw error
+  }
+}
+
+export async function updateQueueItemStatusByUrl(
+  url: string,
+  status: "Not Started" | "In Progress" | "Completed"
+): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("queue_items")
+    .update({
+      status,
+      status_updated_at: new Date().toISOString(),
+    })
+    .eq("url", url)
+
+  if (error) {
+    console.error("[v0] Error updating queue item status by URL:", error)
     throw error
   }
 }

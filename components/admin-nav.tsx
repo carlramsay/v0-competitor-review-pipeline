@@ -8,7 +8,6 @@ import { LogOut, ShieldCheck } from "lucide-react"
 
 const tabs = [
   { label: "Reviews", href: "/admin/reviews" },
-  { label: "Queue", href: "/admin/queue" },
   { label: "Settings", href: "/admin/settings" },
 ]
 
