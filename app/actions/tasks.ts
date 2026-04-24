@@ -43,7 +43,7 @@ export async function saveTasks(reviewId: string, tasks: Record<string, boolean>
 }
 
 export async function getTasks(reviewId: string) {
-  const supabase = createClient(supabaseUrl, supabaseKey, {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false }
   })
   
