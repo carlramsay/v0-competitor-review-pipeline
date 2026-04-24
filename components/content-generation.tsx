@@ -105,48 +105,30 @@ const TASK_LABELS: { key: keyof TaskStatus; label: string }[] = [
 
 // Tasks section component
 function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: (r: ReviewRecord) => void }) {
-  const [localTasks, setLocalTasks] = useState<TaskStatus>(DEFAULT_TASKS)
+  const [localTasks, setLocalTasks] = useState<TaskStatus>(record.tasks || DEFAULT_TASKS)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [loadingTasks, setLoadingTasks] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  
-  // Fetch tasks using raw fetch API
+  // Fetch tasks using server action
   useEffect(() => {
     async function fetchTasks() {
-      console.log("[v0] Fetching tasks from:", supabaseUrl)
       try {
-        const res = await fetch(
-          `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}&select=tasks`,
-          {
-            method: "GET",
-            headers: {
-              "apikey": supabaseKey,
-              "Authorization": `Bearer ${supabaseKey}`,
-            },
-            cache: "no-store",
-          }
-        )
-        const data = await res.json()
-        console.log("[v0] Fetched tasks:", JSON.stringify(data))
-        if (data && data[0]?.tasks) {
-          setLocalTasks(data[0].tasks)
-        } else {
-          setLocalTasks(record.tasks || DEFAULT_TASKS)
+        const { getTasks } = await import("@/app/actions/tasks")
+        const tasks = await getTasks(record.id)
+        if (tasks) {
+          setLocalTasks(tasks)
         }
       } catch (err) {
-        console.log("[v0] Fetch error:", err)
-        setLocalTasks(record.tasks || DEFAULT_TASKS)
+        console.error("Fetch tasks error:", err)
       } finally {
         setLoadingTasks(false)
       }
     }
     fetchTasks()
-  }, [record.id, supabaseUrl, supabaseKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [record.id])
 
   const handleToggle = (key: keyof TaskStatus) => {
     setLocalTasks(prev => {
@@ -160,48 +142,13 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
     setSaving(true)
     setError(null)
     try {
-      console.log("[v0] Saving tasks to:", supabaseUrl)
-      console.log("[v0] Tasks to save:", JSON.stringify(localTasks))
+      const { saveTasks } = await import("@/app/actions/tasks")
+      const result = await saveTasks(record.id, localTasks)
       
-      const res = await fetch(
-        `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}`,
-        {
-          method: "PATCH",
-          headers: {
-            "apikey": supabaseKey,
-            "Authorization": `Bearer ${supabaseKey}`,
-            "Content-Type": "application/json",
-            "Prefer": "return=representation",
-          },
-          body: JSON.stringify({ 
-            tasks: localTasks, 
-            updated_at: new Date().toISOString() 
-          }),
-        }
-      )
-      
-      const result = await res.json()
-      console.log("[v0] PATCH response status:", res.status, "data:", JSON.stringify(result))
-      
-      if (!res.ok) {
-        setError(result.message || "Update failed")
+      if (!result.success) {
+        setError(result.error || "Save failed")
         return
       }
-      
-      // Verify with a fresh fetch
-      const verifyRes = await fetch(
-        `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}&select=tasks`,
-        {
-          method: "GET",
-          headers: {
-            "apikey": supabaseKey,
-            "Authorization": `Bearer ${supabaseKey}`,
-          },
-          cache: "no-store",
-        }
-      )
-      const verifyData = await verifyRes.json()
-      console.log("[v0] Verify after PATCH:", JSON.stringify(verifyData))
       
       setSaved(true)
       setHasChanges(false)
