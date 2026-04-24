@@ -1,96 +1,77 @@
 "use server"
 
-import { createClient } from "@supabase/supabase-js"
+import postgres from "postgres"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const connectionString = process.env.DATABASE_URL!
 
 export async function saveTasks(reviewId: string, tasks: Record<string, boolean> | string) {
-  console.log("[v0] saveTasks called - reviewId:", reviewId)
+  if (!connectionString) {
+    return { success: false, error: "DATABASE_URL not configured" }
+  }
   
-  // Handle case where tasks is passed as a string or corrupted object
+  // Parse tasks if it's a string or corrupted object
   let tasksObj: Record<string, boolean>
   if (typeof tasks === "string") {
     tasksObj = JSON.parse(tasks)
   } else if (tasks && typeof tasks === "object" && "0" in tasks) {
-    // Fix corrupted object where keys are indices
     const str = Object.values(tasks).join("")
     tasksObj = JSON.parse(str)
   } else {
     tasksObj = tasks as Record<string, boolean>
   }
   
-  console.log("[v0] saveTasks - parsed tasksObj:", JSON.stringify(tasksObj))
-
-  if (!supabaseServiceKey) {
-    console.error("[v0] saveTasks - No service key!")
-    return { success: false, error: "No database connection configured" }
+  const sql = postgres(connectionString, { ssl: "require", prepare: false })
+  
+  try {
+    const tasksJson = JSON.stringify(tasksObj)
+    
+    const result = await sql`
+      UPDATE reviews 
+      SET tasks = ${tasksJson}::jsonb, updated_at = NOW() 
+      WHERE id = ${reviewId}
+      RETURNING tasks
+    `
+    
+    await sql.end()
+    
+    if (result.length === 0) {
+      return { success: false, error: "No rows updated" }
+    }
+    
+    return { success: true, tasks: result[0].tasks }
+  } catch (error) {
+    try { await sql.end() } catch {}
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
   }
-  
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { persistSession: false }
-  })
-  
-  console.log("[v0] saveTasks - calling supabase update")
-  
-  const { data, error } = await supabase
-    .from("reviews")
-    .update({ tasks: tasksObj, updated_at: new Date().toISOString() })
-    .eq("id", reviewId)
-    .select("tasks")
-  
-  console.log("[v0] saveTasks - supabase response data:", JSON.stringify(data))
-  console.log("[v0] saveTasks - supabase response error:", error?.message)
-  
-  if (error) {
-    return { success: false, error: error.message }
-  }
-  
-  // Double check with a fresh read
-  const { data: verifyData } = await supabase
-    .from("reviews")
-    .select("tasks")
-    .eq("id", reviewId)
-    .single()
-  
-  console.log("[v0] saveTasks - verify read:", JSON.stringify(verifyData?.tasks))
-  
-  return { success: true, tasks: data?.[0]?.tasks }
 }
 
 export async function getTasks(reviewId: string) {
-  console.log("[v0] getTasks called - reviewId:", reviewId)
-  
-  if (!supabaseServiceKey) {
-    console.error("[v0] getTasks - No service key!")
+  if (!connectionString) {
     return null
   }
   
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { persistSession: false }
-  })
+  const sql = postgres(connectionString, { ssl: "require", prepare: false })
   
-  const { data, error } = await supabase
-    .from("reviews")
-    .select("tasks")
-    .eq("id", reviewId)
-    .single()
-  
-  console.log("[v0] getTasks - data:", JSON.stringify(data?.tasks))
-  console.log("[v0] getTasks - error:", error?.message)
-  
-  if (error || !data) {
-    return null
-  }
-  
-  const tasks = data.tasks
-  if (typeof tasks === "string") {
-    try {
-      return JSON.parse(tasks)
-    } catch {
-      return null
+  try {
+    const result = await sql`
+      SELECT tasks FROM reviews WHERE id = ${reviewId}
+    `
+    
+    await sql.end()
+    
+    const tasks = result[0]?.tasks
+    
+    if (typeof tasks === "string") {
+      try {
+        return JSON.parse(tasks)
+      } catch {
+        return null
+      }
     }
+    
+    return tasks || null
+  } catch (error) {
+    try { await sql.end() } catch {}
+    return null
   }
-  
-  return tasks
 }
