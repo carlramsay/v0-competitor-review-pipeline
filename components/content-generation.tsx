@@ -110,17 +110,31 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   const [saved, setSaved] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [loadingTasks, setLoadingTasks] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Fetch tasks directly from API on mount to bypass stale parent data
+  // Use client-side Supabase directly
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  
+  // Fetch tasks directly from Supabase on mount
   useEffect(() => {
     async function fetchTasks() {
       try {
-        const res = await fetch(`/api/reviews/${record.id}/tasks`, { cache: "no-store" })
-        if (res.ok) {
-          const data = await res.json()
-          setLocalTasks(data.tasks || DEFAULT_TASKS)
-        } else {
+        const { createClient } = await import("@supabase/supabase-js")
+        const supabase = createClient(supabaseUrl, supabaseKey)
+        
+        const { data, error } = await supabase
+          .from("reviews")
+          .select("tasks")
+          .eq("id", record.id)
+          .single()
+        
+        if (error) {
+          console.log("[v0] Fetch tasks error:", error.message)
           setLocalTasks(record.tasks || DEFAULT_TASKS)
+        } else {
+          console.log("[v0] Fetched tasks:", JSON.stringify(data?.tasks))
+          setLocalTasks(data?.tasks || DEFAULT_TASKS)
         }
       } catch (err) {
         setLocalTasks(record.tasks || DEFAULT_TASKS)
@@ -129,7 +143,7 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
       }
     }
     fetchTasks()
-  }, [record.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [record.id, supabaseUrl, supabaseKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggle = (key: keyof TaskStatus) => {
     setLocalTasks(prev => {
@@ -141,26 +155,45 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
 
   const handleSave = async () => {
     setSaving(true)
+    setError(null)
     try {
-      const res = await fetch(`/api/reviews/${record.id}/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tasks: localTasks }),
-      })
+      const { createClient } = await import("@supabase/supabase-js")
+      const supabase = createClient(supabaseUrl, supabaseKey)
       
-      if (res.ok) {
-        setSaved(true)
-        setHasChanges(false)
-        setTimeout(() => setSaved(false), 2000)
-        
-        // If all tasks are complete, mark the queue item as completed
-        const allComplete = Object.values(localTasks).every(Boolean)
-        if (allComplete && record.formData.competitorUrl) {
-          await updateQueueItemStatusByUrl(record.formData.competitorUrl, "Completed")
-        }
+      console.log("[v0] Saving tasks:", JSON.stringify(localTasks))
+      
+      const { error: updateError } = await supabase
+        .from("reviews")
+        .update({ tasks: localTasks, updated_at: new Date().toISOString() })
+        .eq("id", record.id)
+      
+      if (updateError) {
+        console.log("[v0] Save tasks error:", updateError.message)
+        setError(updateError.message)
+        return
+      }
+      
+      // Verify the save
+      const { data: verify } = await supabase
+        .from("reviews")
+        .select("tasks")
+        .eq("id", record.id)
+        .single()
+      
+      console.log("[v0] Verified tasks after save:", JSON.stringify(verify?.tasks))
+      
+      setSaved(true)
+      setHasChanges(false)
+      setTimeout(() => setSaved(false), 2000)
+      
+      // If all tasks are complete, mark the queue item as completed
+      const allComplete = Object.values(localTasks).every(Boolean)
+      if (allComplete && record.formData.competitorUrl) {
+        await updateQueueItemStatusByUrl(record.formData.competitorUrl, "Completed")
       }
     } catch (err) {
       console.error("Error saving tasks:", err)
+      setError(err instanceof Error ? err.message : "Unknown error")
     } finally {
       setSaving(false)
     }
@@ -222,6 +255,7 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
         <div className="flex items-center gap-2">
           {saved && <span className="text-xs text-green-500">Saved!</span>}
           {hasChanges && !saved && <span className="text-xs text-amber-400">Unsaved changes</span>}
+          {error && <span className="text-xs text-red-500">Error: {error}</span>}
         </div>
         <button
           type="button"
