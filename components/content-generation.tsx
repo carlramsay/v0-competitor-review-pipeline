@@ -112,31 +112,32 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   const [loadingTasks, setLoadingTasks] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Use client-side Supabase directly
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   
-  // Fetch tasks directly from Supabase on mount
+  // Fetch tasks using raw fetch API
   useEffect(() => {
     async function fetchTasks() {
       try {
-        const { createClient } = await import("@supabase/supabase-js")
-        const supabase = createClient(supabaseUrl, supabaseKey)
-        
-        const { data, error } = await supabase
-          .from("reviews")
-          .select("tasks")
-          .eq("id", record.id)
-          .single()
-        
-        if (error) {
-          console.log("[v0] Fetch tasks error:", error.message)
-          setLocalTasks(record.tasks || DEFAULT_TASKS)
+        const res = await fetch(
+          `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}&select=tasks`,
+          {
+            headers: {
+              "apikey": supabaseKey,
+              "Authorization": `Bearer ${supabaseKey}`,
+            },
+            cache: "no-store",
+          }
+        )
+        const data = await res.json()
+        console.log("[v0] Raw fetch tasks:", JSON.stringify(data))
+        if (data && data[0]?.tasks) {
+          setLocalTasks(data[0].tasks)
         } else {
-          console.log("[v0] Fetched tasks:", JSON.stringify(data?.tasks))
-          setLocalTasks(data?.tasks || DEFAULT_TASKS)
+          setLocalTasks(record.tasks || DEFAULT_TASKS)
         }
       } catch (err) {
+        console.log("[v0] Fetch error:", err)
         setLocalTasks(record.tasks || DEFAULT_TASKS)
       } finally {
         setLoadingTasks(false)
@@ -157,30 +158,46 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
     setSaving(true)
     setError(null)
     try {
-      const { createClient } = await import("@supabase/supabase-js")
-      const supabase = createClient(supabaseUrl, supabaseKey)
+      console.log("[v0] Saving tasks via raw PATCH:", JSON.stringify(localTasks))
       
-      console.log("[v0] Saving tasks:", JSON.stringify(localTasks))
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "apikey": supabaseKey,
+            "Authorization": `Bearer ${supabaseKey}`,
+            "Content-Type": "application/json",
+            "Prefer": "return=representation",
+          },
+          body: JSON.stringify({ 
+            tasks: localTasks, 
+            updated_at: new Date().toISOString() 
+          }),
+        }
+      )
       
-      const { error: updateError } = await supabase
-        .from("reviews")
-        .update({ tasks: localTasks, updated_at: new Date().toISOString() })
-        .eq("id", record.id)
+      const result = await res.json()
+      console.log("[v0] PATCH response status:", res.status, "data:", JSON.stringify(result))
       
-      if (updateError) {
-        console.log("[v0] Save tasks error:", updateError.message)
-        setError(updateError.message)
+      if (!res.ok) {
+        setError(result.message || "Update failed")
         return
       }
       
-      // Verify the save
-      const { data: verify } = await supabase
-        .from("reviews")
-        .select("tasks")
-        .eq("id", record.id)
-        .single()
-      
-      console.log("[v0] Verified tasks after save:", JSON.stringify(verify?.tasks))
+      // Verify with a fresh fetch
+      const verifyRes = await fetch(
+        `${supabaseUrl}/rest/v1/reviews?id=eq.${record.id}&select=tasks`,
+        {
+          headers: {
+            "apikey": supabaseKey,
+            "Authorization": `Bearer ${supabaseKey}`,
+          },
+          cache: "no-store",
+        }
+      )
+      const verifyData = await verifyRes.json()
+      console.log("[v0] Verify after PATCH:", JSON.stringify(verifyData))
       
       setSaved(true)
       setHasChanges(false)
