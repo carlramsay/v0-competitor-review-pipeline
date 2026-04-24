@@ -13,7 +13,7 @@ export async function saveTasks(reviewId: string, tasks: Record<string, boolean>
     return { success: false, error: "Database connection string not configured" }
   }
   
-  const sql = postgres(connectionString, { ssl: "require" })
+  const sql = postgres(connectionString, { ssl: "require", prepare: false })
   
   try {
     const tasksJson = JSON.stringify(tasks)
@@ -41,7 +41,7 @@ export async function saveTasks(reviewId: string, tasks: Record<string, boolean>
     console.log("[v0] saveTasks - returned tasks:", JSON.stringify(result[0]?.tasks))
     
     // Verify AFTER transaction with new connection
-    const sql2 = postgres(connectionString, { ssl: "require" })
+    const sql2 = postgres(connectionString, { ssl: "require", prepare: false })
     const finalVerify = await sql2`SELECT tasks FROM reviews WHERE id = ${reviewId}`
     console.log("[v0] saveTasks - final verify after commit:", JSON.stringify(finalVerify[0]?.tasks))
     await sql2.end()
@@ -68,7 +68,7 @@ export async function getTasks(reviewId: string) {
     return null
   }
   
-  const sql = postgres(connectionString, { ssl: "require" })
+  const sql = postgres(connectionString, { ssl: "require", prepare: false })
   
   try {
     const result = await sql`
