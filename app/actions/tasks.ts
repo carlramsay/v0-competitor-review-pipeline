@@ -19,15 +19,32 @@ export async function saveTasks(reviewId: string, tasks: Record<string, boolean>
     const tasksJson = JSON.stringify(tasks)
     console.log("[v0] saveTasks - executing UPDATE with tasksJson:", tasksJson)
     
-    const result = await sql`
-      UPDATE reviews 
-      SET tasks = ${tasksJson}::jsonb, updated_at = NOW() 
-      WHERE id = ${reviewId}
-      RETURNING tasks
-    `
+    // Use a transaction to ensure commit
+    const result = await sql.begin(async (tx) => {
+      const updated = await tx`
+        UPDATE reviews 
+        SET tasks = ${tasksJson}::jsonb, updated_at = NOW() 
+        WHERE id = ${reviewId}
+        RETURNING tasks
+      `
+      
+      // Verify within the same transaction
+      const verify = await tx`
+        SELECT tasks FROM reviews WHERE id = ${reviewId}
+      `
+      console.log("[v0] saveTasks - verify within transaction:", JSON.stringify(verify[0]?.tasks))
+      
+      return updated
+    })
     
     console.log("[v0] saveTasks - UPDATE returned rows:", result.length)
     console.log("[v0] saveTasks - returned tasks:", JSON.stringify(result[0]?.tasks))
+    
+    // Verify AFTER transaction with new connection
+    const sql2 = postgres(connectionString, { ssl: "require" })
+    const finalVerify = await sql2`SELECT tasks FROM reviews WHERE id = ${reviewId}`
+    console.log("[v0] saveTasks - final verify after commit:", JSON.stringify(finalVerify[0]?.tasks))
+    await sql2.end()
     
     await sql.end()
     
