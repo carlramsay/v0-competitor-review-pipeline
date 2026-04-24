@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { QueueItem, QueueStatus } from "@/lib/types"
 import { updateQueueItemStatus, getSortedQueue } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { Play } from "lucide-react"
+import { Play, Eye } from "lucide-react"
 
 
 export function ReviewQueue() {
@@ -24,6 +24,12 @@ export function ReviewQueue() {
 
   async function handleStartReview(item: QueueItem) {
     await updateQueueItemStatus(item.id, "In Progress")
+    sessionStorage.setItem("queueUrl", item.url)
+    if (item.name) sessionStorage.setItem("queueName", item.name)
+    router.push("/form")
+  }
+
+  function handleViewReview(item: QueueItem) {
     sessionStorage.setItem("queueUrl", item.url)
     if (item.name) sessionStorage.setItem("queueName", item.name)
     router.push("/form")
@@ -80,7 +86,15 @@ export function ReviewQueue() {
                     {item.status}
                   </span>
 
-                  {item.status !== "Completed" && (
+                  {item.status === "Completed" ? (
+                    <button
+                      onClick={() => handleViewReview(item)}
+                      className="flex items-center gap-1.5 rounded-md bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/90"
+                    >
+                      <Eye size={12} />
+                      View
+                    </button>
+                  ) : (
                     <button
                       onClick={() => handleStartReview(item)}
                       className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"

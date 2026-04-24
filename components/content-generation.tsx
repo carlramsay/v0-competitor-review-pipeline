@@ -153,12 +153,6 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
       setSaved(true)
       setHasChanges(false)
       setTimeout(() => setSaved(false), 2000)
-      
-      // If all tasks are complete, mark the queue item as completed
-      const allComplete = Object.values(localTasks).every(Boolean)
-      if (allComplete && record.formData.competitorUrl) {
-        await updateQueueItemStatusByUrl(record.formData.competitorUrl, "Completed")
-      }
     } catch (err) {
       console.error("Error saving tasks:", err)
       setError(err instanceof Error ? err.message : "Unknown error")
