@@ -1224,10 +1224,12 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     setThumbnailUrlVertical(null)
 
     try {
-      const horizontalUrl = await generateThumbnailWithFormat(1280, 720)
+      // WordPress recommended featured image size: 1200x628
+      const horizontalUrl = await generateThumbnailWithFormat(1200, 628)
       if (horizontalUrl) setThumbnailUrl(horizontalUrl)
 
-      const verticalUrl = await generateThumbnailWithFormat(720, 1280)
+      // Vertical for social media stories
+      const verticalUrl = await generateThumbnailWithFormat(628, 1200)
       if (verticalUrl) setThumbnailUrlVertical(verticalUrl)
 
       const updated = await updateGeneratedContent(record.id, {
@@ -2149,7 +2151,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             {thumbnailUrl && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Horizontal (1280x720)</span>
+                  <span className="text-sm font-medium text-foreground">Horizontal (1200x628)</span>
                   <a
                     href={thumbnailUrl}
                     download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.png`}
@@ -2165,7 +2167,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             {thumbnailUrlVertical && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Vertical (720x1280)</span>
+                  <span className="text-sm font-medium text-foreground">Vertical (628x1200)</span>
                   <a
                     href={thumbnailUrlVertical}
                     download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.png`}
