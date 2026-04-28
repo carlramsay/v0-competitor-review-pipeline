@@ -2050,7 +2050,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
                   <span className="text-sm font-medium text-foreground">Horizontal (1920x1080)</span>
                   <a
                     href={videoUrl}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-horizontal.webm`}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-horizontal.mp4`}
                     className={btnClass}
                   >
                     <Download size={12} />
@@ -2066,7 +2066,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
                   <span className="text-sm font-medium text-foreground">Vertical (1080x1920)</span>
                   <a
                     href={videoUrlVertical}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-vertical.webm`}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-vertical.mp4`}
                     className={btnClass}
                   >
                     <Download size={12} />
@@ -2152,7 +2152,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
                   <span className="text-sm font-medium text-foreground">Horizontal (1280x720)</span>
                   <a
                     href={thumbnailUrl}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.jpg`}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.png`}
                     className={btnClass}
                   >
                     <Download size={12} />
@@ -2168,7 +2168,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
                   <span className="text-sm font-medium text-foreground">Vertical (720x1280)</span>
                   <a
                     href={thumbnailUrlVertical}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.jpg`}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.png`}
                     className={btnClass}
                   >
                     <Download size={12} />
