@@ -2001,7 +2001,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
                   <span className="text-sm font-medium text-foreground">Horizontal (1280x720)</span>
                   <a
                     href={thumbnailUrl}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.jpg`}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.png`}
                     className={btnClass}
                   >
                     <Download size={12} />
@@ -2017,7 +2017,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
                   <span className="text-sm font-medium text-foreground">Vertical (720x1280)</span>
                   <a
                     href={thumbnailUrlVertical}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.jpg`}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.png`}
                     className={btnClass}
                   >
                     <Download size={12} />
