@@ -555,7 +555,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       hookGuidance = "The previous title used a gap/comparison hook. Use score-led (if surprising), verdict-led, or user-fit style instead."
     }
 
-    const oneLineVerdict = record.generated.oneLineVerdict || record.formData.q24 || ""
+    const oneLineVerdict = record.formData.q24 || ""
     
     const prompt = `blog post title for this competitor review.
 
