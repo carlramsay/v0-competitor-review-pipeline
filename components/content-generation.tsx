@@ -993,23 +993,61 @@ Output: tweet text only, no explanation, no extra commentary.`
       return
     }
 
-    // Build answers with Arousr benchmark scores from settings
-    const answers = buildAnswersString(record.formData, settings.arousrScores)
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
 
     const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write a Reddit comment based on this competitor review of ${competitorName}. Follow these rules:
-TONE: Genuine, first-person, like a real user sharing their experience. Conversational and unpolished. No brand voice. No promotional language whatsoever.
-STRUCTURE:
-- One sentence establishing that you personally tested the platform
-- Two to three sentences covering the most specific and interesting findings — use real numbers and real observations from the reviewer's answers
-- One honest closing sentence summarizing the experience without pushing an alternative
-LENGTH: 80-120 words maximum.
-DO NOT mention Arousr at all. Reddit users immediately recognize unprompted brand mentions as shilling and will downvote or report the comment. Arousr should only be mentioned if someone specifically asks for an alternative in a reply thread — never in the initial comment.
-DO NOT use: corporate language, "in contrast", "reflected in their score", "for those prioritizing", or any phrasing that sounds like marketing copy.
-DO NOT mention: age policies, age verification bypass, or any age-related concerns.
-DO write: like a real person who tested the platform and is sharing an honest take with no agenda.`
+    const oneLineVerdict = record.formData.q24 || ""
+    
+    // Extract reviewer quotes from relevant form fields
+    const reviewerQuotes = [
+      record.formData.q14, // Chat quality observations
+      record.formData.q15, // Specific chat examples
+      record.formData.q24, // One-line verdict
+    ].filter(Boolean).join(" | ")
 
-    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+    const prompt = `Generate a Reddit comment for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+KEY FINDINGS: ${oneLineVerdict}
+REVIEWER QUOTES: ${reviewerQuotes}
+
+Rules:
+- Length: 80-120 words
+- Tone: genuine first-person user voice — write like a real 
+  person sharing their experience on Reddit, not a reviewer
+- Never mention Arousr — this must feel like an independent 
+  user post, not a comparison review
+- Never use marketing language, promotional phrases, or 
+  corporate tone
+- Never use clichés like "hit-and-miss", "worth a look", 
+  "at the end of the day"
+- No age, legal, or compliance references
+- No exclamation marks
+- No score unless it fits naturally in the flow — Reddit 
+  users don't typically cite formal scores
+- Be direct and honest — Reddit users appreciate blunt, 
+  specific observations
+
+If the reviewer provided a specific crude or memorable quote 
+about chat quality, include it near-verbatim — Reddit 
+audiences respond well to raw, unfiltered observations. 
+This makes the post feel authentic.
+
+Opening: start with what you did, not a general statement 
+about the platform.
+Example: "Tried ${competitorName} last week out of curiosity..."
+
+Closing: a direct honest opinion about who this platform 
+is or isn't for — specific, not vague.
+Example: "Fine for a quick anonymous chat but don't expect 
+much in terms of privacy or safety features."
+
+Output: comment text only, no explanation, no hashtags, 
+no extra commentary.`
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -1021,10 +1059,11 @@ DO write: like a real person who tested the platform and is sharing an honest ta
         body: JSON.stringify({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
+            { role: "system", content: "You write Reddit comments that sound like genuine user posts." },
+            { role: "user", content: prompt },
           ],
           max_tokens: 400,
+          temperature: 0.7,
         }),
       })
 
