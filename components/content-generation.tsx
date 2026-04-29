@@ -1126,7 +1126,7 @@ Rules:
   sharing a professional observation, not a press release
 - Never use corporate language like: "critical safety protocols", 
   "absence of", "in contrast", "it is worth noting", "it should 
-  be mentioned", "raises several concerns"
+  be mentioned", "raises several concerns", "deep dive", "deep-dive"
 - Must include the exact scores: competitor score and Arousr score
 - Must include one specific detail from the review — a price, 
   a feature, a specific observation from the reviewer
@@ -1148,13 +1148,15 @@ Opening:
 - Never open with "[Competitor] offers..." or "[Competitor] is 
   a platform that..."
 
-Arousr comparison: maximum ONE sentence mentioning Arousr in the 
-entire post, factual, no superlatives.
+Arousr: must appear EXACTLY ONCE in the entire post — only in 
+the factual score comparison sentence. Never mention Arousr again 
+after that sentence.
 Example: "For context, Arousr scored ${arousrTotal}/80 in the same test — 
 ${gap} points higher, mostly on safety and host quality."
 
-Closing: end with a genuine opinion or observation — not a 
-call to action, not a sales line.
+Closing: must be about ${competitorName} — an honest final observation 
+about the platform itself. Never redirect to Arousr in the closing. 
+Not a call to action, not a sales line.
 
 Hashtags — always include exactly these, on a new line at the end:
 #UserExperience #DigitalTrust #OnlineSafety #PlatformReview #DigitalWellness
