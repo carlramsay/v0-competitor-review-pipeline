@@ -112,14 +112,18 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   const [loadingTasks, setLoadingTasks] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Always fetch fresh tasks from database on mount
+  // Always fetch fresh tasks from database on mount using getReviewById
   useEffect(() => {
     async function fetchTasks() {
       setLoadingTasks(true)
       try {
-        const { getTasks } = await import("@/app/actions/tasks")
-        const tasks = await getTasks(record.id)
-        setLocalTasks(tasks || DEFAULT_TASKS)
+        const { getReviewById } = await import("@/lib/store")
+        const freshRecord = await getReviewById(record.id)
+        if (freshRecord?.tasks) {
+          setLocalTasks(freshRecord.tasks)
+        } else {
+          setLocalTasks(DEFAULT_TASKS)
+        }
       } catch (err) {
         console.error("Fetch tasks error:", err)
         setLocalTasks(DEFAULT_TASKS)
@@ -136,19 +140,22 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
     const updated: TaskStatus = { ...localTasks, [key]: !localTasks[key] }
     setLocalTasks(updated)
     
-    // Auto-save to database
+    // Auto-save to database using client-side store function
     setSaving(true)
     setError(null)
     try {
-      const { saveTasks } = await import("@/app/actions/tasks")
-      const result = await saveTasks(record.id, updated)
+      const { updateTaskStatus } = await import("@/lib/store")
+      const result = await updateTaskStatus(record.id, updated)
       
-      if (!result.success) {
+      if (!result) {
         // Revert on error
         setLocalTasks(localTasks)
-        setError(result.error || "Save failed")
+        setError("Save failed")
         return
       }
+      
+      // Update the parent record with the new tasks
+      setRecord(result)
       
       setSaved(true)
       setHasChanges(false)
