@@ -1217,25 +1217,70 @@ ${answers}`
       return
     }
 
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
+    const gap = arousrTotal - competitorTotal
+
     const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write a Facebook post based on this competitor review of ${competitorName}. Follow these rules strictly:
-
-TONE: Conversational, engaging, informative but not overly formal. Write from a brand voice perspective — do NOT use first person singular ("I", "me", "my", "if you're like me"). Use "we" or address the reader directly with "you".
-
-STRUCTURE:
-- Start with an attention-grabbing opening line or question
-- 2-3 paragraphs covering the main findings (what stood out, pricing insights, user experience observations)
-- End with a subtle mention of Arousr as an alternative worth checking out
-- Include a call-to-action at the end encouraging comments or engagement (e.g., "Have you tried this platform? Drop your experience in the comments!")
-
-DO NOT mention: age verification bypass, age policies, minimum age requirements, or any age-related concerns.
-
-LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook audience.`
+    const oneLineVerdict = record.formData.q24 || ""
+    const reviewerName = record.formData.reviewerName || "Reviewer"
 
     // Build answers with Arousr benchmark scores from settings
     const answers = buildAnswersString(record.formData, settings.arousrScores)
 
-    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+    const prompt = `Write a Facebook post for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+SCORE GAP: ${gap} points
+KEY FINDINGS: ${oneLineVerdict}
+REVIEWER: ${reviewerName}
+
+Rules:
+- Length: 150-200 words
+- Tone: conversational and accessible — written for a general 
+  audience, not corporate professionals
+- Never use exclamation marks
+- Must include the exact competitor score and Arousr score
+- Must include at least one specific detail from the review — 
+  a price, a feature, a specific observation from the reviewer
+- Arousr must appear exactly once — one factual comparison 
+  sentence only, no promotion or description of Arousr's features
+- Never describe Arousr as "known for", "trusted", "reliable", 
+  or any other promotional language
+- Never use generic engagement bait like "Drop your thoughts 
+  in the comments", "We'd love to hear from you", or 
+  "Have you tried this platform?"
+- Never open with "Ever wondered", "Have you ever", or 
+  a question opener
+- Never use clickbait language
+- No age, legal, or compliance references
+- No generic sign-offs
+- No hashtags
+
+Opening: must lead with a specific finding, the score, or 
+the reviewer's name and what they tested — never a question 
+or a vague teaser
+
+Arousr comparison: one sentence maximum, factual only.
+Example: "For context, Arousr scored ${arousrTotal}/80 in the same 
+test — ${gap} points higher on safety and host quality."
+
+Closing: a genuine observation about ${competitorName} — not a 
+redirect to Arousr, not engagement bait.
+
+Output: post text only. No explanation, no extra commentary.
+
+REVIEW DATA:
+${answers}`
+
+    const userContent = record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -1247,10 +1292,11 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         body: JSON.stringify({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
+            { role: "system", content: "You write Facebook posts for competitor review content." },
+            { role: "user", content: prompt + (userContent ? `\n\n${userContent}` : "") },
           ],
           max_tokens: 800,
+          temperature: 0.7,
         }),
       })
 
