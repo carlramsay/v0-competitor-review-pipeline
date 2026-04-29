@@ -1,9 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { createClient } from "@/lib/supabase/client"
+import { logoutAction } from "@/app/actions/auth"
 import { LogOut, ShieldCheck } from "lucide-react"
 
 const tabs = [
@@ -13,13 +13,6 @@ const tabs = [
 
 export function AdminNav() {
   const pathname = usePathname()
-  const router = useRouter()
-
-  async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.replace("/")
-  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/80 backdrop-blur-sm">
@@ -49,13 +42,15 @@ export function AdminNav() {
             )
           })}
         </div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
-        >
-          <LogOut size={13} />
-          Sign out
-        </button>
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+          >
+            <LogOut size={13} />
+            Sign out
+          </button>
+        </form>
       </div>
     </header>
   )
