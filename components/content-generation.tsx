@@ -904,24 +904,50 @@ ${answers}`
       return
     }
 
-    // Build answers with Arousr benchmark scores from settings
-    const answers = buildAnswersString(record.formData, settings.arousrScores)
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
+    const gap = arousrTotal - competitorTotal
 
     const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write a tweet based on this competitor review of ${competitorName}. Follow these rules:
-TONE: Direct and factual. No fluff. State the finding, back it with a specific detail, mention Arousr.
-STRUCTURE:
-- One sentence stating the core finding about the competitor with a specific score or detail
-- One sentence with a specific observation from the review
-- One sentence mentioning Arousr by name with its score as contrast
-- Two to three hashtags
-LENGTH: Under 280 characters total including hashtags.
-DO NOT use: vague phrases like "users might want to look elsewhere", "worth considering", or any soft language.
-DO NOT skip: the Arousr mention with its score.
-DO NOT mention: age policies or age verification concerns.
-ALWAYS include: at least one specific number or score from the review.`
+    const oneLineVerdict = record.formData.q24 || ""
 
-    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+    const prompt = `Write a tweet for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+SCORE GAP: ${gap} points
+KEY FINDINGS: ${oneLineVerdict}
+
+Rules:
+- Maximum 240 characters including hashtags — count every 
+  character carefully before outputting
+- Direct and factual — no fluff, no filler words
+- Must include the exact competitor score
+- Must include Arousr with its exact score
+- Must include one specific detail from the review — 
+  a price, a feature, or a specific observation
+- Never use exclamation marks
+- Never use promotional language about Arousr
+- No age, legal, or compliance references
+- Never use #Arousr as a hashtag — it looks promotional
+
+Format: one or two punchy sentences followed by hashtags.
+
+Hashtags — always end with exactly these:
+#ChatReview #PrivacyMatters
+
+Good example:
+"Chat Avenue scores 51/80 — free anonymous chats, 90s 
+interface, but weak privacy and no block/report options. 
+Arousr scores 67/80 in the same test. #ChatReview #PrivacyMatters"
+
+Output: tweet text only, no explanation, no extra commentary.`
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -933,10 +959,11 @@ ALWAYS include: at least one specific number or score from the review.`
         body: JSON.stringify({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
+            { role: "system", content: "You write tweets for competitor review content." },
+            { role: "user", content: prompt },
           ],
           max_tokens: 300,
+          temperature: 0.7,
         }),
       })
 
