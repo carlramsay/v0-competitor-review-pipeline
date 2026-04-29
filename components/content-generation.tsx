@@ -1135,12 +1135,18 @@ Rules:
 - Never use #AdultEntertainment
 - No age, legal, or compliance references
 - No generic sign-offs
+- Never reference "birthday" — use "basic personal details" instead
 
-Opening: must hook the reader in the first line — use a specific 
-observation, the score, or a direct statement. Never open with 
-"[Competitor] offers..." or "[Competitor] is a platform that..."
+Opening: 
+- Never open with a general statement about privacy, safety, 
+  or the importance of choosing the right platform
+- First line must reference the score, the reviewer, or a 
+  specific finding — nothing generic
+- Never open with "[Competitor] offers..." or "[Competitor] is 
+  a platform that..."
 
-Arousr comparison: one sentence maximum, factual, no superlatives.
+Arousr comparison: maximum ONE sentence mentioning Arousr in the 
+entire post, factual, no superlatives.
 Example: "For context, Arousr scored ${arousrTotal}/80 in the same test — 
 ${gap} points higher, mostly on safety and host quality."
 
