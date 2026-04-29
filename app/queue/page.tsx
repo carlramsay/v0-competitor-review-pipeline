@@ -1,9 +1,33 @@
-import { TopNav } from "@/components/top-nav"
-import { ReviewQueue } from "@/components/review-queue"
+"use client"
 
 export const dynamic = "force-dynamic"
 
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { isAdminAuthenticated } from "@/lib/admin-auth"
+import { TopNav } from "@/components/top-nav"
+import { ReviewQueue } from "@/components/review-queue"
+
 export default function QueuePage() {
+  const router = useRouter()
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    if (!isAdminAuthenticated()) {
+      router.replace("/")
+    } else {
+      setChecking(false)
+    }
+  }, [router])
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <TopNav />

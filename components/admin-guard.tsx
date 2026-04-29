@@ -10,7 +10,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isAdminAuthenticated()) {
-      router.replace("/admin")
+      router.replace("/")
     } else {
       setChecked(true)
     }

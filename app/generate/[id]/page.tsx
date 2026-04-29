@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic"
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { isAdminAuthenticated } from "@/lib/admin-auth"
 import { TopNav } from "@/components/top-nav"
 import { ContentGeneration } from "@/components/content-generation"
 import { ReviewRecord } from "@/lib/types"
@@ -16,8 +17,14 @@ export default function GeneratePage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [record, setRecord] = useState<ReviewRecord | null>(null)
+  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
+    if (!isAdminAuthenticated()) {
+      router.replace("/")
+      return
+    }
+    setChecking(false)
     getReviewById(id).then((r) => {
       if (!r) {
         router.replace("/")
@@ -27,13 +34,10 @@ export default function GeneratePage() {
     })
   }, [id, router])
 
-  if (!record) {
+  if (checking || !record) {
     return (
-      <div className="min-h-screen bg-background">
-        <TopNav />
-        <div className="flex h-64 items-center justify-center">
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
   }

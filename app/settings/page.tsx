@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { isAdminAuthenticated } from "@/lib/admin-auth"
 import { TopNav } from "@/components/top-nav"
 import { getSettings, saveSettings } from "@/lib/store"
 import { Eye, EyeOff, Check, Lock } from "lucide-react"
@@ -20,14 +21,25 @@ export default function SetupPage() {
   const [error, setError] = useState("")
   const [saved, setSaved] = useState(false)
   const [alreadySet, setAlreadySet] = useState(false)
+  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    getSettings().then((settings) => {
-      if (settings.adminPassword) {
-        setAlreadySet(true)
-      }
-    })
-  }, [])
+    // If already authenticated, allow access; otherwise check if password is already set
+    if (isAdminAuthenticated()) {
+      setChecking(false)
+      setAlreadySet(true) // Show the "already configured" state when authenticated
+    } else {
+      getSettings().then((settings) => {
+        if (settings.adminPassword) {
+          // Password is set but user not authenticated - redirect to home
+          router.replace("/")
+        } else {
+          // No password set - allow setup
+          setChecking(false)
+        }
+      })
+    }
+  }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -50,8 +62,16 @@ export default function SetupPage() {
     await saveSettings({ ...settings, adminPassword: password })
     setSaved(true)
     setTimeout(() => {
-      router.push("/admin")
+      router.push("/")
     }, 1500)
+  }
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    )
   }
 
   if (alreadySet) {
