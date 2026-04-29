@@ -762,8 +762,10 @@ Structure (follow this order):
 2. Signup — one key observation only
 3. Interface — one key observation only
 4. Pricing — one key observation only
-5. Chat quality — one key observation, use a specific detail 
-   from the reviewer if available
+5. Chat quality — one key observation; if the reviewer provided a 
+   direct quote or specific example of a message they received, 
+   use it verbatim or near-verbatim — do not sanitize or generalize; 
+   a raw, specific observation is more valuable than a polished summary
 6. Privacy/safety — one key observation only
 7. Closing — score gap vs Arouser, punchy final line
 
