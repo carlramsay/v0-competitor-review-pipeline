@@ -1024,6 +1024,9 @@ DO NOT use: corporate filler phrases like "the landscape continually evolves", "
 DO NOT mention: the Arousr privacy score or any specific Arousr metrics — just mention it naturally as a platform that does things differently
 DO NOT use: #AdultEntertainment or similar hashtags that could trigger content suppression on LinkedIn`
 
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
+
     const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
 
     try {
