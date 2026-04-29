@@ -1319,11 +1319,9 @@ ${answers}`
 
       const data = await res.json()
       const content = data.choices?.[0]?.message?.content?.trim() || ""
-      const imageUrl = record.generated.thumbnailDataUrl || ""
 
       const updated = await updateGeneratedContent(record.id, {
         facebookPost: content,
-        facebookImageUrl: imageUrl,
       })
       if (updated) setRecord(updated)
     } catch (err) {
@@ -2319,19 +2317,6 @@ ${answers}`
             <Facebook size={14} />
             Facebook Post
           </h3>
-          {record.generated.facebookImageUrl && (
-            <div className="relative mb-4 rounded-lg overflow-hidden border border-border">
-              <img src={record.generated.facebookImageUrl} alt="Facebook post image" className="w-full h-auto object-cover" />
-              <a
-                href={record.generated.facebookImageUrl}
-                download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "review"}-facebook-image.jpg`}
-                className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-md bg-black/70 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-black/90"
-              >
-                <Download size={12} />
-                Download Image
-              </a>
-            </div>
-          )}
           <EditableBlock
             label="Facebook Post"
             content={record.generated.facebookPost || ""}
