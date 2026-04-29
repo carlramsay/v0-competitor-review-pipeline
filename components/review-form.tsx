@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FormSection, FormField } from "./form-section"
 import { ReviewFormData } from "@/lib/types"
-import { saveReview, saveDraft, getDraft, clearDraft, getReviewByCompetitorName } from "@/lib/store"
+import { saveReview, getReviewByCompetitorName } from "@/lib/store"
+import { saveDraftAction, getDraftAction, clearDraftAction } from "@/app/actions/draft"
 import { defaultScores, calcTotalScore } from "@/lib/review-utils"
 import {
   SECTION_1_QUESTIONS,
@@ -226,7 +227,7 @@ export function ReviewForm({ initialData, reviewId }: Props) {
         }
         
         // No existing review - check for draft
-        const draft = await getDraft()
+        const draft = await getDraftAction()
         if (draft && draft.formData.competitorName?.toLowerCase() === queueName?.toLowerCase()) {
           setForm(draft.formData)
         } else {
@@ -239,7 +240,7 @@ export function ReviewForm({ initialData, reviewId }: Props) {
         }
       } else {
         // No queue data - load draft if available
-        const draft = await getDraft()
+        const draft = await getDraftAction()
         if (draft) {
           setForm(draft.formData)
         }
@@ -249,10 +250,14 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     loadData()
   }, [initialData, searchParams])
 
-  async function handleSaveProgress() {
-    await saveDraft(form)
+async function handleSaveProgress() {
+  const result = await saveDraftAction(form)
+  if (result.success) {
     setSaveConfirmed(true)
     setTimeout(() => setSaveConfirmed(false), 2000)
+  } else {
+    console.error("[v0] Failed to save draft:", result.error)
+  }
   }
 
 
@@ -299,7 +304,7 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     
     id = id ?? crypto.randomUUID()
     await saveReview({ id, submittedAt: new Date().toISOString(), formData: form, generated: existingGenerated })
-    await clearDraft()
+    await clearDraftAction()
     router.push(`/generate/${id}`)
   }
 
