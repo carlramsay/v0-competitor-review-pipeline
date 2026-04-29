@@ -555,12 +555,15 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       hookGuidance = "The previous title used a gap/comparison hook. Use score-led (if surprising), verdict-led, or user-fit style instead."
     }
 
+    const oneLineVerdict = record.generated.oneLineVerdict || record.formData.q24 || ""
+    
     const prompt = `blog post title for this competitor review.
 
 COMPETITOR: ${record.formData.competitorName}
 COMPETITOR SCORE: ${competitorTotal}/80
 AROUSR SCORE: ${arousrTotal}/80
 SCORE GAP: ${gap} points (pre-calculated — never recalculate this yourself)
+KEY FINDINGS: ${oneLineVerdict}
 
 Rules:
 - Competitor name must appear in every title, ideally near the front
@@ -568,10 +571,11 @@ Rules:
 - Present-tense, hands-on review framing — never speculative or future-facing
 - Never use exclamation marks
 - Never wrap the title in quotes — output plain text only
-- Never start with "Exploring" or "Testing"
+- Never start with "Exploring", "Testing", or "Navigating"
 - Never use: "deep-dive", "firsthand", "in-depth", "iconic", 
   "emerging rivals", "survive", "dominating", "relevant", "hold up",
-  "experience" as a noun, "suitable for", "worth joining", "a good option"
+  "experience" as a noun, "suitable for", "worth joining", "a good option",
+  "digital age", "is it worth it"
 - Never reference age, age verification, legal issues, or compliance
 - Never use provocative or potentially defamatory words like:
   fake, scam, fraud, dangerous, illegal
@@ -579,6 +583,8 @@ Rules:
   surprisingly low or high
 - Each regeneration must use a different hook style — if the previous 
   title used the score, use verdict or gap next time
+- Every title must contain at least one specific detail — a score, 
+  a finding, or a direct observation from the review
 - Use specific details and observations from KEY FINDINGS — 
   avoid generic descriptors
 - Aim for wit and personality — a title someone would actually 
@@ -598,6 +604,8 @@ Good examples:
 "We Tested Chat Avenue — Arousr Won by 17 Points"
 "Chat Avenue: Great for 2003, Clunky for 2026"
 "Chat Avenue vs Arousr — Not Even Close"
+"Chat Avenue Review: 51/80 — Retro Charm, Modern Gaps"
+"Chat Avenue (2026): Free, Clunky, and Oddly Nostalgic"
 
 Bad examples (never produce these):
 "Exploring Chat Avenue: A Deep-Dive into a 51/80 Rating Experience"
@@ -608,6 +616,9 @@ Bad examples (never produce these):
 "Chat Avenue vs Arousr — One Wasn't Close"
 "Chat Avenue Review: Suitable for Casual Chatters"
 "Chat Avenue in 2026: Is It Worth Joining"
+"Chat Avenue Review — Is It Worth It? (2026)"
+"Chat Avenue: Navigating Retro Charm and Limitations"
+"Chat Avenue: Nostalgic Charm Meets Digital Age"
 
 Output: one title only, no explanation, no quotes, no punctuation 
 outside the title itself.`
