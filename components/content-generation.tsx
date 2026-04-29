@@ -140,6 +140,8 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   }
 
   const handleSave = async () => {
+    if (!localTasks) return
+    
     setSaving(true)
     setError(null)
     try {
