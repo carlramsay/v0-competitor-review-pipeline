@@ -89,6 +89,13 @@ export function buildAnswersString(formData: ReviewFormData, arousrBenchmark?: A
   // Build structured SCORES section for GPT-4o
   lines.push("=== SCORES (use these exact numbers — do not change, recalculate, or omit any of them) ===")
   
+  // Debug: Print exact score calculation for Chat Avenue
+  console.log("[v0] buildAnswersString - Competitor:", formData.competitorName)
+  console.log("[v0] buildAnswersString - Raw scores array:", JSON.stringify(formData.scores, null, 2))
+  console.log("[v0] buildAnswersString - competitorTotal:", competitorTotal)
+  console.log("[v0] buildAnswersString - arousrTotal:", arousrTotal)
+  console.log("[v0] buildAnswersString - scoreGap:", scoreGap)
+  
   // Map feature names to competitor scores from review
   const scoreMap: Record<string, number | ""> = {}
   formData.scores.forEach((row) => {
