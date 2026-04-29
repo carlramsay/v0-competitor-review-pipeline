@@ -16,13 +16,17 @@ export async function createSession(): Promise<void> {
   const cookieStore = await cookies()
   const sessionToken = crypto.randomUUID()
   
+  console.log("[v0] createSession: Setting cookie", AUTH_COOKIE_NAME)
+  
   cookieStore.set(AUTH_COOKIE_NAME, sessionToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: false, // Allow in dev mode
     sameSite: "lax",
     maxAge: SESSION_DURATION,
     path: "/",
   })
+  
+  console.log("[v0] createSession: Cookie set successfully")
 }
 
 export async function clearSession(): Promise<void> {
@@ -33,5 +37,6 @@ export async function clearSession(): Promise<void> {
 export async function isAuthenticated(): Promise<boolean> {
   const cookieStore = await cookies()
   const session = cookieStore.get(AUTH_COOKIE_NAME)
+  console.log("[v0] isAuthenticated check:", { hasSession: !!session, value: session?.value ? "exists" : "empty" })
   return !!session?.value
 }
