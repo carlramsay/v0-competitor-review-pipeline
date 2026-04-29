@@ -1095,28 +1095,68 @@ DO write: like a real person who tested the platform and is sharing an honest ta
       return
     }
 
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
+    const gap = arousrTotal - competitorTotal
+
     const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write a LinkedIn post based on this competitor review of ${competitorName}. Follow these rules strictly:
-
-TONE: Conversational and opinion-led, like an industry professional sharing a genuine observation. Not corporate. Not formal. Not a press release. Write the way a real person posts on LinkedIn — direct, specific, a little opinionated.
-
-STRUCTURE:
-- One short opening hook that states the core finding immediately — no throat-clearing, no "the landscape continually evolves" type openers
-- Two or three short paragraphs covering the most interesting specific findings from the review — use real details, real numbers, real observations
-- One paragraph positioning what a better platform does differently — mention Arousr naturally, not as an ad
-- Three to five hashtags that are professional and platform-safe — avoid #AdultEntertainment or any tag likely to trigger LinkedIn content suppression. Use tags like #UserExperience #DigitalTrust #OnlineSafety #PlatformReview #DigitalWellness
-
-LENGTH: 200-280 words maximum.
-
-DO NOT mention: age policies, minimum age requirements, underage access, or any age-related safety concerns.
-DO NOT use: corporate filler phrases like "the landscape continually evolves", "it is crucial", "paramount", "highlighting room for improvement"
-DO NOT mention: the Arousr privacy score or any specific Arousr metrics — just mention it naturally as a platform that does things differently
-DO NOT use: #AdultEntertainment or similar hashtags that could trigger content suppression on LinkedIn`
+    const oneLineVerdict = record.formData.q24 || ""
+    const reviewerName = record.formData.reviewerName || "Reviewer"
 
     // Build answers with Arousr benchmark scores from settings
     const answers = buildAnswersString(record.formData, settings.arousrScores)
 
-    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+    const prompt = `Write a LinkedIn post for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+SCORE GAP: ${gap} points
+KEY FINDINGS: ${oneLineVerdict}
+REVIEWER: ${reviewerName}
+
+Rules:
+- Length: 200-280 words
+- Tone: conversational and opinion-led — write like a real person 
+  sharing a professional observation, not a press release
+- Never use corporate language like: "critical safety protocols", 
+  "absence of", "in contrast", "it is worth noting", "it should 
+  be mentioned", "raises several concerns"
+- Must include the exact scores: competitor score and Arousr score
+- Must include one specific detail from the review — a price, 
+  a feature, a specific observation from the reviewer
+- Arousr mention must feel like a natural factual comparison, 
+  not a sales pitch or advertisement
+- Never use #AdultEntertainment
+- No age, legal, or compliance references
+- No generic sign-offs
+
+Opening: must hook the reader in the first line — use a specific 
+observation, the score, or a direct statement. Never open with 
+"[Competitor] offers..." or "[Competitor] is a platform that..."
+
+Arousr comparison: one sentence maximum, factual, no superlatives.
+Example: "For context, Arousr scored ${arousrTotal}/80 in the same test — 
+${gap} points higher, mostly on safety and host quality."
+
+Closing: end with a genuine opinion or observation — not a 
+call to action, not a sales line.
+
+Hashtags — always include exactly these, on a new line at the end:
+#UserExperience #DigitalTrust #OnlineSafety #PlatformReview #DigitalWellness
+
+Output: post text followed by hashtags on a new line. 
+No explanation, no extra commentary.
+
+REVIEW DATA:
+${answers}`
+
+    const userContent = record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -1128,10 +1168,11 @@ DO NOT use: #AdultEntertainment or similar hashtags that could trigger content s
         body: JSON.stringify({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
+            { role: "system", content: "You write LinkedIn posts for competitor review content." },
+            { role: "user", content: prompt + (userContent ? `\n\n${userContent}` : "") },
           ],
           max_tokens: 1000,
+          temperature: 0.7,
         }),
       })
 
