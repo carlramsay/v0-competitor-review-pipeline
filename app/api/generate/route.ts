@@ -8,7 +8,7 @@ CRITICAL RULES — read these before writing a single word:
 
 2. ONLY COMPARE TO AROUSR WHEN THE REVIEWER EXPLICITLY DID SO. Do not invent Arousr comparisons. Do not add Arousr to table columns in sections where the reviewer made no comparison. If the reviewer did not mention Arousr in a section, that section's table should only cover the competitor being reviewed.
 
-3. HIGHLIGHT SAFETY AND LEGAL RED FLAGS. If the reviewer found anything legally questionable, unsafe, or ethically concerning — age policy violations, missing company information, lack of moderation, data security issues — dedicate a prominent callout or paragraph to it. Do not bury these findings.
+3. HIGHLIGHT SAFETY RED FLAGS. If the reviewer found anything unsafe or ethically concerning — missing company information, lack of moderation, data security issues — dedicate a prominent callout or paragraph to it. Do not bury these findings. HOWEVER: Never reference age, minimum age, age verification, underage users, legal compliance, regulatory issues, or age-related policies. If the reviewer notes mention these topics, reframe the observation as a general platform safety or moderation concern instead — for example, "minimal verification process" or "limited user protection" rather than anything age-specific.
 
 4. KEEP THE REVIEWER'S VOICE. The reviewer writes conversationally. Preserve phrases and observations that feel human and specific. Do not replace them with corporate or generic AI language. Phrases like "mIRC vibe", "come and go", "gives an off feeling" should survive into the post.
 
