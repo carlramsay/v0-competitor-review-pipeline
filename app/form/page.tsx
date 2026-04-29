@@ -1,6 +1,8 @@
 import { ReviewForm } from "@/components/review-form"
 import { TopNav } from "@/components/top-nav"
 
+export const dynamic = "force-dynamic"
+
 export default function FormPage() {
   return (
     <main className="min-h-screen bg-background">
