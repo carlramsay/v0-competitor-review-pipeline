@@ -27,19 +27,8 @@ function handleSupabaseError(error: unknown, operation: string): never {
   throw new Error(`${operation} failed: ${errMsg}`)
 }
 
-// Fixed user ID for single-user app (no Supabase auth needed)
+// Single-user app - no user_id filtering needed
 // Auth is handled by middleware cookie check
-const FIXED_USER_ID = "single-user"
-
-// Get current user ID (always returns fixed ID for single-user app)
-export async function getCurrentUserId(): Promise<string> {
-  return FIXED_USER_ID
-}
-
-// Auth is handled by middleware - this just returns the fixed user ID
-export async function requireAuth(): Promise<string> {
-  return FIXED_USER_ID
-}
 
 const DEFAULT_SETTINGS: AppSettings = {
   wpSiteUrl: "",
@@ -61,17 +50,10 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 export async function getReviews(): Promise<ReviewRecord[]> {
   const supabase = createClient()
-  const userId = await getCurrentUserId()
-  
-  if (!userId) {
-    console.warn("[v0] No authenticated user, returning empty reviews")
-    return []
-  }
 
   const { data, error } = await supabase
     .from("reviews")
     .select("*")
-    .eq("user_id", userId)
     .order("submitted_at", { ascending: false })
 
   if (error) {
@@ -91,13 +73,12 @@ export async function getReviews(): Promise<ReviewRecord[]> {
 }
 
 export async function saveReview(record: ReviewRecord): Promise<void> {
-  const userId = await requireAuth()
   const supabase = createClient()
   
   try {
     const { error } = await supabase.from("reviews").upsert({
       id: record.id,
-      user_id: userId, // Always set to current authenticated user
+      user_id: record.userId || "single-user", // Preserve existing or use default
       submitted_at: record.submittedAt,
       form_data: record.formData,
       generated: record.generated,
@@ -117,12 +98,10 @@ export async function saveReview(record: ReviewRecord): Promise<void> {
 
 export async function getReviewByCompetitorName(name: string, url?: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
-  const userId = await getCurrentUserId()
 
   const { data, error } = await supabase
     .from("reviews")
     .select("*")
-    .eq("user_id", userId)
     .order("submitted_at", { ascending: false })
 
   if (error || !data) {
@@ -153,13 +132,11 @@ export async function getReviewByCompetitorName(name: string, url?: string): Pro
 
 export async function getReviewById(id: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
-  const userId = await getCurrentUserId()
   
   const { data, error } = await supabase
     .from("reviews")
     .select("*")
     .eq("id", id)
-    .eq("user_id", userId)
     .single()
 
   if (error || !data) {
@@ -181,15 +158,13 @@ export async function updateGeneratedContent(
   id: string,
   content: Partial<GeneratedContent>
 ): Promise<ReviewRecord | null> {
-  const userId = await requireAuth()
   const supabase = createClient()
   
-  // First get the current record to preserve existing data (filtered by user_id via RLS)
+  // First get the current record to preserve existing data
   const { data: current, error: fetchError } = await supabase
     .from("reviews")
     .select("*")
     .eq("id", id)
-    .eq("user_id", userId)
     .single()
 
   if (fetchError || !current) {
@@ -219,7 +194,6 @@ export async function updateGeneratedContent(
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
-      .eq("user_id", userId) // Ensure we only update own reviews
       .select()
       .single()
 
@@ -251,14 +225,12 @@ export async function updatePipelineStatus(
   id: string,
   updates: Partial<PipelineStatus>
 ): Promise<ReviewRecord | null> {
-  const userId = await requireAuth()
   const supabase = createClient()
   
   const { data: current, error: fetchError } = await supabase
     .from("reviews")
     .select("*")
     .eq("id", id)
-    .eq("user_id", userId)
     .single()
 
   if (fetchError || !current) {
@@ -276,7 +248,6 @@ export async function updatePipelineStatus(
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
-      .eq("user_id", userId)
       .select()
       .single()
 
@@ -306,14 +277,12 @@ export async function updateTaskStatus(
   id: string,
   updates: Partial<TaskStatus>
 ): Promise<ReviewRecord | null> {
-  const userId = await requireAuth()
   const supabase = createClient()
   
   const { data: current, error: fetchError } = await supabase
     .from("reviews")
     .select("*")
     .eq("id", id)
-    .eq("user_id", userId)
     .single()
 
   if (fetchError || !current) {
@@ -330,7 +299,6 @@ export async function updateTaskStatus(
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
-      .eq("user_id", userId)
       .select()
       .single()
     
