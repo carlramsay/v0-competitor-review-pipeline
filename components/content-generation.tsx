@@ -579,6 +579,10 @@ Rules:
 - Never reference age, age verification, legal issues, or compliance
 - Never use provocative or potentially defamatory words like:
   fake, scam, fraud, dangerous, illegal
+- Tone should be neutral and observational — honest but not 
+  dismissive or mocking toward the competitor
+- Avoid words that feel like an attack: "struggles", "fails", 
+  "outdated", "frustration", "not even close"
 - Score must NOT appear in every title — only use it when it is 
   surprisingly low or high
 - Each regeneration must use a different hook style — if the previous 
@@ -603,7 +607,7 @@ Good examples:
 "Chat Avenue Review: Free Comes With a Cost"
 "We Tested Chat Avenue — Arousr Won by 17 Points"
 "Chat Avenue: Great for 2003, Clunky for 2026"
-"Chat Avenue vs Arousr — Not Even Close"
+"Chat Avenue vs Arousr: A 17-Point Gap"
 "Chat Avenue Review: 51/80 — Retro Charm, Modern Gaps"
 "Chat Avenue (2026): Free, Clunky, and Oddly Nostalgic"
 
