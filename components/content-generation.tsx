@@ -1135,7 +1135,10 @@ Rules:
 - Never use #AdultEntertainment
 - No age, legal, or compliance references
 - No generic sign-offs
-- Never reference "birthday" — use "basic personal details" instead
+- Never reference age verification, bypassing verification, 
+  or birthdays in any context
+- If the review notes weak verification, reframe as: 
+  "the signup process has minimal verification" — nothing more
 
 Opening: 
 - Never open with a general statement about privacy, safety, 
