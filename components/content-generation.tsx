@@ -1088,6 +1088,9 @@ DO NOT mention: age verification bypass, age policies, minimum age requirements,
 
 LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook audience.`
 
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
+
     const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
 
     try {
