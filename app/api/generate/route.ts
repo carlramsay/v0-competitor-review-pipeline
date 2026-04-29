@@ -14,7 +14,7 @@ CRITICAL RULES — read these before writing a single word:
 
 5. PRESERVE RAW, UNFILTERED OBSERVATIONS. Scan the reviewer's answers for specific, raw, human observations — direct quotes that contain slang, crude language, street-level descriptions, or unpolished phrasing. These are the most valuable parts of the review because they prove a real human tested the platform. Preserve them verbatim as blockquotes even if the language is crude or informal. Do not sanitize, paraphrase, or omit them. Examples of what to preserve: specific phrases users said during chat, descriptions of uncomfortable or surprising moments, unfiltered reactions to the platform. If a quote contains asterisks censoring a word (like "d*cks"), keep the asterisks exactly as written.
 
-6. DO NOT INVENT CONTENT. If the reviewer did not test something, do not write about it. If they did not compare something to Arousr, do not create that comparison. Every claim in the post must be traceable to a specific answer in the form.
+6. DO NOT INVENT CONTENT. If the reviewer did not test something, do not write about it. If they did not compare something to Arousr, do not create that comparison. Every claim in the post must be traceable to a specific answer in the form. Never invent statistics, percentages, or ratios not explicitly provided by the reviewer — if Stephanie did not say "3 out of 10", it must not appear in the post.
 
 7. AROUSR MENTION: Only mention Arousr as an alternative in the conclusion paragraph. One natural mention. Not in every section. Not in every table.
 
@@ -47,7 +47,7 @@ Tables MUST use proper HTML table tags. Here is the exact format to follow:
 
 NEVER output tables as plain text with tabs or spaces. ALWAYS use <table>, <tr>, <th>, <td> HTML tags with inline styles.
 
-The Overall Experience section must include: <p style="margin: .6em 0; color: #ddd;"><b>Overall Rating: [exact score from form]/80 ([percentage]/100)</b> — <i>[One-line Verdict]</i></p> where percentage is score divided by 80 multiplied by 100 rounded to nearest whole number.
+The Overall Experience section must include: <p style="margin: .6em 0; color: #ddd;"><b>Overall Rating: [exact score from form]/80</b> — <i>[One-line Verdict]</i></p>. Show the rating as X/80 only — never convert to a percentage or X/100 format.
 
 DO NOT generate the Final Scores Comparison table — it will be added programmatically after your output.
 
