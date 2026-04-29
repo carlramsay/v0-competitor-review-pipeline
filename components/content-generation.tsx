@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
-import { ReviewRecord, ThumbnailImage, TaskStatus } from "@/lib/types"
-import { getSettings, updateGeneratedContent, updatePipelineStatus, updateTaskStatus, updateQueueItemStatusByUrl, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
+import { ReviewRecord, TaskStatus } from "@/lib/types"
+import { getSettings, updateGeneratedContent, updatePipelineStatus, updateTaskStatus, updateQueueItemStatusByUrl, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { buildAnswersString, buildScoresTableHTML } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { generateHeyGenTTS, generateHeyGenAudioTTS } from "@/lib/heygen-actions"
@@ -341,12 +341,9 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   const [wpStatus, setWpStatus] = useState<{ url?: string; editUrl?: string } | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [videoProgress, setVideoProgress] = useState<string | null>(null)
   const [blogPostViewAsHtml, setBlogPostViewAsHtml] = useState(true)
-  const [backgroundLibrary, setBackgroundLibrary] = useState<ThumbnailImage[]>([])
-  const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null)
   
   // Collapsible section states (collapsed by default)
   const [collapsed, setCollapsed] = useState({
@@ -385,18 +382,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       setLocalMetaDescription(record.generated.blogPostMeta)
     }
   }, [record.generated.blogPostMeta])
-
-  // Load background image library on mount
-  useEffect(() => {
-    getThumbnailLibrary().then(setBackgroundLibrary)
-  }, [])
-
-  // Hydrate saved thumbnail from record on mount
-  useEffect(() => {
-    if (initialRecord.generated.thumbnailDataUrl) {
-      setThumbnailUrl(initialRecord.generated.thumbnailDataUrl)
-    }
-  }, [initialRecord.generated.thumbnailDataUrl])
 
   // Hydrate saved video from storage on mount
   useEffect(() => {
@@ -1166,121 +1151,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     }
   }
 
-  async function generateThumbnailWithFormat(width: number, height: number) {
-    const selectedImage = backgroundLibrary.find((img) => img.id === selectedBackgroundId)
-
-    if (!selectedImage) {
-      setError("Please select a background image first.")
-      return null
-    }
-
-    const thumbnailTitle = record.generated.blogPostTitle || `Review: ${record.formData.competitorName || "Competitor"}`
-    const reviewerName = record.formData.reviewerName || "Reviewer"
-    const settings = await getSettings()
-
-    try {
-      const canvas = document.createElement("canvas")
-      canvas.width = width
-      canvas.height = height
-      const ctx = canvas.getContext("2d")
-      if (!ctx) throw new Error("Failed to create canvas context")
-
-      if (selectedImage) {
-        const img = new Image()
-        img.crossOrigin = "anonymous"
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve()
-          img.onerror = () => reject(new Error("Failed to load background image"))
-          img.src = selectedImage.dataUrl
-        })
-        const scale = Math.max(canvas.width / img.width, canvas.height / img.height)
-        const x = (canvas.width - img.width * scale) / 2
-        const y = (canvas.height - img.height * scale) / 2
-        ctx.drawImage(img, x, y, img.width * scale, img.height * scale)
-      } else {
-        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-        gradient.addColorStop(0, "#1a1a2e")
-        gradient.addColorStop(1, "#16213e")
-        ctx.fillStyle = gradient
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-      }
-
-      ctx.fillStyle = "rgba(0, 0, 0, 0.55)"
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-      const titleSize = Math.round(width * 0.045)
-      const subtitleSize = Math.round(width * 0.028)
-      const siteNameSize = Math.round(width * 0.022)
-
-      ctx.fillStyle = "#ffffff"
-      ctx.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      
-      // Word wrap the thumbnail title if needed
-      const maxWidth = canvas.width * 0.85
-      const words = thumbnailTitle.split(" ")
-      const lines: string[] = []
-      let currentLine = ""
-      
-      for (const word of words) {
-        const testLine = currentLine ? `${currentLine} ${word}` : word
-        const metrics = ctx.measureText(testLine)
-        if (metrics.width > maxWidth && currentLine) {
-          lines.push(currentLine)
-          currentLine = word
-        } else {
-          currentLine = testLine
-        }
-      }
-      if (currentLine) lines.push(currentLine)
-      
-      // Draw title lines centered
-      const lineHeight = titleSize * 1.2
-      const totalHeight = lines.length * lineHeight
-      const startY = canvas.height / 2 - totalHeight / 2 - subtitleSize * 0.5
-      
-      lines.forEach((line, idx) => {
-        ctx.fillText(line, canvas.width / 2, startY + idx * lineHeight)
-      })
-
-      ctx.font = `${subtitleSize}px system-ui, -apple-system, sans-serif`
-      ctx.fillStyle = "#cccccc"
-      ctx.fillText(`Tested by ${reviewerName}`, canvas.width / 2, startY + totalHeight + subtitleSize * 0.8)
-
-      const siteName = settings.thumbnailSiteName || "Arousr"
-      ctx.font = `bold ${siteNameSize}px system-ui, -apple-system, sans-serif`
-      ctx.fillStyle = "#ffffff"
-      ctx.fillText(siteName, canvas.width / 2, canvas.height - siteNameSize * 2.3)
-
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.92)
-      return dataUrl
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error")
-      return null
-    }
-  }
-
-  async function generateThumbnail() {
-    setError(null)
-    setLoading("thumbnail")
-    setThumbnailUrl(null)
-
-    try {
-      // WordPress recommended featured image size: 1200x628
-      const horizontalUrl = await generateThumbnailWithFormat(1200, 628)
-      if (horizontalUrl) setThumbnailUrl(horizontalUrl)
-
-      const updated = await updateGeneratedContent(record.id, {
-        thumbnailDataUrl: horizontalUrl || undefined,
-      })
-      if (updated) setRecord(updated)
-    } finally {
-      setLoading(null)
-    }
-  }
-
-  // Video generation functions (keeping existing implementation)
+  // Video generation functions
   interface WhisperWord { word: string; start: number; end: number }
 
   async function fetchWhisperCaptions(blob: Blob): Promise<WhisperWord[]> {
@@ -2092,7 +1963,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         )}
       </div>
 
-      {/* 3. Thumbnails */}
+      {/* 3. Images */}
       <div className="rounded-lg border border-border bg-card">
         <button
           type="button"
@@ -2101,76 +1972,78 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         >
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <ImageIcon size={16} />
-            3. Thumbnails
+            3. Images
           </h2>
           <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", collapsed.thumbnails && "-rotate-90")} />
         </button>
         {!collapsed.thumbnails && (
         <div className="px-5 pb-5">
-
-        {/* Blog title requirement notice */}
-        {!record.generated.blogPostTitle && (
-          <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
-            Please generate a Blog Post Title first. The title will appear on the thumbnails.
-          </div>
-        )}
-
-        {/* Background image picker */}
-        {backgroundLibrary.length > 0 && (
-          <div className="mb-4">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">Select Background Image</p>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {backgroundLibrary.map((img) => (
+          {record.formData.reviewScreenshots && record.formData.reviewScreenshots.length > 0 ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              {record.formData.reviewScreenshots.map((dataUrl, index) => (
                 <button
-                  key={img.id}
+                  key={index}
                   type="button"
-                  onClick={() => setSelectedBackgroundId(img.id)}
-                  className={cn(
-                    "group relative overflow-hidden rounded-md border-2 transition-all",
-                    selectedBackgroundId === img.id
-                      ? "border-primary ring-2 ring-primary/30"
-                      : "border-border hover:border-muted-foreground"
-                  )}
+                  onClick={() => {
+                    // Create a canvas to resize to WordPress featured image size (1200x628)
+                    const img = new window.Image()
+                    img.crossOrigin = "anonymous"
+                    img.onload = () => {
+                      const canvas = document.createElement("canvas")
+                      canvas.width = 1200
+                      canvas.height = 628
+                      const ctx = canvas.getContext("2d")
+                      if (!ctx) return
+                      
+                      // Calculate crop to fit 1200x628 aspect ratio
+                      const targetAspect = 1200 / 628
+                      const imgAspect = img.width / img.height
+                      let sx = 0, sy = 0, sw = img.width, sh = img.height
+                      
+                      if (imgAspect > targetAspect) {
+                        // Image is wider - crop sides
+                        sw = img.height * targetAspect
+                        sx = (img.width - sw) / 2
+                      } else {
+                        // Image is taller - crop top/bottom
+                        sh = img.width / targetAspect
+                        sy = (img.height - sh) / 2
+                      }
+                      
+                      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, 1200, 628)
+                      
+                      // Download as PNG
+                      const link = document.createElement("a")
+                      link.download = `${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-image-${index + 1}.png`
+                      link.href = canvas.toDataURL("image/png")
+                      link.click()
+                    }
+                    img.src = dataUrl
+                  }}
+                  className="group relative overflow-hidden rounded-md border border-border hover:border-primary transition-colors cursor-pointer"
                 >
-                  <img src={img.dataUrl} alt={img.label} className="aspect-video w-full object-cover" />
-                  <span className="absolute bottom-0 left-0 right-0 truncate bg-black/60 px-1 py-0.5 text-center text-xs text-white">
-                    {img.label}
+                  <img 
+                    src={dataUrl} 
+                    alt={`Review screenshot ${index + 1}`} 
+                    className="aspect-video w-full object-cover"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 text-xs text-white font-medium">
+                      <Download size={14} />
+                      Download PNG
+                    </div>
+                  </div>
+                  <span className="absolute top-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white font-medium">
+                    #{index + 1}
                   </span>
                 </button>
               ))}
             </div>
-          </div>
-        )}
-
-        <button 
-          type="button" 
-          onClick={generateThumbnail} 
-          disabled={loading !== null || !record.generated.blogPostTitle} 
-          className={btnClass}
-        >
-          {loading === "thumbnail" ? <Loader2 size={12} className="animate-spin" /> : <ImageIcon size={12} />}
-          Generate Thumbnail
-        </button>
-
-        {/* Generated Thumbnail */}
-        {thumbnailUrl && (
-          <div className="mt-4">
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground">Horizontal (1200x628)</span>
-                <a
-                  href={thumbnailUrl}
-                  download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail.png`}
-                  className={btnClass}
-                >
-                  <Download size={12} />
-                  Download
-                </a>
-              </div>
-              <img src={thumbnailUrl} alt="Thumbnail" className="w-full rounded-md" />
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              No images uploaded. Add screenshots in the review form to see them here.
             </div>
-          </div>
-        )}
+          )}
         </div>
         )}
       </div>
