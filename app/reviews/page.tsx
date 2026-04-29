@@ -3,9 +3,7 @@
 export const dynamic = "force-dynamic"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { isAdminAuthenticated } from "@/lib/admin-auth"
 import { TopNav } from "@/components/top-nav"
 import { ReviewRecord, PipelineStatus, TaskStatus } from "@/lib/types"
 import { getReviews, updateTaskStatus, getSettings } from "@/lib/store"
@@ -203,30 +201,15 @@ function ReviewCard({ record, onTaskUpdate }: { record: ReviewRecord; onTaskUpda
 }
 
 export default function ReviewsPage() {
-  const router = useRouter()
   const [reviews, setReviews] = useState<ReviewRecord[]>([])
-  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    if (!isAdminAuthenticated()) {
-      router.replace("/")
-      return
-    }
-    setChecking(false)
     getReviews().then(setReviews)
-  }, [router])
+  }, [])
 
   const handleTaskUpdate = (id: string, tasks: TaskStatus) => {
     setReviews((prev) =>
       prev.map((r) => (r.id === id ? { ...r, tasks } : r))
-    )
-  }
-
-  if (checking) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      </div>
     )
   }
 

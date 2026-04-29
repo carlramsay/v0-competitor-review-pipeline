@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { clearAdminSession } from "@/lib/admin-auth"
+import { createClient } from "@/lib/supabase/client"
 import { LogOut, ShieldCheck } from "lucide-react"
 
 const tabs = [
@@ -15,9 +15,10 @@ export function AdminNav() {
   const pathname = usePathname()
   const router = useRouter()
 
-  function handleLogout() {
-    clearAdminSession()
-    router.replace("/admin")
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.replace("/")
   }
 
   return (

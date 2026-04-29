@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic"
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminGuard } from "@/components/admin-guard"
 import { AdminNav } from "@/components/admin-nav"
 import { ReviewRecord } from "@/lib/types"
 import { getReviewById } from "@/lib/store"
@@ -280,9 +279,5 @@ function AdminReviewDetailContent() {
 }
 
 export default function AdminReviewDetailPage() {
-  return (
-    <AdminGuard>
-      <AdminReviewDetailContent />
-    </AdminGuard>
-  )
+  return <AdminReviewDetailContent />
 }
