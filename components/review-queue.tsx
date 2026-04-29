@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { QueueItem, QueueStatus, TaskStatus } from "@/lib/types"
-import { updateQueueItemStatus, getSortedQueue, getReviewByCompetitorName, addToQueue } from "@/lib/store"
+import { updateQueueItemStatus, getSortedQueue, getReviewByCompetitorName, addToQueue, removeFromQueue } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { Play, Eye, Loader2, Plus } from "lucide-react"
+import { Play, Eye, Loader2, Plus, Trash2 } from "lucide-react"
 
 // Check if all distribution tasks are completed
 function areAllTasksCompleted(tasks: TaskStatus | undefined): boolean {
@@ -35,6 +35,21 @@ export function ReviewQueue() {
   const [newUrl, setNewUrl] = useState("")
   const [newName, setNewName] = useState("")
   const [adding, setAdding] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function handleDelete(id: string) {
+    if (!confirm("Are you sure you want to remove this competitor from the queue?")) return
+    
+    setDeletingId(id)
+    try {
+      await removeFromQueue(id)
+      setQueue((prev) => prev.filter((item) => item.id !== id))
+    } catch (err) {
+      console.error("Failed to delete queue item:", err)
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   // Fetch queue and check task completion status for each item
   async function fetchQueueWithCompletion() {
@@ -240,6 +255,18 @@ export function ReviewQueue() {
                     {item.allTasksCompleted ? <Eye size={12} /> : <Play size={12} />}
                     Review
                   </button>
+
+                  {/* Delete button for Not Started items */}
+                  {item.status === "Not Started" && !item.allTasksCompleted && (
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      disabled={deletingId === item.id}
+                      className="flex items-center gap-1.5 rounded-md border border-destructive/30 px-2 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                      title="Remove from queue"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
                 </div>
               </div>
             )
