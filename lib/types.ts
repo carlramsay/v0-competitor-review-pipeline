@@ -102,6 +102,7 @@ export interface PipelineStatus {
   reviewApproved: boolean
   blogPostGenerated: boolean
   videoScriptGenerated: boolean
+  voiceoverGenerated: boolean
   avatarVideoGenerated: boolean
   allContentReady: boolean
 }
