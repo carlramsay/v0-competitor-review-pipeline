@@ -27,20 +27,18 @@ function handleSupabaseError(error: unknown, operation: string): never {
   throw new Error(`${operation} failed: ${errMsg}`)
 }
 
-// Get current authenticated user ID
-export async function getCurrentUserId(): Promise<string | null> {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return user?.id ?? null
+// Fixed user ID for single-user app (no Supabase auth needed)
+// Auth is handled by middleware cookie check
+const FIXED_USER_ID = "single-user"
+
+// Get current user ID (always returns fixed ID for single-user app)
+export async function getCurrentUserId(): Promise<string> {
+  return FIXED_USER_ID
 }
 
-// Check if user is authenticated
+// Auth is handled by middleware - this just returns the fixed user ID
 export async function requireAuth(): Promise<string> {
-  const userId = await getCurrentUserId()
-  if (!userId) {
-    throw new RLSError("You must be logged in to perform this action.")
-  }
-  return userId
+  return FIXED_USER_ID
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -120,11 +118,6 @@ export async function saveReview(record: ReviewRecord): Promise<void> {
 export async function getReviewByCompetitorName(name: string, url?: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
   const userId = await getCurrentUserId()
-  
-  if (!userId) {
-    console.warn("[v0] No authenticated user for getReviewByCompetitorName")
-    return null
-  }
 
   const { data, error } = await supabase
     .from("reviews")
@@ -162,18 +155,12 @@ export async function getReviewById(id: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
   const userId = await getCurrentUserId()
   
-  // RLS will automatically filter by user_id, but we add explicit check for clarity
-  const query = supabase
+  const { data, error } = await supabase
     .from("reviews")
     .select("*")
     .eq("id", id)
-  
-  // Only filter by user_id if user is authenticated
-  if (userId) {
-    query.eq("user_id", userId)
-  }
-  
-  const { data, error } = await query.single()
+    .eq("user_id", userId)
+    .single()
 
   if (error || !data) {
     return null
