@@ -7,7 +7,7 @@ import { generateHeyGenTTS, generateHeyGenAudioTTS } from "@/lib/heygen-actions"
 import { cn } from "@/lib/utils"
 import { Download, ImageIcon, Save, Check, RefreshCw } from "lucide-react"
 import { CopyButton } from "./copy-button"
-import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Eye, EyeOff, Linkedin, Facebook, Twitter, Instagram, MessageSquare, ChevronDown, Copy } from "lucide-react"
+import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Eye, EyeOff, Linkedin, Facebook, Twitter, MessageSquare, ChevronDown, Copy } from "lucide-react"
 
 // Reusable editable text block with Copy and Save buttons
 interface EditableBlockProps {
@@ -948,73 +948,6 @@ ALWAYS include: at least one specific number or score from the review.`
       const data = await res.json()
       const content = data.choices?.[0]?.message?.content?.trim() || ""
       const updated = await updateGeneratedContent(record.id, { tweetSnippet: content })
-      if (updated) setRecord(updated)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error")
-    } finally {
-      setLoading(null)
-    }
-  }
-
-  async function generateInstagramCaption() {
-    setError(null)
-    setLoading("instagram")
-    const settings = await getSettings()
-    if (!settings.openaiApiKey) {
-      setError("No OpenAI API key found. Please add it in Settings.")
-      setLoading(null)
-      return
-    }
-
-    // Build answers with Arousr benchmark scores from settings
-    const answers = buildAnswersString(record.formData, settings.arousrScores)
-
-    const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write an Instagram caption based on this competitor review of ${competitorName}. Follow these rules:
-TONE: Casual, direct, written from a brand perspective — not first person singular. No "I found myself" or "if you're like me." Write as if the Arousr brand account is sharing a genuine platform review with their audience.
-STRUCTURE:
-- One hook sentence that states the core finding or creates curiosity
-- Two to three sentences covering the most interesting specific findings from the review — use real details from the reviewer's answers, not vague summaries
-- One sentence mentioning Arousr naturally as the alternative — not salesy, just factual
-- One engagement question to drive comments
-- Three to five relevant hashtags at the end
-LENGTH: 130-180 words.
-SPECIFIC DETAILS: Always include at least one concrete observation from the reviewer — a specific number, a specific moment, or a specific quote (cleaned up if needed for the platform). Vague phrases like "lack of safety features" should be replaced with what specifically was missing.
-MANDATORY REQUIREMENTS (every caption must have ALL of these):
-- Must include "Arousr" by name as an alternative — every single caption, no exceptions
-- Must end with 3-5 hashtags — never skip hashtags
-- Must include at least one specific number or detail from the reviewer's answers — never be vague
-DO NOT use: "here's the tea", "I found myself", "if you're like me", "might want to explore other options", or any other vague sign-offs.
-DO NOT mention: age policies, age verification bypass, or any age-related concerns.
-DO NOT end with: "stay safe", "chat wisely", "choose wisely", or any generic sign-off phrase.`
-
-    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
-
-    try {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${settings.openaiApiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
-          ],
-          max_tokens: 500,
-        }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error?.message ?? "Instagram caption generation failed")
-      }
-
-      const data = await res.json()
-      const content = data.choices?.[0]?.message?.content?.trim() || ""
-      const updated = await updateGeneratedContent(record.id, { instagramSnippet: content })
       if (updated) setRecord(updated)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
@@ -2344,25 +2277,6 @@ ${answers}`
             generateLabel="Generate"
             onSave={async (v) => {
               const updated = await updateGeneratedContent(record.id, { tweetSnippet: v })
-              if (updated) setRecord(updated)
-            }}
-          />
-        </div>
-
-        {/* Instagram Caption */}
-        <div>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-            <Instagram size={14} />
-            Instagram Caption
-          </h3>
-          <EditableBlock
-            label="Instagram Caption"
-            content={record.generated.instagramSnippet || ""}
-            onGenerate={generateInstagramCaption}
-            isGenerating={loading === "instagram"}
-            generateLabel="Generate"
-            onSave={async (v) => {
-              const updated = await updateGeneratedContent(record.id, { instagramSnippet: v })
               if (updated) setRecord(updated)
             }}
           />
