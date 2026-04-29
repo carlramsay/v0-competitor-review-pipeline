@@ -2,34 +2,71 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { QueueItem, QueueStatus } from "@/lib/types"
-import { updateQueueItemStatus, getSortedQueue } from "@/lib/store"
+import { QueueItem, QueueStatus, TaskStatus } from "@/lib/types"
+import { updateQueueItemStatus, getSortedQueue, getReviewByCompetitorName } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { Play, Eye } from "lucide-react"
+
+// Check if all distribution tasks are completed
+function areAllTasksCompleted(tasks: TaskStatus | undefined): boolean {
+  if (!tasks) return false
+  return (
+    tasks.blogPublishedArousr &&
+    tasks.videoPostedYouTube &&
+    tasks.videoPostedXBIZ &&
+    tasks.videoEmbeddedBlog &&
+    tasks.blogPostedMedium &&
+    tasks.linkedInArticle &&
+    tasks.xPost &&
+    tasks.facebookPost
+  )
+}
+
+interface QueueItemWithCompletion extends QueueItem {
+  allTasksCompleted: boolean
+}
 
 
 export function ReviewQueue() {
   const router = useRouter()
-  const [queue, setQueue] = useState<QueueItem[]>([])
+  const [queue, setQueue] = useState<QueueItemWithCompletion[]>([])
+
+  // Fetch queue and check task completion status for each item
+  async function fetchQueueWithCompletion() {
+    const items = await getSortedQueue()
+    
+    // Fetch review records to check task completion
+    const itemsWithCompletion = await Promise.all(
+      items.map(async (item) => {
+        const review = await getReviewByCompetitorName(item.name, item.url)
+        const allTasksCompleted = areAllTasksCompleted(review?.tasks)
+        return { ...item, allTasksCompleted }
+      })
+    )
+    
+    // Sort: In Progress first, then Not Started, then Completed (all tasks done) at bottom
+    const sorted = itemsWithCompletion.sort((a, b) => {
+      // Items with all tasks completed go to bottom
+      if (a.allTasksCompleted && !b.allTasksCompleted) return 1
+      if (!a.allTasksCompleted && b.allTasksCompleted) return -1
+      
+      // Otherwise sort by status
+      const statusOrder = { "In Progress": 0, "Not Started": 1, "Completed": 2 }
+      return statusOrder[a.status] - statusOrder[b.status]
+    })
+    
+    setQueue(sorted)
+  }
 
   useEffect(() => {
-    getSortedQueue().then(setQueue)
+    fetchQueueWithCompletion()
   }, [])
 
-  async function handleStatusChange(id: string, newStatus: QueueStatus) {
-    await updateQueueItemStatus(id, newStatus)
-    const updated = await getSortedQueue()
-    setQueue(updated)
-  }
-
-  async function handleStartReview(item: QueueItem) {
-    await updateQueueItemStatus(item.id, "In Progress")
-    sessionStorage.setItem("queueUrl", item.url)
-    if (item.name) sessionStorage.setItem("queueName", item.name)
-    router.push("/form")
-  }
-
-  function handleViewReview(item: QueueItem) {
+  async function handleViewReview(item: QueueItemWithCompletion) {
+    // Mark as in progress if not already completed
+    if (!item.allTasksCompleted && item.status !== "In Progress") {
+      await updateQueueItemStatus(item.id, "In Progress")
+    }
     sessionStorage.setItem("queueUrl", item.url)
     if (item.name) sessionStorage.setItem("queueName", item.name)
     router.push("/form")
@@ -77,32 +114,31 @@ export function ReviewQueue() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* Show "Completed" if all tasks are done, otherwise show queue status */}
                   <span
                     className={cn(
                       "rounded-md px-2 py-1 text-xs font-medium",
-                      statusColors[item.status]
+                      item.allTasksCompleted
+                        ? statusColors["Completed"]
+                        : statusColors[item.status]
                     )}
                   >
-                    {item.status}
+                    {item.allTasksCompleted ? "Completed" : item.status}
                   </span>
 
-                  {item.status === "Completed" ? (
-                    <button
-                      onClick={() => handleViewReview(item)}
-                      className="flex items-center gap-1.5 rounded-md bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/90"
-                    >
-                      <Eye size={12} />
-                      View
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleStartReview(item)}
-                      className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                    >
-                      <Play size={12} />
-                      Review
-                    </button>
-                  )}
+                  {/* Always show Review button so users can edit any review */}
+                  <button
+                    onClick={() => handleViewReview(item)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                      item.allTasksCompleted
+                        ? "bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                        : "bg-primary text-primary-foreground hover:bg-primary/90"
+                    )}
+                  >
+                    {item.allTasksCompleted ? <Eye size={12} /> : <Play size={12} />}
+                    Review
+                  </button>
                 </div>
               </div>
             )
