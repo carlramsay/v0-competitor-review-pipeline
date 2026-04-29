@@ -1260,15 +1260,27 @@ Rules:
 - Never open with "Ever wondered", "Have you ever", or 
   a question opener
 - Never use clickbait language
-- No age, legal, or compliance references
+- No legal or compliance references
 - No generic sign-offs
 - No hashtags
+- BANNED WORDS that must NEVER appear anywhere in the post: 
+  "birthday", "birthdays", "age", "age verification", "underage", "minor"
+- If the review notes weak verification, use ONLY this exact phrase: 
+  "the signup process has minimal verification"
+  Do not elaborate. Do not explain what can be manipulated. 
+  Stop after that phrase.
 
 Opening: must lead with a specific finding, the score, or 
 the reviewer's name and what they tested — never a question 
 or a vague teaser
 
-Arousr comparison: one sentence maximum, factual only.
+Structure:
+- Body paragraphs with findings about ${competitorName}
+- Second-to-last paragraph: the Arousr comparison sentence (exactly once)
+- Final paragraph: closing observation about ${competitorName}
+
+Arousr comparison: one sentence maximum, factual only, must appear 
+in the second-to-last paragraph — not in the middle of the post.
 Example: "For context, Arousr scored ${arousrTotal}/80 in the same 
 test — ${gap} points higher on safety and host quality."
 
