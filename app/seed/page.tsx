@@ -51,8 +51,6 @@ const MOCK_REVIEW: ReviewRecord = {
     q23: "Nothing overtly unsafe, but the lack of clear age verification beyond a checkbox could be a concern.",
 
     // Overall Impression
-    overallRating: "7",
-    oneLineVerdict: "Good for casual users who value chat quality, but credit pricing is misleading and mobile experience needs work.",
     q24: "A competent mid-tier competitor. Polished enough to attract new users, but credit obfuscation and limited host variety hold it back.",
     q25: "18–35 males. Likely people who've graduated from free apps and want a more premium experience without committing to a subscription.",
     q26: "Cleaner UX than most competitors at this price point. Host response quality is genuinely good.",
