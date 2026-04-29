@@ -130,33 +130,32 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
     fetchTasks()
   }, [record.id])
 
-  const handleToggle = (key: keyof TaskStatus) => {
-    setLocalTasks(prev => {
-      if (!prev) return prev
-      const updated: TaskStatus = { ...prev, [key]: !prev[key] }
-      setHasChanges(true)
-      return updated
-    })
-  }
-
-  const handleSave = async () => {
+  const handleToggle = async (key: keyof TaskStatus) => {
     if (!localTasks) return
     
+    const updated: TaskStatus = { ...localTasks, [key]: !localTasks[key] }
+    setLocalTasks(updated)
+    
+    // Auto-save to database
     setSaving(true)
     setError(null)
     try {
       const { saveTasks } = await import("@/app/actions/tasks")
-      const result = await saveTasks(record.id, { ...localTasks })
+      const result = await saveTasks(record.id, updated)
       
       if (!result.success) {
+        // Revert on error
+        setLocalTasks(localTasks)
         setError(result.error || "Save failed")
         return
       }
       
       setSaved(true)
       setHasChanges(false)
-      setTimeout(() => setSaved(false), 2000)
+      setTimeout(() => setSaved(false), 1500)
     } catch (err) {
+      // Revert on error
+      setLocalTasks(localTasks)
       console.error("Error saving tasks:", err)
       setError(err instanceof Error ? err.message : "Unknown error")
     } finally {
@@ -217,36 +216,20 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
           )
         })}
       </div>
-      <div className="flex items-center justify-between border-t border-border bg-secondary/20 px-5 py-3">
+      {(saving || saved || error) && (
+      <div className="flex items-center justify-end border-t border-border bg-secondary/20 px-5 py-3">
         <div className="flex items-center gap-2">
-          {saved && <span className="text-xs text-green-500">Saved!</span>}
-          {hasChanges && !saved && <span className="text-xs text-amber-400">Unsaved changes</span>}
+          {saving && (
+            <>
+              <Loader2 size={14} className="animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Saving...</span>
+            </>
+          )}
+          {saved && !saving && <span className="text-xs text-green-500">Saved!</span>}
           {error && <span className="text-xs text-red-500">Error: {error}</span>}
         </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving || !hasChanges}
-          className={cn(
-            "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
-            hasChanges
-              ? "bg-primary text-primary-foreground hover:opacity-90"
-              : "bg-secondary text-muted-foreground cursor-not-allowed"
-          )}
-        >
-          {saving ? (
-            <>
-              <Loader2 size={14} className="animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save size={14} />
-              Save Progress
-            </>
-          )}
-        </button>
       </div>
+      )}
     </div>
   )
 }
