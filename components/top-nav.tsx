@@ -1,9 +1,10 @@
 "use client"
 
-import { ShieldCheck, Home } from "lucide-react"
+import { ShieldCheck, Home, LogOut } from "lucide-react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
 const tabs = [
   { label: "Queue", href: "/queue" },
@@ -11,6 +12,14 @@ const tabs = [
 
 export function TopNav() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push("/")
+    router.refresh()
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/80 backdrop-blur-sm">
@@ -46,18 +55,27 @@ export function TopNav() {
             )
           })}
         </div>
-        <Link
-          href="/admin"
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-md transition-colors",
-            pathname.startsWith("/admin")
-              ? "bg-secondary text-primary"
-              : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-          )}
-          aria-label="Admin"
-        >
-          <ShieldCheck size={16} />
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin"
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-md transition-colors",
+              pathname.startsWith("/admin")
+                ? "bg-secondary text-primary"
+                : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+            )}
+            aria-label="Admin"
+          >
+            <ShieldCheck size={16} />
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+          >
+            <LogOut size={13} />
+            Log out
+          </button>
+        </div>
       </div>
     </header>
   )
