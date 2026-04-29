@@ -132,7 +132,8 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
 
   const handleToggle = (key: keyof TaskStatus) => {
     setLocalTasks(prev => {
-      const updated = { ...prev, [key]: !prev[key] }
+      if (!prev) return prev
+      const updated: TaskStatus = { ...prev, [key]: !prev[key] }
       setHasChanges(true)
       return updated
     })
