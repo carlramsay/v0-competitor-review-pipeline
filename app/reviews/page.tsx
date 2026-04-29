@@ -15,6 +15,7 @@ const DEFAULT_PIPELINE: PipelineStatus = {
   reviewApproved: false,
   blogPostGenerated: false,
   videoScriptGenerated: false,
+  voiceoverGenerated: false,
   avatarVideoGenerated: false,
   allContentReady: false,
 }
