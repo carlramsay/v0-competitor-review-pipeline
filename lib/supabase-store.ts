@@ -159,7 +159,6 @@ export async function getReviewByCompetitorName(name: string, url?: string): Pro
 }
 
 export async function getReviewById(id: string): Promise<ReviewRecord | null> {
-  console.log("[v0] getReviewById called for id:", id)
   const supabase = createClient()
   const userId = await getCurrentUserId()
   
@@ -175,11 +174,8 @@ export async function getReviewById(id: string): Promise<ReviewRecord | null> {
   }
   
   const { data, error } = await query.single()
-  
-  console.log("[v0] getReviewById raw tasks from db:", JSON.stringify(data?.tasks))
 
   if (error || !data) {
-    console.log("[v0] getReviewById error:", error)
     return null
   }
 
@@ -323,7 +319,6 @@ export async function updateTaskStatus(
   id: string,
   updates: Partial<TaskStatus>
 ): Promise<ReviewRecord | null> {
-  console.log("[v0] updateTaskStatus called for id:", id, "updates:", JSON.stringify(updates))
   const userId = await requireAuth()
   const supabase = createClient()
   
@@ -334,15 +329,11 @@ export async function updateTaskStatus(
     .eq("user_id", userId)
     .single()
 
-  console.log("[v0] updateTaskStatus current.tasks:", JSON.stringify(current?.tasks))
-
   if (fetchError || !current) {
-    console.log("[v0] updateTaskStatus fetch error:", fetchError)
     return null
   }
 
   const updatedTasks = { ...current.tasks, ...updates }
-  console.log("[v0] updateTaskStatus mergedTasks:", JSON.stringify(updatedTasks))
 
   try {
     const { data, error } = await supabase

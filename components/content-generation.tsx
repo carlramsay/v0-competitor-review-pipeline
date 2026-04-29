@@ -115,13 +115,10 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   // Always fetch fresh tasks from database on mount using getReviewById
   useEffect(() => {
     async function fetchTasks() {
-      console.log("[v0] TasksSection fetchTasks called for record:", record.id)
       setLoadingTasks(true)
       try {
         const { getReviewById } = await import("@/lib/store")
-        console.log("[v0] TasksSection calling getReviewById")
         const freshRecord = await getReviewById(record.id)
-        console.log("[v0] TasksSection freshRecord.tasks:", JSON.stringify(freshRecord?.tasks))
         if (freshRecord?.tasks) {
           setLocalTasks(freshRecord.tasks)
         } else {
@@ -138,14 +135,9 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   }, [record.id])
 
   const handleToggle = async (key: keyof TaskStatus) => {
-    console.log("[v0] handleToggle CALLED with key:", key, "localTasks:", JSON.stringify(localTasks))
-    if (!localTasks) {
-      console.log("[v0] handleToggle - localTasks is null, returning early")
-      return
-    }
+    if (!localTasks) return
     
     const updated: TaskStatus = { ...localTasks, [key]: !localTasks[key] }
-    console.log("[v0] TasksSection handleToggle - key:", key, "updated tasks:", JSON.stringify(updated))
     setLocalTasks(updated)
     
     // Auto-save to database using client-side store function
@@ -153,9 +145,7 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
     setError(null)
     try {
       const { updateTaskStatus } = await import("@/lib/store")
-      console.log("[v0] TasksSection calling updateTaskStatus")
       const result = await updateTaskStatus(record.id, updated)
-      console.log("[v0] TasksSection updateTaskStatus result:", JSON.stringify(result?.tasks))
       
       if (!result) {
         // Revert on error

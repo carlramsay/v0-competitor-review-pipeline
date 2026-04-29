@@ -286,24 +286,37 @@ async function handleSaveProgress() {
     // Use loaded review ID, prop review ID, or check for existing review
     let id = loadedReviewId || reviewId
     let existingGenerated = {}
+    let existingTasks = undefined
+    let existingPipelineStatus = undefined
     
-    // Always fetch existing review to preserve generated content
+    // Always fetch existing review to preserve generated content and tasks
     if (id) {
       const { getReviewById } = await import("@/lib/store")
       const existing = await getReviewById(id)
       if (existing) {
         existingGenerated = existing.generated || {}
+        existingTasks = existing.tasks
+        existingPipelineStatus = existing.pipelineStatus
       }
     } else if (form.competitorName) {
       const existing = await getReviewByCompetitorName(form.competitorName, form.competitorUrl)
       if (existing) {
         id = existing.id
         existingGenerated = existing.generated || {}
+        existingTasks = existing.tasks
+        existingPipelineStatus = existing.pipelineStatus
       }
     }
     
     id = id ?? crypto.randomUUID()
-    await saveReview({ id, submittedAt: new Date().toISOString(), formData: form, generated: existingGenerated })
+    await saveReview({ 
+      id, 
+      submittedAt: new Date().toISOString(), 
+      formData: form, 
+      generated: existingGenerated,
+      tasks: existingTasks,
+      pipelineStatus: existingPipelineStatus,
+    })
     await clearDraftAction()
     router.push(`/generate/${id}`)
   }
