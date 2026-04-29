@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { QueueItem, QueueStatus, TaskStatus } from "@/lib/types"
-import { updateQueueItemStatus, getSortedQueue, getReviewByCompetitorName } from "@/lib/store"
+import { updateQueueItemStatus, getSortedQueue, getReviewByCompetitorName, addToQueue } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { Play, Eye, Loader2 } from "lucide-react"
+import { Play, Eye, Loader2, Plus } from "lucide-react"
 
 // Check if all distribution tasks are completed
 function areAllTasksCompleted(tasks: TaskStatus | undefined): boolean {
@@ -31,6 +31,10 @@ export function ReviewQueue() {
   const router = useRouter()
   const [queue, setQueue] = useState<QueueItemWithCompletion[]>([])
   const [loading, setLoading] = useState(true)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newUrl, setNewUrl] = useState("")
+  const [newName, setNewName] = useState("")
+  const [adding, setAdding] = useState(false)
 
   // Fetch queue and check task completion status for each item
   async function fetchQueueWithCompletion() {
@@ -80,6 +84,24 @@ export function ReviewQueue() {
     router.push("/form")
   }
 
+  async function handleAddCompetitor(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newUrl.trim()) return
+    
+    setAdding(true)
+    try {
+      await addToQueue(newUrl.trim(), newName.trim())
+      setNewUrl("")
+      setNewName("")
+      setShowAddForm(false)
+      await fetchQueueWithCompletion()
+    } catch (err) {
+      console.error("Failed to add competitor:", err)
+    } finally {
+      setAdding(false)
+    }
+  }
+
   const statusColors: Record<QueueStatus, string> = {
     "Not Started": "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100",
     "In Progress": "bg-amber-100 text-amber-800 dark:bg-amber-700 dark:text-amber-100",
@@ -88,6 +110,70 @@ export function ReviewQueue() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Add Competitor Section */}
+      <div className="flex flex-col gap-3">
+        {!showAddForm ? (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card/50 px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary hover:bg-card hover:text-foreground"
+          >
+            <Plus size={16} />
+            Add Competitor
+          </button>
+        ) : (
+          <form onSubmit={handleAddCompetitor} className="rounded-lg border border-border bg-card p-4">
+            <div className="flex flex-col gap-3">
+              <div>
+                <label htmlFor="competitor-url" className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Competitor URL *
+                </label>
+                <input
+                  id="competitor-url"
+                  type="url"
+                  value={newUrl}
+                  onChange={(e) => setNewUrl(e.target.value)}
+                  placeholder="https://competitor.com"
+                  required
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label htmlFor="competitor-name" className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Competitor Name (optional)
+                </label>
+                <input
+                  id="competitor-name"
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Competitor Name"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={adding || !newUrl.trim()}
+                  className="flex-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {adding ? "Adding..." : "Add to Queue"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddForm(false)
+                    setNewUrl("")
+                    setNewName("")
+                  }}
+                  className="rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+      </div>
 
       {/* Queue List */}
       <div className="flex flex-col gap-3">
