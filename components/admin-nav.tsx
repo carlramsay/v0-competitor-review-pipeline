@@ -7,7 +7,7 @@ import { clearAdminSession } from "@/lib/admin-auth"
 import { LogOut, ShieldCheck } from "lucide-react"
 
 const tabs = [
-  { label: "Reviews", href: "/reviews" },
+  { label: "Queue", href: "/queue" },
   { label: "Settings", href: "/admin/settings" },
 ]
 
