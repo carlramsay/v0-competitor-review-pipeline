@@ -342,9 +342,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
-  const [thumbnailUrlVertical, setThumbnailUrlVertical] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  const [videoUrlVertical, setVideoUrlVertical] = useState<string | null>(null)
   const [videoProgress, setVideoProgress] = useState<string | null>(null)
   const [blogPostViewAsHtml, setBlogPostViewAsHtml] = useState(true)
   const [backgroundLibrary, setBackgroundLibrary] = useState<ThumbnailImage[]>([])
@@ -393,28 +391,23 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     getThumbnailLibrary().then(setBackgroundLibrary)
   }, [])
 
-  // Hydrate saved thumbnails from record on mount
+  // Hydrate saved thumbnail from record on mount
   useEffect(() => {
     if (initialRecord.generated.thumbnailDataUrl) {
       setThumbnailUrl(initialRecord.generated.thumbnailDataUrl)
     }
-    if (initialRecord.generated.thumbnailVerticalDataUrl) {
-      setThumbnailUrlVertical(initialRecord.generated.thumbnailVerticalDataUrl)
-    }
-  }, [initialRecord.generated.thumbnailDataUrl, initialRecord.generated.thumbnailVerticalDataUrl])
+  }, [initialRecord.generated.thumbnailDataUrl])
 
-  // Hydrate saved videos from storage on mount
+  // Hydrate saved video from storage on mount
   useEffect(() => {
-    async function loadVideos() {
-      console.log("[v0] Loading videos, videoDataUrl:", initialRecord.generated.videoDataUrl)
-      console.log("[v0] Loading videos, videoVerticalDataUrl:", initialRecord.generated.videoVerticalDataUrl)
-      // Load horizontal video
+    async function loadVideo() {
+      console.log("[v0] Loading video, videoDataUrl:", initialRecord.generated.videoDataUrl)
       if (initialRecord.generated.videoDataUrl) {
         try {
           const videoKey = initialRecord.generated.videoDataUrl
-          console.log("[v0] Fetching horizontal video with key:", videoKey)
+          console.log("[v0] Fetching video with key:", videoKey)
           const base64 = await getVideoAsset(videoKey)
-          console.log("[v0] Got horizontal video base64, length:", base64?.length)
+          console.log("[v0] Got video base64, length:", base64?.length)
           if (base64) {
             const binary = atob(base64)
             const bytes = new Uint8Array(binary.length)
@@ -424,29 +417,12 @@ export function ContentGeneration({ record: initialRecord }: Props) {
             setVideoUrl(url)
           }
         } catch (err) {
-          console.error("Failed to load horizontal video:", err)
-        }
-      }
-      // Load vertical video
-      if (initialRecord.generated.videoVerticalDataUrl) {
-        try {
-          const videoKey = initialRecord.generated.videoVerticalDataUrl
-          const base64 = await getVideoAsset(videoKey)
-          if (base64) {
-            const binary = atob(base64)
-            const bytes = new Uint8Array(binary.length)
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-            const blob = new Blob([bytes], { type: "video/mp4" })
-            const url = URL.createObjectURL(blob)
-            setVideoUrlVertical(url)
-          }
-        } catch (err) {
-          console.error("Failed to load vertical video:", err)
+          console.error("Failed to load video:", err)
         }
       }
     }
-    loadVideos()
-  }, [initialRecord.generated.videoDataUrl, initialRecord.generated.videoVerticalDataUrl])
+    loadVideo()
+  }, [initialRecord.generated.videoDataUrl])
 
   // Hydrate saved voiceover from Supabase on mount
   useEffect(() => {
@@ -1289,20 +1265,14 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     setError(null)
     setLoading("thumbnail")
     setThumbnailUrl(null)
-    setThumbnailUrlVertical(null)
 
     try {
       // WordPress recommended featured image size: 1200x628
       const horizontalUrl = await generateThumbnailWithFormat(1200, 628)
       if (horizontalUrl) setThumbnailUrl(horizontalUrl)
 
-      // Vertical for social media stories
-      const verticalUrl = await generateThumbnailWithFormat(628, 1200)
-      if (verticalUrl) setThumbnailUrlVertical(verticalUrl)
-
       const updated = await updateGeneratedContent(record.id, {
         thumbnailDataUrl: horizontalUrl || undefined,
-        thumbnailVerticalDataUrl: verticalUrl || undefined,
       })
       if (updated) setRecord(updated)
     } finally {
@@ -1708,19 +1678,13 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       const words = await fetchWhisperCaptions(audioBlob!)
       const captionGroups = buildCaptionGroups(words)
 
-      setVideoProgress("Generating horizontal video...")
+      setVideoProgress("Generating video...")
       const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal", captionGroups, audioBlob!)
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
 
-      setVideoProgress("Generating vertical video...")
-      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups, audioBlob!)
-      const verticalUrl = URL.createObjectURL(verticalBlob)
-      setVideoUrlVertical(verticalUrl)
-
       const updated = await updateGeneratedContent(record.id, {
         videoDataUrl: horizontalUrl,
-        videoVerticalDataUrl: verticalUrl,
       })
       if (updated) setRecord(updated)
 
@@ -1833,7 +1797,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       setVideoUrl(horizontalUrl)
       
       // Save horizontal video to storage
-      setVideoProgress("Saving horizontal video...")
+      setVideoProgress("Saving video...")
       const horizontalArrayBuffer = await horizontalBlob.arrayBuffer()
       const horizontalBytes = new Uint8Array(horizontalArrayBuffer)
       let horizontalBinary = ""
@@ -1844,29 +1808,9 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       const horizontalKey = `video-horizontal-${record.id}`
       await saveVideoAsset(horizontalKey, horizontalBase64)
       
-      // Generate vertical slideshow video
-      const vStep = scriptChanged ? "Step 4/4" : "Step 3/3"
-      setVideoProgress(`${vStep}: Generating vertical video...`)
-      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups, currentAudioBlob!)
-      const verticalUrl = URL.createObjectURL(verticalBlob)
-      setVideoUrlVertical(verticalUrl)
-      
-      // Save vertical video to storage
-      setVideoProgress("Saving vertical video...")
-      const verticalArrayBuffer = await verticalBlob.arrayBuffer()
-      const verticalBytes = new Uint8Array(verticalArrayBuffer)
-      let verticalBinary = ""
-      for (let i = 0; i < verticalBytes.length; i++) {
-        verticalBinary += String.fromCharCode(verticalBytes[i])
-      }
-      const verticalBase64 = btoa(verticalBinary)
-      const verticalKey = `video-vertical-${record.id}`
-      await saveVideoAsset(verticalKey, verticalBase64)
-      
-      // Save keys to record (not blob URLs)
+      // Save key to record (not blob URL)
       const updatedRecord = await updateGeneratedContent(record.id, {
         videoDataUrl: horizontalKey,
-        videoVerticalDataUrl: verticalKey,
       })
       if (updatedRecord) setRecord(updatedRecord)
       
@@ -2124,43 +2068,23 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           <div className="mt-4 text-sm text-muted-foreground">{videoProgress}</div>
         )}
 
-        {/* Slideshow Videos */}
-        {(videoUrl || videoUrlVertical) && (
+        {/* Slideshow Video */}
+        {videoUrl && (
           <div className="mt-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Slideshow Videos</h3>
-          <div className="mt-4 grid gap-6 lg:grid-cols-2">
-            {videoUrl && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Horizontal (1920x1080)</span>
-                  <a
-                    href={videoUrl}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-horizontal.webm`}
-                    className={btnClass}
-                  >
-                    <Download size={12} />
-                    Download
-                  </a>
-                </div>
-                <video controls src={videoUrl} className="w-full rounded-md" />
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Slideshow Video</h3>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">Horizontal (1920x1080)</span>
+                <a
+                  href={videoUrl}
+                  download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-horizontal.webm`}
+                  className={btnClass}
+                >
+                  <Download size={12} />
+                  Download
+                </a>
               </div>
-            )}
-            {videoUrlVertical && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Vertical (1080x1920)</span>
-                  <a
-                    href={videoUrlVertical}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-vertical.webm`}
-                    className={btnClass}
-                  >
-                    <Download size={12} />
-                    Download
-                  </a>
-                </div>
-                <video controls src={videoUrlVertical} className="aspect-[9/16] max-h-[400px] w-auto self-center rounded-md" />
-              </div>
-            )}
+              <video controls src={videoUrl} className="w-full rounded-md" />
             </div>
           </div>
         )}
@@ -2225,44 +2149,26 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           className={btnClass}
         >
           {loading === "thumbnail" ? <Loader2 size={12} className="animate-spin" /> : <ImageIcon size={12} />}
-          Generate Thumbnails
+          Generate Thumbnail
         </button>
 
-        {/* Generated Thumbnails */}
-        {(thumbnailUrl || thumbnailUrlVertical) && (
-          <div className="mt-4 grid gap-6 lg:grid-cols-2">
-            {thumbnailUrl && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Horizontal (1200x628)</span>
-                  <a
-                    href={thumbnailUrl}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.png`}
-                    className={btnClass}
-                  >
-                    <Download size={12} />
-                    Download
-                  </a>
-                </div>
-                <img src={thumbnailUrl} alt="Horizontal thumbnail" className="w-full rounded-md" />
+        {/* Generated Thumbnail */}
+        {thumbnailUrl && (
+          <div className="mt-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">Horizontal (1200x628)</span>
+                <a
+                  href={thumbnailUrl}
+                  download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail.png`}
+                  className={btnClass}
+                >
+                  <Download size={12} />
+                  Download
+                </a>
               </div>
-            )}
-            {thumbnailUrlVertical && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Vertical (628x1200)</span>
-                  <a
-                    href={thumbnailUrlVertical}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.png`}
-                    className={btnClass}
-                  >
-                    <Download size={12} />
-                    Download
-                  </a>
-                </div>
-                <img src={thumbnailUrlVertical} alt="Vertical thumbnail" className="aspect-[9/16] max-h-[400px] w-auto self-center rounded-md" />
-              </div>
-            )}
+              <img src={thumbnailUrl} alt="Thumbnail" className="w-full rounded-md" />
+            </div>
           </div>
         )}
         </div>
