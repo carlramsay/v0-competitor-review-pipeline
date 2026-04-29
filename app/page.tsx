@@ -156,10 +156,10 @@ export default function Home() {
             Queue
           </Link>
           <Link
-            href="/reviews"
+            href="/admin/settings"
             className="px-6 py-3 rounded-lg border border-border text-foreground font-medium text-center transition-colors hover:bg-secondary"
           >
-            Reviews
+            Admin
           </Link>
         </div>
       </div>
