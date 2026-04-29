@@ -716,20 +716,87 @@ Output: one meta description only, no explanation, no quotes.`
       return
     }
 
-    // Build answers with Arousr benchmark scores from settings
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
+    const gap = arousrTotal - competitorTotal
+
+    const competitorName = record.formData.competitorName || "Competitor"
+    const oneLineVerdict = record.formData.q24 || ""
+    const reviewerName = record.formData.reviewerName || "Reviewer"
+
+    // Build answers with form data for context
     const answers = buildAnswersString(record.formData, settings.arousrScores)
 
+    const prompt = `Write a video script for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+SCORE GAP: ${gap} points
+KEY FINDINGS: ${oneLineVerdict}
+REVIEWER: ${reviewerName}
+
+Rules:
+- Length: 150-180 words maximum — count carefully, do not exceed
+- Podcast monologue style — conversational, first person, spoken word
+- One point per section maximum — do not over-explain
+- Use specific observations and details from the review
+- Never invent statistics, ratios, or numbers the reviewer did not provide
+- Never use generic sign-offs like "That's a wrap", "Stay safe", 
+  "Until next time", or "See you next time"
+- Never reference age, age verification, legal issues, or compliance
+- Never use provocative or defamatory words: fake, scam, fraud, dangerous
+- Tone is neutral and observational — not an attack on the competitor
+- Arousr must be spelled "Arouser" throughout — this is a video script 
+  for audio, phonetic spelling is intentional
+- The closing line must include the exact score gap and feel punchy 
+  and specific — never vague or generic
+
+Structure (follow this order):
+1. One sentence intro — what the platform is
+2. Signup — one key observation only
+3. Interface — one key observation only
+4. Pricing — one key observation only
+5. Chat quality — one key observation, use a specific detail 
+   from the reviewer if available
+6. Privacy/safety — one key observation only
+7. Closing — score gap vs Arouser, punchy final line
+
+Good closing example:
+"Chat Avenue scores 51/80 versus Arouser's 67. Free and accessible 
+— but if safety and quality matter, the gap tells the story."
+
+Output: script only, no section headers, no explanation.
+
+REVIEW DATA:
+${answers}`
+
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "video", answers, apiKey: settings.openaiApiKey }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: "You write video scripts for competitor review videos." },
+            { role: "user", content: prompt },
+          ],
+          max_tokens: 500,
+          temperature: 0.7,
+        }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Generation failed")
+      if (!res.ok) throw new Error(data.error?.message ?? "Generation failed")
 
-      // Replace Arousr with Arouser for voice script pronunciation
-      const videoScript = (data.content as string).replace(/Arousr/g, "Arouser")
+      const videoScript = data.choices[0].message.content.trim()
       const updated = await updateGeneratedContent(record.id, { videoScript })
       if (updated) setRecord(updated)
       await updatePipelineStatus(record.id, { videoScriptGenerated: true })
