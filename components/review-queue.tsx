@@ -257,9 +257,22 @@ export function ReviewQueue() {
                 className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="truncate font-medium text-foreground">
-                    {item.name || item.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate font-medium text-foreground">
+                      {item.name || item.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                    </p>
+                    {/* Delete button for Not Started items (based on effective status) */}
+                    {item.effectiveStatus === "Not Started" && !item.allTasksCompleted && (
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        disabled={deletingId === item.id}
+                        className="flex-shrink-0 p-1 text-muted-foreground/50 transition-colors hover:text-destructive disabled:opacity-50"
+                        title="Remove from queue"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                   {item.name && (
                     <p className="truncate text-xs text-muted-foreground">{item.url}</p>
                   )}
@@ -292,18 +305,6 @@ export function ReviewQueue() {
                     {item.allTasksCompleted ? <Eye size={12} /> : <Play size={12} />}
                     Review
                   </button>
-
-                  {/* Delete button for Not Started items (based on effective status) */}
-                  {item.effectiveStatus === "Not Started" && !item.allTasksCompleted && (
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      disabled={deletingId === item.id}
-                      className="flex items-center gap-1.5 rounded-md border border-destructive/30 px-2 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
-                      title="Remove from queue"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  )}
                 </div>
               </div>
             )
