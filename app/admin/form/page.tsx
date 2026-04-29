@@ -1,9 +1,7 @@
-"use client"
-
-export const dynamic = "force-dynamic"
-
 import { AdminNav } from "@/components/admin-nav"
 import { ReviewForm } from "@/components/review-form"
+
+export const dynamic = "force-dynamic"
 
 export default function AdminFormPage() {
   return (
