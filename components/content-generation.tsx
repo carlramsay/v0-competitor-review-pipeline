@@ -1024,6 +1024,9 @@ DO NOT use: corporate filler phrases like "the landscape continually evolves", "
 DO NOT mention: the Arousr privacy score or any specific Arousr metrics — just mention it naturally as a platform that does things differently
 DO NOT use: #AdultEntertainment or similar hashtags that could trigger content suppression on LinkedIn`
 
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
+
     const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
 
     try {
@@ -1084,6 +1087,9 @@ STRUCTURE:
 DO NOT mention: age verification bypass, age policies, minimum age requirements, or any age-related concerns.
 
 LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook audience.`
+
+    // Build answers with Arousr benchmark scores from settings
+    const answers = buildAnswersString(record.formData, settings.arousrScores)
 
     const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
 
