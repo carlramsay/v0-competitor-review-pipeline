@@ -1124,6 +1124,7 @@ Rules:
 - Length: 200-280 words
 - Tone: conversational and opinion-led — write like a real person 
   sharing a professional observation, not a press release
+- Never repeat the same noun phrase twice in one sentence
 - Never use corporate language like: "critical safety protocols", 
   "absence of", "in contrast", "it is worth noting", "it should 
   be mentioned", "raises several concerns", "deep dive", "deep-dive"
