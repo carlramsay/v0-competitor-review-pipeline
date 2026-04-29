@@ -140,22 +140,22 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
     const updated: TaskStatus = { ...localTasks, [key]: !localTasks[key] }
     setLocalTasks(updated)
     
-    // Auto-save to database using client-side store function
+    // Auto-save to database using server action (bypasses RLS)
     setSaving(true)
     setError(null)
     try {
-      const { updateTaskStatus } = await import("@/lib/store")
-      const result = await updateTaskStatus(record.id, updated)
+      const { updateTaskStatusAction } = await import("@/app/actions/db")
+      const result = await updateTaskStatusAction(record.id, updated)
       
-      if (!result) {
+      if (!result.success) {
         // Revert on error
         setLocalTasks(localTasks)
-        setError("Save failed")
+        setError(result.error || "Save failed")
         return
       }
       
       // Update the parent record with the new tasks
-      setRecord(result)
+      setRecord({ ...record, tasks: updated })
       
       setSaved(true)
       setHasChanges(false)

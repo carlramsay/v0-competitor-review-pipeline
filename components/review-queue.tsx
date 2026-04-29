@@ -63,9 +63,15 @@ export function ReviewQueue() {
   }, [])
 
   async function handleViewReview(item: QueueItemWithCompletion) {
-    // Mark as in progress if not already completed
+    // Mark as in progress if not already completed (use server action to bypass RLS)
     if (!item.allTasksCompleted && item.status !== "In Progress") {
-      await updateQueueItemStatus(item.id, "In Progress")
+      try {
+        const { updateQueueItemStatusAction } = await import("@/app/actions/db")
+        await updateQueueItemStatusAction(item.id, "In Progress")
+      } catch (err) {
+        console.error("Failed to update queue status:", err)
+        // Continue with navigation even if status update fails
+      }
     }
     sessionStorage.setItem("queueUrl", item.url)
     if (item.name) sessionStorage.setItem("queueName", item.name)
