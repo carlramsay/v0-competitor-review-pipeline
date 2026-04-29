@@ -362,6 +362,11 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   // Track which item was copied (for copy button feedback)
   const [copiedItem, setCopiedItem] = useState<string | null>(null)
   
+  // Local meta description state for editing
+  const [localMetaDescription, setLocalMetaDescription] = useState(record.generated.blogPostMeta || "")
+  const [metaSaving, setMetaSaving] = useState(false)
+  const [metaSaved, setMetaSaved] = useState(false)
+  
   const copyToClipboard = async (text: string, itemId: string) => {
     await navigator.clipboard.writeText(text)
     setCopiedItem(itemId)
@@ -375,6 +380,13 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   useEffect(() => {
     videoScriptRef.current = record.generated.videoScript || ""
   }, [record.generated.videoScript])
+
+  // Sync localMetaDescription when record updates from server
+  useEffect(() => {
+    if (record.generated.blogPostMeta && record.generated.blogPostMeta !== localMetaDescription) {
+      setLocalMetaDescription(record.generated.blogPostMeta)
+    }
+  }, [record.generated.blogPostMeta])
 
   // Load background image library on mount
   useEffect(() => {
@@ -638,6 +650,98 @@ OUTPUT: one title only — no explanation, no quotes, no extra punctuation.`
       setError(err instanceof Error ? err.message : "Unknown error")
     } finally {
       setLoading(null)
+    }
+  }
+
+  async function generateMetaDescription() {
+    setError(null)
+    setLoading("meta")
+    const settings = await getSettings()
+    if (!settings.openaiApiKey) {
+      setError("No OpenAI API key found. Please add it in Settings.")
+      setLoading(null)
+      return
+    }
+
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
+
+    const competitorName = record.formData.competitorName || "Competitor"
+    const oneLineVerdict = record.formData.q24 || ""
+
+    const prompt = `Write one meta description for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+KEY FINDINGS: ${oneLineVerdict}
+
+Rules:
+- Length: 150-160 characters exactly — count carefully
+- Must mention the competitor name
+- Must include the exact score (e.g. ${competitorTotal}/80)
+- Must feel factual and observational — not promotional
+- Never use: "Discover", "Find out", "Learn why", "might be", 
+  "could be", "perhaps"
+- Never use clickbait or call-to-action language
+- May mention Arousr but only as a factual comparison, 
+  not as a recommendation
+- No age, legal, or compliance references
+- Include one specific finding from KEY FINDINGS
+
+Good example:
+"Chat Avenue scores 51/80 in our hands-on test. Free access 
+and retro charm, but limited safety features and unmoderated 
+chats. Here's how it compares to Arousr."
+
+Output: one meta description only, no explanation, no quotes.`
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: "You generate SEO meta descriptions for blog posts." },
+            { role: "user", content: prompt },
+          ],
+          max_tokens: 200,
+          temperature: 0.7,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error?.message ?? "Generation failed")
+
+      const metaDescription = data.choices[0].message.content.trim().replace(/^["']|["']$/g, "")
+      setLocalMetaDescription(metaDescription)
+      setMetaSaved(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function saveMetaDescription() {
+    setMetaSaving(true)
+    try {
+      const updated = await updateGeneratedContent(record.id, { blogPostMeta: localMetaDescription })
+      if (updated) setRecord(updated)
+      setMetaSaved(true)
+      setTimeout(() => setMetaSaved(false), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save meta description")
+    } finally {
+      setMetaSaving(false)
     }
   }
 
@@ -1919,32 +2023,55 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         </div>
         
         {/* Meta Description */}
-        {record.generated.blogPostMeta && (
-          <div className="mt-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Meta Description</h3>
-              <span className={cn(
-                "text-xs",
-                record.generated.blogPostMeta.length >= 150 && record.generated.blogPostMeta.length <= 160
-                  ? "text-green-500"
-                  : "text-yellow-500"
-              )}>
-                {record.generated.blogPostMeta.length} characters
-              </span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
-              <span className="flex-1 text-sm text-foreground">{record.generated.blogPostMeta}</span>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(record.generated.blogPostMeta!, "meta")}
-                className="flex-shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                title="Copy to clipboard"
-              >
-                {copiedItem === "meta" ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-              </button>
-            </div>
+        <div className="mt-6 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Meta Description</h3>
+            <span className={cn(
+              "text-xs font-medium",
+              localMetaDescription.length >= 150 && localMetaDescription.length <= 160
+                ? "text-green-500"
+                : "text-red-500"
+            )}>
+              {localMetaDescription.length}/150-160 characters
+            </span>
           </div>
-        )}
+          <textarea
+            value={localMetaDescription}
+            onChange={(e) => { setLocalMetaDescription(e.target.value); setMetaSaved(false) }}
+            rows={3}
+            placeholder="Generate or type a meta description..."
+            className="w-full resize-y rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={generateMetaDescription}
+              disabled={loading === "meta"}
+              className={btnClass}
+            >
+              {loading === "meta" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              Generate
+            </button>
+            <button
+              type="button"
+              onClick={saveMetaDescription}
+              disabled={metaSaving || !localMetaDescription}
+              className={btnClass}
+            >
+              {metaSaved ? <Check size={12} className="text-green-400" /> : <Save size={12} />}
+              {metaSaved ? "Saved" : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => copyToClipboard(localMetaDescription, "meta")}
+              disabled={!localMetaDescription}
+              className={btnClass}
+            >
+              {copiedItem === "meta" ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+              {copiedItem === "meta" ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
         
         <div className="mt-6 flex gap-2">
           <button type="button" onClick={pushToWordPress} disabled={loading !== null} className={btnClass}>
