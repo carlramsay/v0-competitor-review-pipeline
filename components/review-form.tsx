@@ -310,19 +310,17 @@ async function handleSaveProgress() {
     
     id = id ?? crypto.randomUUID()
     
-    // Use server action to save (bypasses RLS)
-    const { saveReviewAction } = await import("@/app/actions/db")
-    const result = await saveReviewAction({ 
-      id, 
-      submittedAt: new Date().toISOString(), 
-      formData: form, 
-      generated: existingGenerated,
-      tasks: existingTasks,
-      pipelineStatus: existingPipelineStatus,
-    })
-    
-    if (!result.success) {
-      console.error("Failed to save review:", result.error)
+    try {
+      await saveReview({ 
+        id, 
+        submittedAt: new Date().toISOString(), 
+        formData: form, 
+        generated: existingGenerated,
+        tasks: existingTasks,
+        pipelineStatus: existingPipelineStatus,
+      })
+    } catch (err) {
+      console.error("Failed to save review:", err)
       setSubmitting(false)
       return
     }

@@ -37,8 +37,21 @@ function handleSupabaseError(error: unknown, operation: string): never {
   throw new Error(`${operation} failed: ${errMsg}`)
 }
 
-// Single-user app - no user_id filtering needed
-// Auth is handled by middleware cookie check
+// Get current authenticated user ID
+export async function getCurrentUserId(): Promise<string | null> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return user?.id ?? null
+}
+
+// Check if user is authenticated
+export async function requireAuth(): Promise<string> {
+  const userId = await getCurrentUserId()
+  if (!userId) {
+    throw new RLSError("You must be logged in to perform this action.")
+  }
+  return userId
+}
 
 const DEFAULT_SETTINGS: AppSettings = {
   wpSiteUrl: "",
@@ -83,20 +96,27 @@ export async function getReviews(): Promise<ReviewRecord[]> {
 }
 
 export async function saveReview(record: ReviewRecord): Promise<void> {
-  // Use server action to bypass RLS
-  const { saveReviewAction } = await import("@/app/actions/db")
-  const result = await saveReviewAction({
-    id: record.id,
-    userId: record.userId,
-    submittedAt: record.submittedAt,
-    formData: record.formData,
-    generated: record.generated,
-    pipelineStatus: record.pipelineStatus,
-    tasks: record.tasks,
-  })
+  const userId = await requireAuth()
+  const supabase = createClient()
   
-  if (!result.success) {
-    throw new Error(`save review failed: ${result.error}`)
+  try {
+    const { error } = await supabase.from("reviews").upsert({
+      id: record.id,
+      user_id: userId,
+      submitted_at: record.submittedAt,
+      form_data: record.formData,
+      generated: record.generated,
+      pipeline_status: record.pipelineStatus || { reviewSubmitted: true, reviewApproved: false, blogPostGenerated: false, videoScriptGenerated: false, avatarVideoGenerated: false, allContentReady: false },
+      tasks: record.tasks || { blogPublishedArousr: false, videoPostedYouTube: false, videoPostedXBIZ: false, videoEmbeddedBlog: false, blogPostedMedium: false, linkedInArticle: false, xPost: false, facebookPost: false, instagramPost: false },
+      updated_at: new Date().toISOString(),
+    })
+
+    if (error) {
+      handleSupabaseError(error, "save review")
+    }
+  } catch (err) {
+    if (err instanceof RLSError) throw err
+    handleSupabaseError(err, "save review")
   }
 }
 
@@ -162,24 +182,7 @@ export async function updateGeneratedContent(
   id: string,
   content: Partial<GeneratedContent>
 ): Promise<ReviewRecord | null> {
-  // Use server action to bypass RLS
-  const { updateGeneratedContentAction } = await import("@/app/actions/db")
-  const result = await updateGeneratedContentAction(id, content)
-  
-  if (!result.success) {
-    console.error("[v0] Error updating generated content:", result.error)
-    return null
-  }
-  
-  // Fetch and return the updated record
-  return getReviewById(id)
-}
-
-// Keep old implementation as backup (not used)
-async function _updateGeneratedContentOld(
-  id: string,
-  content: Partial<GeneratedContent>
-): Promise<ReviewRecord | null> {
+  const userId = await requireAuth()
   const supabase = createClient()
   
   // First get the current record to preserve existing data
@@ -187,6 +190,7 @@ async function _updateGeneratedContentOld(
     .from("reviews")
     .select("*")
     .eq("id", id)
+    .eq("user_id", userId)
     .single()
 
   if (fetchError || !current) {
@@ -195,7 +199,6 @@ async function _updateGeneratedContentOld(
   }
 
   // Safely merge the generated content, preserving all existing fields
-  // Handle case where current.generated might be null/undefined
   const existingGenerated = (current.generated || {}) as GeneratedContent
   const updatedGenerated: GeneratedContent = {
     ...existingGenerated,
@@ -210,6 +213,7 @@ async function _updateGeneratedContentOld(
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
+      .eq("user_id", userId)
       .select()
       .single()
 
@@ -227,6 +231,8 @@ async function _updateGeneratedContentOld(
       submittedAt: data.submitted_at,
       formData: data.form_data as ReviewFormData,
       generated: data.generated as GeneratedContent,
+      pipelineStatus: data.pipeline_status as PipelineStatus | undefined,
+      tasks: data.tasks as TaskStatus | undefined,
     }
   } catch (err) {
     if (err instanceof RLSError) throw err
@@ -241,34 +247,109 @@ export async function updatePipelineStatus(
   id: string,
   updates: Partial<PipelineStatus>
 ): Promise<ReviewRecord | null> {
-  // Use server action to bypass RLS
-  const { updatePipelineStatusAction } = await import("@/app/actions/db")
-  const result = await updatePipelineStatusAction(id, updates)
+  const userId = await requireAuth()
+  const supabase = createClient()
   
-  if (!result.success) {
-    console.error("[v0] Error updating pipeline status:", result.error)
+  const { data: current, error: fetchError } = await supabase
+    .from("reviews")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .single()
+
+  if (fetchError || !current) {
+    console.error("[v0] Error fetching review for pipeline update:", fetchError)
     return null
   }
-  
-  // Fetch and return the updated record
-  return getReviewById(id)
+
+  const updatedPipeline = { ...current.pipeline_status, ...updates }
+
+  try {
+    const { data, error } = await supabase
+      .from("reviews")
+      .update({
+        pipeline_status: updatedPipeline,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select()
+      .single()
+
+    if (error) {
+      handleSupabaseError(error, "update pipeline status")
+    }
+
+    if (!data) return null
+
+    return {
+      id: data.id,
+      userId: data.user_id,
+      submittedAt: data.submitted_at,
+      formData: data.form_data as ReviewFormData,
+      generated: data.generated as GeneratedContent,
+      pipelineStatus: data.pipeline_status as PipelineStatus | undefined,
+      tasks: data.tasks as TaskStatus | undefined,
+    }
+  } catch (err) {
+    if (err instanceof RLSError) throw err
+    console.error("[v0] Error updating pipeline status:", err)
+    return null
+  }
 }
 
 export async function updateTaskStatus(
   id: string,
   updates: Partial<TaskStatus>
 ): Promise<ReviewRecord | null> {
-  // Use server action to bypass RLS
-  const { updateTaskStatusAction } = await import("@/app/actions/db")
-  const result = await updateTaskStatusAction(id, updates)
+  const userId = await requireAuth()
+  const supabase = createClient()
   
-  if (!result.success) {
-    console.error("[v0] Error updating task status:", result.error)
+  const { data: current, error: fetchError } = await supabase
+    .from("reviews")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .single()
+
+  if (fetchError || !current) {
     return null
   }
-  
-  // Fetch and return the updated record
-  return getReviewById(id)
+
+  const updatedTasks = { ...current.tasks, ...updates }
+
+  try {
+    const { data, error } = await supabase
+      .from("reviews")
+      .update({
+        tasks: updatedTasks,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select()
+      .single()
+    
+    if (error) {
+      handleSupabaseError(error, "update task status")
+    }
+
+    if (!data) return null
+
+    return {
+      id: data.id,
+      userId: data.user_id,
+      submittedAt: data.submitted_at,
+      formData: data.form_data as ReviewFormData,
+      generated: data.generated as GeneratedContent,
+      pipelineStatus: data.pipeline_status as PipelineStatus | undefined,
+      tasks: data.tasks as TaskStatus | undefined,
+    }
+  } catch (err) {
+    if (err instanceof RLSError) throw err
+    console.error("[v0] Error updating task status:", err)
+    return null
+  }
 }
 
 // ============ SETTINGS ============
@@ -516,13 +597,18 @@ export async function updateQueueItemStatus(
   id: string,
   status: "Not Started" | "In Progress" | "Completed"
 ): Promise<void> {
-  // Use server action to bypass RLS
-  const { updateQueueItemStatusAction } = await import("@/app/actions/db")
-  const result = await updateQueueItemStatusAction(id, status)
-  
-  if (!result.success) {
-    console.error("[v0] Error updating queue item status:", result.error)
-    throw new Error(result.error)
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("queue_items")
+    .update({
+      status,
+      status_updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+
+  if (error) {
+    console.error("[v0] Error updating queue item status:", error)
+    throw error
   }
 }
 
@@ -530,13 +616,18 @@ export async function updateQueueItemStatusByUrl(
   url: string,
   status: "Not Started" | "In Progress" | "Completed"
 ): Promise<void> {
-  // Use server action to bypass RLS
-  const { updateQueueItemStatusByUrlAction } = await import("@/app/actions/db")
-  const result = await updateQueueItemStatusByUrlAction(url, status)
-  
-  if (!result.success) {
-    console.error("[v0] Error updating queue item status by URL:", result.error)
-    throw new Error(result.error)
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("queue_items")
+    .update({
+      status,
+      status_updated_at: new Date().toISOString(),
+    })
+    .eq("url", url)
+
+  if (error) {
+    console.error("[v0] Error updating queue item status by URL:", error)
+    throw error
   }
 }
 
