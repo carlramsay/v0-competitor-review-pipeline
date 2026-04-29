@@ -558,21 +558,24 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     // Calculate gap
     const gap = arousrTotal - competitorTotal
 
-    // Track previous hook style to ensure variety
+    // Track previous hook style to ensure variety - rotate through styles
     const existingTitle = record.generated.blogPostTitle || ""
+    const usedPrivacyHook = existingTitle.toLowerCase().includes("privacy") || existingTitle.toLowerCase().includes("verification")
     const usedScoreHook = existingTitle.includes("/80") || /\d{2}\/80/.test(existingTitle)
     const usedGapHook = existingTitle.toLowerCase().includes("point") || existingTitle.toLowerCase().includes("vs")
     
     let hookGuidance = ""
-    if (usedScoreHook) {
-      hookGuidance = "The previous title used a score hook. Use verdict-led, gap-led, or user-fit style instead."
+    if (usedPrivacyHook) {
+      hookGuidance = "The previous title used privacy as a hook. Use a completely different angle: verdict/tone, score, gap, or a non-privacy detail."
+    } else if (usedScoreHook) {
+      hookGuidance = "The previous title used a score hook. Use verdict-led, gap-led, or detail-led style instead."
     } else if (usedGapHook) {
-      hookGuidance = "The previous title used a gap/comparison hook. Use score-led (if surprising), verdict-led, or user-fit style instead."
+      hookGuidance = "The previous title used a gap/comparison hook. Use score-led (if surprising), verdict-led, or detail-led style instead."
     }
 
     const oneLineVerdict = record.formData.q24 || ""
     
-    const prompt = `blog post title for this competitor review.
+    const prompt = `Generate one blog post title for this competitor review.
 
 COMPETITOR: ${record.formData.competitorName}
 COMPETITOR SCORE: ${competitorTotal}/80
@@ -594,16 +597,22 @@ Rules:
 - Never reference age, age verification, legal issues, or compliance
 - Never use provocative or potentially defamatory words like:
   fake, scam, fraud, dangerous, illegal
+- Score must NOT appear in every title — only use it when it is 
+  surprisingly low or high
+- Privacy concerns are ONE possible hook, not the default — if the 
+  previous title used privacy as the hook, use a different angle
+- Each regeneration must rotate through hook styles in this order:
+  1. Verdict/tone — capture the overall feeling of the review
+  2. Score-led — only if score is surprisingly low or high
+  3. Gap-led — Arousr vs competitor gap
+  4. Detail-led — specific observation beyond privacy
+  Never repeat the same hook style twice in a row
+- Every title must contain at least one specific detail — a score, 
+  a finding, or a direct observation from the review
 - Tone should be neutral and observational — honest but not 
   dismissive or mocking toward the competitor
 - Avoid words that feel like an attack: "struggles", "fails", 
   "outdated", "frustration", "not even close"
-- Score must NOT appear in every title — only use it when it is 
-  surprisingly low or high
-- Each regeneration must use a different hook style — if the previous 
-  title used the score, use verdict or gap next time
-- Every title must contain at least one specific detail — a score, 
-  a finding, or a direct observation from the review
 - Use specific details and observations from KEY FINDINGS — 
   avoid generic descriptors
 - Aim for wit and personality — a title someone would actually 
@@ -622,9 +631,10 @@ Good examples:
 "Chat Avenue Review: Free Comes With a Cost"
 "We Tested Chat Avenue — Arousr Won by 17 Points"
 "Chat Avenue: Great for 2003, Clunky for 2026"
-"Chat Avenue vs Arousr: A 17-Point Gap"
+"Chat Avenue vs Arousr — Not Even Close"
 "Chat Avenue Review: 51/80 — Retro Charm, Modern Gaps"
 "Chat Avenue (2026): Free, Clunky, and Oddly Nostalgic"
+"Chat Avenue vs Arousr: 16 Points That Tell the Story"
 
 Bad examples (never produce these):
 "Exploring Chat Avenue: A Deep-Dive into a 51/80 Rating Experience"
@@ -638,6 +648,11 @@ Bad examples (never produce these):
 "Chat Avenue Review — Is It Worth It? (2026)"
 "Chat Avenue: Navigating Retro Charm and Limitations"
 "Chat Avenue: Nostalgic Charm Meets Digital Age"
+"Chat Avenue: Open Chats, But Questionable Privacy"
+"Chat Avenue: Loose Privacy in an Open Chat Space"
+"Chat Avenue: Open Chat, Limited Privacy"
+"Chat Avenue: Privacy Concerns and Easy Access"
+"Chat Avenue: Anonymous Chats Amid Privacy Concerns"
 
 Output: one title only, no explanation, no quotes, no punctuation 
 outside the title itself.`
