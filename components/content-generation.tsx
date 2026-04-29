@@ -2026,14 +2026,35 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         <div className="mt-6 space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Meta Description</h3>
-            <span className={cn(
-              "text-xs font-medium",
-              localMetaDescription.length >= 150 && localMetaDescription.length <= 160
-                ? "text-green-500"
-                : "text-red-500"
-            )}>
-              {localMetaDescription.length}/150-160 characters
-            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={generateMetaDescription}
+                disabled={loading === "meta"}
+                className={btnClass}
+              >
+                {loading === "meta" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                Generate
+              </button>
+              <button
+                type="button"
+                onClick={saveMetaDescription}
+                disabled={metaSaving || !localMetaDescription}
+                className={btnClass}
+              >
+                {metaSaved ? <Check size={12} className="text-green-400" /> : <Save size={12} />}
+                {metaSaved ? "Saved" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(localMetaDescription, "meta")}
+                disabled={!localMetaDescription}
+                className={btnClass}
+              >
+                {copiedItem === "meta" ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                {copiedItem === "meta" ? "Copied!" : "Copy"}
+              </button>
+            </div>
           </div>
           <textarea
             value={localMetaDescription}
@@ -2042,35 +2063,6 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             placeholder="Generate or type a meta description..."
             className="w-full resize-y rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={generateMetaDescription}
-              disabled={loading === "meta"}
-              className={btnClass}
-            >
-              {loading === "meta" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              Generate
-            </button>
-            <button
-              type="button"
-              onClick={saveMetaDescription}
-              disabled={metaSaving || !localMetaDescription}
-              className={btnClass}
-            >
-              {metaSaved ? <Check size={12} className="text-green-400" /> : <Save size={12} />}
-              {metaSaved ? "Saved" : "Save"}
-            </button>
-            <button
-              type="button"
-              onClick={() => copyToClipboard(localMetaDescription, "meta")}
-              disabled={!localMetaDescription}
-              className={btnClass}
-            >
-              {copiedItem === "meta" ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
-              {copiedItem === "meta" ? "Copied!" : "Copy"}
-            </button>
-          </div>
         </div>
         
         <div className="mt-6 flex gap-2">
