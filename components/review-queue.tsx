@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { QueueItem, QueueStatus, TaskStatus } from "@/lib/types"
 import { updateQueueItemStatus, getSortedQueue, getReviewByCompetitorName } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { Play, Eye } from "lucide-react"
+import { Play, Eye, Loader2 } from "lucide-react"
 
 // Check if all distribution tasks are completed
 function areAllTasksCompleted(tasks: TaskStatus | undefined): boolean {
@@ -30,9 +30,11 @@ interface QueueItemWithCompletion extends QueueItem {
 export function ReviewQueue() {
   const router = useRouter()
   const [queue, setQueue] = useState<QueueItemWithCompletion[]>([])
+  const [loading, setLoading] = useState(true)
 
   // Fetch queue and check task completion status for each item
   async function fetchQueueWithCompletion() {
+    setLoading(true)
     const items = await getSortedQueue()
     
     // Fetch review records to check task completion
@@ -56,6 +58,7 @@ export function ReviewQueue() {
     })
     
     setQueue(sorted)
+    setLoading(false)
   }
 
   useEffect(() => {
@@ -88,8 +91,15 @@ export function ReviewQueue() {
 
       {/* Queue List */}
       <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-foreground">Review Queue ({queue.length})</h2>
-        {queue.length === 0 ? (
+        <h2 className="text-sm font-semibold text-foreground">
+          Review Queue {!loading && `(${queue.length})`}
+        </h2>
+        {loading ? (
+          <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card/50 px-4 py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading queue...</p>
+          </div>
+        ) : queue.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-card/50 px-4 py-8 text-center text-sm text-muted-foreground">
             No items in queue
           </div>
