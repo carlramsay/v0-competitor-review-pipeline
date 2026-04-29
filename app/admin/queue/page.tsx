@@ -82,7 +82,7 @@ function QueueManager() {
     const existingReview = await getReviewByCompetitorName(item.name || "", item.url)
     if (existingReview) {
       // Navigate to the existing review
-      router.push(`/admin/reviews/${existingReview.id}`)
+      router.push(`/reviews/${existingReview.id}`)
       return
     }
     

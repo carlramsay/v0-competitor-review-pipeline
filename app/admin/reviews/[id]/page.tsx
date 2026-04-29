@@ -50,7 +50,7 @@ function AdminReviewDetailContent() {
   useEffect(() => {
     getReviewById(id).then((r) => {
       if (!r) {
-        router.replace("/admin/reviews")
+        router.replace("/reviews")
         return
       }
       setRecord(r)
@@ -82,7 +82,7 @@ function AdminReviewDetailContent() {
       <main className="mx-auto max-w-3xl px-4 py-8">
         {/* Back */}
         <Link
-          href="/admin/reviews"
+          href="/reviews"
           className="mb-5 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft size={13} />

@@ -11,7 +11,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (isAdminAuthenticated()) {
-      router.replace("/admin/reviews")
+      router.replace("/reviews")
     } else {
       router.replace("/")
     }
