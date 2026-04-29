@@ -78,8 +78,8 @@ export function buildAnswersString(formData: ReviewFormData, arousrBenchmark?: A
     sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
   )
   
-  // Use Arousr benchmark from settings if provided, otherwise fall back to per-review scores
-  const arousrTotal = arousrBenchmark?.total ?? formData.scores.reduce((sum, row) => 
+  // Always calculate arousrTotal from the review's scores array
+  const arousrTotal = formData.scores.reduce((sum, row) => 
     sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
   )
   
