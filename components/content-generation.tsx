@@ -549,113 +549,75 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       return
     }
 
-    // Calculate competitor total score from form_data.scores
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
     const competitorTotal = record.formData.scores.reduce(
       (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
     )
-    // Get Arousr total from app_settings
-    const arousrTotal = settings.arousrScores?.total || 0
-    // Calculate gap
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
     const gap = arousrTotal - competitorTotal
 
-    // Track previous hook style to ensure variety - rotate through styles
-    const existingTitle = record.generated.blogPostTitle || ""
-    const usedPrivacyHook = existingTitle.toLowerCase().includes("privacy") || existingTitle.toLowerCase().includes("verification")
-    const usedScoreHook = existingTitle.includes("/80") || /\d{2}\/80/.test(existingTitle)
-    const usedGapHook = existingTitle.toLowerCase().includes("point") || existingTitle.toLowerCase().includes("vs")
-    
-    let hookGuidance = ""
-    if (usedPrivacyHook) {
-      hookGuidance = "The previous title used privacy as a hook. Use a completely different angle: verdict/tone, score, gap, or a non-privacy detail."
-    } else if (usedScoreHook) {
-      hookGuidance = "The previous title used a score hook. Use verdict-led, gap-led, or detail-led style instead."
-    } else if (usedGapHook) {
-      hookGuidance = "The previous title used a gap/comparison hook. Use score-led (if surprising), verdict-led, or detail-led style instead."
-    }
-
+    const competitorName = record.formData.competitorName || "Competitor"
     const oneLineVerdict = record.formData.q24 || ""
     
-    const prompt = `Generate one blog post title for this competitor review.
+    const prompt = `You generate one blog post title per call for a competitor review site.
 
-COMPETITOR: ${record.formData.competitorName}
+INPUTS:
+COMPETITOR: ${competitorName}
 COMPETITOR SCORE: ${competitorTotal}/80
 AROUSR SCORE: ${arousrTotal}/80
-SCORE GAP: ${gap} points (pre-calculated — never recalculate this yourself)
+SCORE GAP: ${gap} points
 KEY FINDINGS: ${oneLineVerdict}
 
-Rules:
-- Competitor name must appear in every title, ideally near the front
+STRICT RULES:
+- Competitor name must appear in every title
 - Maximum 50 characters
-- Present-tense, hands-on review framing — never speculative or future-facing
 - Never use exclamation marks
-- Never wrap the title in quotes — output plain text only
-- Never start with "Exploring", "Testing", or "Navigating"
-- Never use: "deep-dive", "firsthand", "in-depth", "iconic", 
-  "emerging rivals", "survive", "dominating", "relevant", "hold up",
-  "experience" as a noun, "suitable for", "worth joining", "a good option",
-  "digital age", "is it worth it"
-- Never reference age, age verification, legal issues, or compliance
-- Never use provocative or potentially defamatory words like:
-  fake, scam, fraud, dangerous, illegal
-- Score must NOT appear in every title — only use it when it is 
-  surprisingly low or high
-- Privacy concerns are ONE possible hook, not the default — if the 
-  previous title used privacy as the hook, use a different angle
-- Each regeneration must rotate through hook styles in this order:
-  1. Verdict/tone — capture the overall feeling of the review
-  2. Score-led — only if score is surprisingly low or high
-  3. Gap-led — Arousr vs competitor gap
-  4. Detail-led — specific observation beyond privacy
-  Never repeat the same hook style twice in a row
-- Every title must contain at least one specific detail — a score, 
-  a finding, or a direct observation from the review
-- Tone should be neutral and observational — honest but not 
-  dismissive or mocking toward the competitor
-- Avoid words that feel like an attack: "struggles", "fails", 
-  "outdated", "frustration", "not even close"
-- Use specific details and observations from KEY FINDINGS — 
-  avoid generic descriptors
-- Aim for wit and personality — a title someone would actually 
-  want to click, not a product label
-${hookGuidance ? `\n${hookGuidance}` : ""}
+- Never wrap output in quotes
+- Never use: "open chats", "exploring", "testing", "navigating", 
+  "deep-dive", "firsthand", "in-depth", "is it worth it", 
+  "digital age", "emerging rivals", "iconic", "survive", 
+  "dominating", "relevant", "hold up", "suitable for"
+- Never reference age, verification bypass, legal issues, 
+  or compliance
+- Never use: fake, scam, fraud, dangerous, illegal
+- Tone is neutral and observational — not an attack
+- Never use: "struggles", "fails", "frustration"
 
-Choose the strongest hook for this specific review:
-- Score-led: only if the score is surprisingly low or high
-- Gap-led: use the Arousr vs competitor gap if it is significant
-- Verdict-led: capture the overall tone or feeling of the review
-- User-fit: describe who this platform is or is not for
-- Detail-led: use a specific observation from the review that stands out
+HOOK ROTATION — each call must use a different hook:
+Pick the hook that has NOT been used most recently:
+- VERDICT: overall tone or feeling ("clunky but charming")
+- SCORE: use the exact score if surprisingly low or high
+- GAP: reference the point difference vs Arousr
+- DETAIL: one specific observation from KEY FINDINGS
+- RETRO: the nostalgic/mIRC angle specific to this review
 
-Good examples:
-"Chat Avenue (2026): mIRC Vibes, Modern Expectations"
-"Chat Avenue Review: Free Comes With a Cost"
-"We Tested Chat Avenue — Arousr Won by 17 Points"
-"Chat Avenue: Great for 2003, Clunky for 2026"
-"Chat Avenue vs Arousr — Not Even Close"
-"Chat Avenue Review: 51/80 — Retro Charm, Modern Gaps"
-"Chat Avenue (2026): Free, Clunky, and Oddly Nostalgic"
-"Chat Avenue vs Arousr: 16 Points That Tell the Story"
+BANNED HOOKS (used too often — do not use):
+- "open chats" in any form
+- Security or privacy as the primary hook
+- Anonymous chat as the hook
 
-Bad examples (never produce these):
-"Exploring Chat Avenue: A Deep-Dive into a 51/80 Rating Experience"
-"Chat Avenue: A Firsthand Test of Its 51/80 Performance"
-"Testing Chat Avenue: A 51/80 Experience Compared to Arousr"
-"Chat Avenue's 51/80: What Works and What Doesn't?"
-"Will Chat Avenue Survive Against Emerging Rivals in 2026?"
-"Chat Avenue vs Arousr — One Wasn't Close"
-"Chat Avenue Review: Suitable for Casual Chatters"
-"Chat Avenue in 2026: Is It Worth Joining"
-"Chat Avenue Review — Is It Worth It? (2026)"
-"Chat Avenue: Navigating Retro Charm and Limitations"
-"Chat Avenue: Nostalgic Charm Meets Digital Age"
-"Chat Avenue: Open Chats, But Questionable Privacy"
-"Chat Avenue: Loose Privacy in an Open Chat Space"
-"Chat Avenue: Open Chat, Limited Privacy"
-"Chat Avenue: Privacy Concerns and Easy Access"
-"Chat Avenue: Anonymous Chats Amid Privacy Concerns"
+GOOD EXAMPLES:
+Chat Avenue (2026): mIRC Vibes, Modern Gaps
+Chat Avenue Review: Free, But at What Cost
+Chat Avenue vs Arousr — 16 Points Apart
+Chat Avenue: Great for 2003, Clunky for 2026
+Chat Avenue (2026): Retro Charm, Real Limitations
+Chat Avenue Review: 51/80 and Showing Its Age
 
-Output: one title only, no explanation, no quotes, no punctuation 
-outside the title itself.`
+BAD EXAMPLES — never produce these:
+Chat Avenue: Open Chats, But Questionable Privacy
+Chat Avenue: Open Chats with Questionable Security
+Chat Avenue: Anonymous Chats Amid Privacy Concerns
+Chat Avenue: Privacy Concerns and Easy Access
+Chat Avenue's Open Chats: Casual Yet Convenient
+Chat Avenue Review: Open Chats, Security Lapses
+Chat Avenue: Nostalgic Charm Meets Digital Age
+Chat Avenue: Navigating Retro Charm and Limitations
+Will Chat Avenue Survive Against Emerging Rivals in 2026?
+
+OUTPUT: one title only — no explanation, no quotes, no extra punctuation.`
 
     try {
       const res = await fetch("/api/generate", {
