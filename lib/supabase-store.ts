@@ -14,7 +14,17 @@ export class RLSError extends Error {
 }
 
 function handleSupabaseError(error: unknown, operation: string): never {
-  const errMsg = error instanceof Error ? error.message : String(error)
+  // Handle Supabase error objects which have { message, code, details, hint }
+  let errMsg: string
+  if (error && typeof error === 'object' && 'message' in error) {
+    errMsg = (error as { message: string }).message
+  } else if (error instanceof Error) {
+    errMsg = error.message
+  } else {
+    errMsg = JSON.stringify(error)
+  }
+  
+  console.error(`[v0] Supabase ${operation} error:`, error)
   
   // Check for common RLS/permission errors
   if (errMsg.includes("new row violates row-level security") ||
