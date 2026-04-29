@@ -1133,12 +1133,14 @@ Rules:
 - Arousr mention must feel like a natural factual comparison, 
   not a sales pitch or advertisement
 - Never use #AdultEntertainment
-- No age, legal, or compliance references
+- No legal or compliance references
 - No generic sign-offs
-- Never reference age verification, bypassing verification, 
-  or birthdays in any context
-- If the review notes weak verification, reframe as: 
-  "the signup process has minimal verification" — nothing more
+- BANNED WORDS that must NEVER appear anywhere in the post: 
+  "birthday", "birthdays", "age", "age verification", "underage", "minor"
+- If the review notes weak verification, use ONLY this exact phrase: 
+  "the signup process has minimal verification"
+  Do not elaborate. Do not explain what can be manipulated. 
+  Stop after that phrase.
 
 Opening: 
 - Never open with a general statement about privacy, safety, 
