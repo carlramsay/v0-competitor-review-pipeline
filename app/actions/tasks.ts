@@ -4,7 +4,7 @@ import postgres from "postgres"
 
 const connectionString = process.env.DATABASE_URL!
 
-export async function saveTasks(reviewId: string, tasks: Record<string, boolean> | string) {
+export async function saveTasks(reviewId: string, tasks: { [key: string]: boolean } | string) {
   if (!connectionString) {
     return { success: false, error: "DATABASE_URL not configured" }
   }

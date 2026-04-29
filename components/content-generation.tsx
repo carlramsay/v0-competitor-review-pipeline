@@ -146,7 +146,7 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
     setError(null)
     try {
       const { saveTasks } = await import("@/app/actions/tasks")
-      const result = await saveTasks(record.id, localTasks)
+      const result = await saveTasks(record.id, { ...localTasks })
       
       if (!result.success) {
         setError(result.error || "Save failed")
