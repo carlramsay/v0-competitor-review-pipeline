@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { QueueItem, QueueStatus, TaskStatus } from "@/lib/types"
+import { QueueItem, QueueStatus, TaskStatus, ReviewFormData } from "@/lib/types"
 import { updateQueueItemStatus, getSortedQueue, getReviewByCompetitorName, addToQueue, removeFromQueue } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { Play, Eye, Loader2, Plus, Trash2 } from "lucide-react"
@@ -22,8 +22,35 @@ function areAllTasksCompleted(tasks: TaskStatus | undefined): boolean {
   )
 }
 
+// Check if the review has actual answers (beyond competitorName, competitorUrl, date)
+function hasActualAnswers(formData: ReviewFormData | undefined): boolean {
+  if (!formData) return false
+  
+  // Fields that don't count as "answers"
+  const excludedFields = ["competitorName", "competitorUrl", "date"]
+  
+  // Check question fields q1-q30
+  for (let i = 1; i <= 30; i++) {
+    const key = `q${i}` as keyof ReviewFormData
+    const value = formData[key]
+    if (typeof value === "string" && value.trim() !== "") {
+      return true
+    }
+  }
+  
+  // Check other meaningful fields
+  if (formData.reviewerName?.trim()) return true
+  if (formData.deviceUsed) return true
+  if (formData.scores?.some(row => row.competitorScore !== "" || row.arousrScore !== "" || row.notes?.trim())) return true
+  if (formData.reviewScreenshots?.length) return true
+  
+  return false
+}
+
 interface QueueItemWithCompletion extends QueueItem {
   allTasksCompleted: boolean
+  hasAnswers: boolean
+  effectiveStatus: QueueStatus
 }
 
 
@@ -56,12 +83,22 @@ export function ReviewQueue() {
     setLoading(true)
     const items = await getSortedQueue()
     
-    // Fetch review records to check task completion
+    // Fetch review records to check task completion and actual answers
     const itemsWithCompletion = await Promise.all(
       items.map(async (item) => {
         const review = await getReviewByCompetitorName(item.name, item.url)
         const allTasksCompleted = areAllTasksCompleted(review?.tasks)
-        return { ...item, allTasksCompleted }
+        const hasAnswers = hasActualAnswers(review?.formData)
+        
+        // Determine effective status: only show "In Progress" if there are actual answers
+        let effectiveStatus: QueueStatus = item.status
+        if (item.status === "In Progress" && !hasAnswers) {
+          effectiveStatus = "Not Started"
+        } else if (item.status === "Not Started" && hasAnswers) {
+          effectiveStatus = "In Progress"
+        }
+        
+        return { ...item, allTasksCompleted, hasAnswers, effectiveStatus }
       })
     )
     
@@ -71,9 +108,9 @@ export function ReviewQueue() {
       if (a.allTasksCompleted && !b.allTasksCompleted) return 1
       if (!a.allTasksCompleted && b.allTasksCompleted) return -1
       
-      // Otherwise sort by status
+      // Otherwise sort by effective status
       const statusOrder = { "In Progress": 0, "Not Started": 1, "Completed": 2 }
-      return statusOrder[a.status] - statusOrder[b.status]
+      return statusOrder[a.effectiveStatus] - statusOrder[b.effectiveStatus]
     })
     
     setQueue(sorted)
@@ -230,16 +267,16 @@ export function ReviewQueue() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Show "Completed" if all tasks are done, otherwise show queue status */}
+                  {/* Show "Completed" if all tasks are done, otherwise show effective status */}
                   <span
                     className={cn(
                       "rounded-md px-2 py-1 text-xs font-medium",
                       item.allTasksCompleted
                         ? statusColors["Completed"]
-                        : statusColors[item.status]
+                        : statusColors[item.effectiveStatus]
                     )}
                   >
-                    {item.allTasksCompleted ? "Completed" : item.status}
+                    {item.allTasksCompleted ? "Completed" : item.effectiveStatus}
                   </span>
 
                   {/* Always show Review button so users can edit any review */}
@@ -256,8 +293,8 @@ export function ReviewQueue() {
                     Review
                   </button>
 
-                  {/* Delete button for Not Started items */}
-                  {item.status === "Not Started" && !item.allTasksCompleted && (
+                  {/* Delete button for Not Started items (based on effective status) */}
+                  {item.effectiveStatus === "Not Started" && !item.allTasksCompleted && (
                     <button
                       onClick={() => handleDelete(item.id)}
                       disabled={deletingId === item.id}
