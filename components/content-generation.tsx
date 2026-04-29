@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { ReviewRecord, ThumbnailImage, TaskStatus } from "@/lib/types"
 import { getSettings, updateGeneratedContent, updatePipelineStatus, updateTaskStatus, updateQueueItemStatusByUrl, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
-import { buildAnswersString } from "@/lib/review-utils"
+import { buildAnswersString, buildScoresTableHTML } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { generateHeyGenTTS, generateHeyGenAudioTTS } from "@/lib/heygen-actions"
 import { cn } from "@/lib/utils"
@@ -508,6 +508,21 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         const metaSection = metaMatch[1]
         const metaLine = metaSection.match(/Meta:\s*(.+)/)
         blogPostMeta = metaLine?.[1]?.trim() || ""
+      }
+
+      // Build scores table in JavaScript code (not GPT-4o) and insert before conclusion
+      const scoresTable = buildScoresTableHTML(
+        record.formData.competitorName || "Competitor",
+        record.formData.scores
+      )
+      
+      // Find the Conclusion section and insert scores table before it
+      const conclusionMatch = blogPost.match(/<h2[^>]*>.*?Conclusion.*?<\/h2>/i)
+      if (conclusionMatch && conclusionMatch.index !== undefined) {
+        blogPost = blogPost.slice(0, conclusionMatch.index) + scoresTable + "\n\n" + blogPost.slice(conclusionMatch.index)
+      } else {
+        // Fallback: append at the end if no conclusion found
+        blogPost = blogPost + "\n\n" + scoresTable
       }
 
       const updated = await updateGeneratedContent(record.id, { 
