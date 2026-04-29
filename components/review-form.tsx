@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FormSection, FormField } from "./form-section"
 import { ReviewFormData } from "@/lib/types"
-import { saveReview, saveDraft, getDraft, clearDraft, getReviewByCompetitorName } from "@/lib/store"
+import { saveReview, getReviewByCompetitorName } from "@/lib/store"
+import { saveDraftAction, getDraftAction, clearDraftAction } from "@/app/actions/draft"
 import { defaultScores, calcTotalScore } from "@/lib/review-utils"
 import {
   SECTION_1_QUESTIONS,
@@ -16,11 +17,155 @@ import {
   DISCOVERY_OPTIONS,
 } from "@/lib/questions"
 import { cn } from "@/lib/utils"
-import { Save, Check, Upload, X } from "lucide-react"
+import { Save, Check, Upload, X, GripVertical } from "lucide-react"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 const inputClass =
   "w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
 const textareaClass = cn(inputClass, "resize-y min-h-[80px] leading-relaxed")
+
+// Screenshot grid with drag-and-drop reordering
+function ScreenshotGrid({
+  screenshots,
+  onReorder,
+  onRemove,
+}: {
+  screenshots: string[]
+  onReorder: (newOrder: string[]) => void
+  onRemove: (index: number) => void
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // Create stable IDs for each screenshot
+  const items = screenshots.map((url, index) => ({
+    id: `screenshot-${index}-${url.slice(-20)}`,
+    url,
+    originalIndex: index,
+  }))
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (over && active.id !== over.id) {
+      const oldIndex = items.findIndex((item) => item.id === active.id)
+      const newIndex = items.findIndex((item) => item.id === over.id)
+      const newOrder = arrayMove(screenshots, oldIndex, newIndex)
+      onReorder(newOrder)
+    }
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {items.map((item, index) => (
+            <SortableScreenshot
+              key={item.id}
+              id={item.id}
+              dataUrl={item.url}
+              index={index}
+              onRemove={() => onRemove(index)}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  )
+}
+
+// Sortable screenshot component for drag-and-drop reordering
+function SortableScreenshot({ 
+  id, 
+  dataUrl, 
+  index, 
+  onRemove 
+}: { 
+  id: string
+  dataUrl: string
+  index: number
+  onRemove: () => void 
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : 1,
+    opacity: isDragging ? 0.8 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "relative group aspect-video rounded-md overflow-hidden border border-border bg-card",
+        isDragging && "shadow-lg ring-2 ring-primary"
+      )}
+    >
+      {/* Position badge */}
+      <div className="absolute top-1 left-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+        {index + 1}
+      </div>
+      
+      {/* Drag handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute top-1 left-8 z-10 cursor-grab p-1 rounded bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity active:cursor-grabbing"
+      >
+        <GripVertical size={14} className="text-white" />
+      </div>
+      
+      <img
+        src={dataUrl}
+        alt={`Screenshot ${index + 1}`}
+        className="w-full h-full object-cover"
+        draggable={false}
+      />
+      
+      {/* Remove button */}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="absolute top-1 right-1 p-1 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  )
+}
 
 function emptyForm(): ReviewFormData {
   return {
@@ -82,7 +227,7 @@ export function ReviewForm({ initialData, reviewId }: Props) {
         }
         
         // No existing review - check for draft
-        const draft = await getDraft()
+        const draft = await getDraftAction()
         if (draft && draft.formData.competitorName?.toLowerCase() === queueName?.toLowerCase()) {
           setForm(draft.formData)
         } else {
@@ -95,7 +240,7 @@ export function ReviewForm({ initialData, reviewId }: Props) {
         }
       } else {
         // No queue data - load draft if available
-        const draft = await getDraft()
+        const draft = await getDraftAction()
         if (draft) {
           setForm(draft.formData)
         }
@@ -105,10 +250,14 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     loadData()
   }, [initialData, searchParams])
 
-  async function handleSaveProgress() {
-    await saveDraft(form)
+async function handleSaveProgress() {
+  const result = await saveDraftAction(form)
+  if (result.success) {
     setSaveConfirmed(true)
     setTimeout(() => setSaveConfirmed(false), 2000)
+  } else {
+    console.error("[v0] Failed to save draft:", result.error)
+  }
   }
 
 
@@ -155,7 +304,7 @@ export function ReviewForm({ initialData, reviewId }: Props) {
     
     id = id ?? crypto.randomUUID()
     await saveReview({ id, submittedAt: new Date().toISOString(), formData: form, generated: existingGenerated })
-    await clearDraft()
+    await clearDraftAction()
     router.push(`/generate/${id}`)
   }
 
@@ -387,36 +536,21 @@ export function ReviewForm({ initialData, reviewId }: Props) {
             />
           </label>
 
-          {/* Thumbnail grid */}
+          {/* Thumbnail grid with drag-and-drop */}
           {form.reviewScreenshots && form.reviewScreenshots.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {form.reviewScreenshots.map((dataUrl, index) => (
-                <div key={index} className="relative group aspect-video rounded-md overflow-hidden border border-border">
-                  <img
-                    src={dataUrl}
-                    alt={`Screenshot ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForm((prev) => ({
-                        ...prev,
-                        reviewScreenshots: prev.reviewScreenshots?.filter((_, i) => i !== index) || [],
-                      }))
-                    }}
-                    className="absolute top-1 right-1 p-1 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
+            <ScreenshotGrid
+              screenshots={form.reviewScreenshots}
+              onReorder={(newOrder) => setForm((prev) => ({ ...prev, reviewScreenshots: newOrder }))}
+              onRemove={(index) => setForm((prev) => ({
+                ...prev,
+                reviewScreenshots: prev.reviewScreenshots?.filter((_, i) => i !== index) || [],
+              }))}
+            />
           )}
           
           {form.reviewScreenshots && form.reviewScreenshots.length > 0 && (
             <p className="text-xs text-muted-foreground">
-              {form.reviewScreenshots.length} screenshot{form.reviewScreenshots.length !== 1 ? "s" : ""} uploaded
+              {form.reviewScreenshots.length} screenshot{form.reviewScreenshots.length !== 1 ? "s" : ""} uploaded. Drag to reorder - video will cycle through in order shown.
             </p>
           )}
         </div>

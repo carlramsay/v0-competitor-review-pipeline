@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils"
 
 const tabs = [
   { label: "Queue", href: "/queue" },
-  { label: "Reviews", href: "/reviews" },
 ]
 
 export function TopNav() {

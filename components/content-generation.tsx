@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
-import { ReviewRecord, ThumbnailImage } from "@/lib/types"
-import { getSettings, updateGeneratedContent, updatePipelineStatus, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
+import { ReviewRecord, ThumbnailImage, TaskStatus } from "@/lib/types"
+import { getSettings, updateGeneratedContent, updatePipelineStatus, updateTaskStatus, updateQueueItemStatusByUrl, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
 import { buildAnswersString } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { generateHeyGenTTS, generateHeyGenAudioTTS } from "@/lib/heygen-actions"
@@ -18,9 +18,10 @@ interface EditableBlockProps {
   isGenerating?: boolean
   generateLabel?: string
   onChange?: (value: string) => void // Called on every edit to track current value
+  rows?: number // Number of rows for the textarea (default: auto based on min-h-[160px])
 }
 
-function EditableBlock({ label, content, onSave, onGenerate, isGenerating, generateLabel = "Generate", onChange }: EditableBlockProps) {
+function EditableBlock({ label, content, onSave, onGenerate, isGenerating, generateLabel = "Generate", onChange, rows }: EditableBlockProps) {
   const [value, setValue] = useState(content)
   const [saved, setSaved] = useState(false)
   const isDirty = value !== content
@@ -69,8 +70,180 @@ function EditableBlock({ label, content, onSave, onGenerate, isGenerating, gener
       <textarea
         value={value}
         onChange={(e) => { handleChange(e.target.value); setSaved(false) }}
-        className="min-h-[160px] w-full resize-y rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        rows={rows}
+        className={cn(
+          "w-full resize-y rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-ring",
+          rows ? "" : "min-h-[160px]"
+        )}
       />
+    </div>
+  )
+}
+
+// Task labels and defaults
+const DEFAULT_TASKS: TaskStatus = {
+  blogPublishedArousr: false,
+  videoPostedYouTube: false,
+  videoPostedXBIZ: false,
+  videoEmbeddedBlog: false,
+  blogPostedMedium: false,
+  linkedInArticle: false,
+  xPost: false,
+  facebookPost: false,
+}
+
+const TASK_LABELS: { key: keyof TaskStatus; label: string }[] = [
+  { key: "blogPublishedArousr", label: "Blog Post Published on Arousr" },
+  { key: "videoPostedYouTube", label: "Video Posted on YouTube" },
+  { key: "videoPostedXBIZ", label: "Video Posted on XBIZ.tv" },
+  { key: "videoEmbeddedBlog", label: "Video Embedded in Arousr Blog Post" },
+  { key: "blogPostedMedium", label: "Blog Posted on Medium (with canonical link to Arousr)" },
+  { key: "linkedInArticle", label: "LinkedIn Article Posted" },
+  { key: "xPost", label: "X.com Post with Link to Arousr Blog" },
+  { key: "facebookPost", label: "Facebook Post with Link to Medium Article" },
+]
+
+// Tasks section component
+function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: (r: ReviewRecord) => void }) {
+  const [localTasks, setLocalTasks] = useState<TaskStatus | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [hasChanges, setHasChanges] = useState(false)
+  const [loadingTasks, setLoadingTasks] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Always fetch fresh tasks from database on mount
+  useEffect(() => {
+    async function fetchTasks() {
+      setLoadingTasks(true)
+      try {
+        const { getTasks } = await import("@/app/actions/tasks")
+        const tasks = await getTasks(record.id)
+        setLocalTasks(tasks || DEFAULT_TASKS)
+      } catch (err) {
+        console.error("Fetch tasks error:", err)
+        setLocalTasks(DEFAULT_TASKS)
+      } finally {
+        setLoadingTasks(false)
+      }
+    }
+    fetchTasks()
+  }, [record.id])
+
+  const handleToggle = (key: keyof TaskStatus) => {
+    setLocalTasks(prev => {
+      const updated = { ...prev, [key]: !prev[key] }
+      setHasChanges(true)
+      return updated
+    })
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const { saveTasks } = await import("@/app/actions/tasks")
+      const result = await saveTasks(record.id, localTasks)
+      
+      if (!result.success) {
+        setError(result.error || "Save failed")
+        return
+      }
+      
+      setSaved(true)
+      setHasChanges(false)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      console.error("Error saving tasks:", err)
+      setError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const tasks = localTasks || DEFAULT_TASKS
+  const tasksComplete = Object.values(tasks).filter(Boolean).length
+  const tasksTotal = Object.keys(tasks).length
+
+  if (loadingTasks || !localTasks) {
+    return (
+      <div className="mt-8 rounded-lg border border-border bg-card overflow-hidden">
+        <div className="flex items-center justify-center p-8">
+          <Loader2 size={20} className="animate-spin text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading tasks...</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-8 rounded-lg border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border bg-secondary/30 px-5 py-3">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Distribution Tasks
+        </h2>
+        <span className={cn(
+          "text-xs font-medium",
+          tasksComplete === tasksTotal ? "text-green-500" : "text-muted-foreground"
+        )}>
+          {tasksComplete}/{tasksTotal} complete
+        </span>
+      </div>
+      <div className="p-5 space-y-3">
+        {TASK_LABELS.map(({ key, label }) => {
+          const isComplete = tasks[key]
+          return (
+            <label
+              key={key}
+              className="flex items-center gap-3 cursor-pointer group"
+            >
+              <input
+                type="checkbox"
+                checked={isComplete}
+                onChange={() => handleToggle(key)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
+              />
+              <span className={cn(
+                "text-sm transition-colors",
+                isComplete ? "text-foreground line-through" : "text-muted-foreground",
+                "group-hover:text-foreground"
+              )}>
+                {label}
+              </span>
+            </label>
+          )
+        })}
+      </div>
+      <div className="flex items-center justify-between border-t border-border bg-secondary/20 px-5 py-3">
+        <div className="flex items-center gap-2">
+          {saved && <span className="text-xs text-green-500">Saved!</span>}
+          {hasChanges && !saved && <span className="text-xs text-amber-400">Unsaved changes</span>}
+          {error && <span className="text-xs text-red-500">Error: {error}</span>}
+        </div>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !hasChanges}
+          className={cn(
+            "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
+            hasChanges
+              ? "bg-primary text-primary-foreground hover:opacity-90"
+              : "bg-secondary text-muted-foreground cursor-not-allowed"
+          )}
+        >
+          {saving ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save size={14} />
+              Save Progress
+            </>
+          )}
+        </button>
+      </div>
     </div>
   )
 }
@@ -313,12 +486,10 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       let blogPost = fullContent
       let blogPostTitle = ""
       let blogPostMeta = ""
-      let videoTitle = ""
 
       // Check if the response contains the metadata section
       const titleMatch = fullContent.match(/---TITLE---\s*([\s\S]*?)---META---/)
-      const metaMatch = fullContent.match(/---META---\s*([\s\S]*?)---VIDEO---/)
-      const videoMatch = fullContent.match(/---VIDEO---\s*([\s\S]*?)---END---/)
+      const metaMatch = fullContent.match(/---META---\s*([\s\S]*?)---END---/)
 
       if (titleMatch) {
         // Strip metadata from blog post
@@ -334,12 +505,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         const metaSection = metaMatch[1]
         const metaLine = metaSection.match(/Meta:\s*(.+)/)
         blogPostMeta = metaLine?.[1]?.trim() || ""
-      }
-
-      if (videoMatch) {
-        const videoSection = videoMatch[1]
-        const videoLine = videoSection.match(/Video:\s*(.+)/)
-        videoTitle = videoLine?.[1]?.trim() || ""
       }
 
       // Embed screenshots into the blog post HTML
@@ -398,7 +563,6 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         blogPost,
         blogPostTitle,
         blogPostMeta,
-        videoTitle,
       })
       if (updated) setRecord(updated)
       await updatePipelineStatus(record.id, { blogPostGenerated: true })
@@ -419,39 +583,83 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       return
     }
 
-    // Calculate scores for the prompt
-    const scores = record.formData.scores || []
-    const competitorTotal = scores.reduce((sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0)
-    const arousrTotal = scores.reduce((sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0)
-    const maxScore = scores.length * 10 // Assuming max 10 per feature
-    const scoreGap = arousrTotal - competitorTotal
+    // Calculate competitor total score from form_data.scores
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    // Get Arousr total from app_settings
+    const arousrTotal = settings.arousrScores?.total || 0
+    // Calculate gap
+    const gap = arousrTotal - competitorTotal
 
-    // Get existing title to avoid starting with same word
+    // Track previous hook style to ensure variety
     const existingTitle = record.generated.blogPostTitle || ""
-    const existingFirstWord = existingTitle.split(" ")[0]?.toLowerCase() || ""
+    const usedScoreHook = existingTitle.includes("/80") || /\d{2}\/80/.test(existingTitle)
+    const usedGapHook = existingTitle.toLowerCase().includes("point") || existingTitle.toLowerCase().includes("vs")
+    
+    let hookGuidance = ""
+    if (usedScoreHook) {
+      hookGuidance = "The previous title used a score hook. Use verdict-led, gap-led, or user-fit style instead."
+    } else if (usedGapHook) {
+      hookGuidance = "The previous title used a gap/comparison hook. Use score-led (if surprising), verdict-led, or user-fit style instead."
+    }
 
-    const prompt = `Generate a blog post title for a hands-on review of ${record.formData.competitorName}.
+    const prompt = `blog post title for this competitor review.
 
-DATA:
-- Competitor: ${record.formData.competitorName}
-- Competitor score: ${competitorTotal}/${maxScore}
-- Arousr score: ${arousrTotal}/${maxScore}
-- Score gap: Arousr leads by ${scoreGap > 0 ? scoreGap : "N/A"} points
-- Year: 2026
+COMPETITOR: ${record.formData.competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+SCORE GAP: ${gap} points (pre-calculated — never recalculate this yourself)
 
-STYLE: Randomly pick ONE of these approaches (do not mention which):
-1. Score-led: lead with the exact score (e.g. "${competitorTotal}/${maxScore}")
-2. Verdict-led: direct statement of what was found
-3. Comparison-led: Arousr vs competitor with score gap
-4. Tester-voice: signals first-hand human test
+Rules:
+- Competitor name must appear in every title, ideally near the front
+- Maximum 50 characters
+- Present-tense, hands-on review framing — never speculative or future-facing
+- Never use exclamation marks
+- Never wrap the title in quotes — output plain text only
+- Never start with "Exploring" or "Testing"
+- Never use: "deep-dive", "firsthand", "in-depth", "iconic", 
+  "emerging rivals", "survive", "dominating", "relevant", "hold up",
+  "experience" as a noun, "suitable for", "worth joining", "a good option"
+- Never reference age, age verification, legal issues, or compliance
+- Never use provocative or potentially defamatory words like:
+  fake, scam, fraud, dangerous, illegal
+- Score must NOT appear in every title — only use it when it is 
+  surprisingly low or high
+- Each regeneration must use a different hook style — if the previous 
+  title used the score, use verdict or gap next time
+- Use specific details and observations from KEY FINDINGS — 
+  avoid generic descriptors
+- Aim for wit and personality — a title someone would actually 
+  want to click, not a product label
+${hookGuidance ? `\n${hookGuidance}` : ""}
 
-RULES:
-- Maximum 70 characters
-- Must feel like a present-tense hands-on review, never speculative
-- NEVER use: "iconic", "emerging rivals", "survive", "dominating", "vs. the world", "vs. the future", "relevant", "hold up"
-- Include either the score, a specific finding, or a direct verdict
-- Do NOT start with "${existingFirstWord}" (the previous title started with that word)
-- Output only the title, nothing else.`
+Choose the strongest hook for this specific review:
+- Score-led: only if the score is surprisingly low or high
+- Gap-led: use the Arousr vs competitor gap if it is significant
+- Verdict-led: capture the overall tone or feeling of the review
+- User-fit: describe who this platform is or is not for
+- Detail-led: use a specific observation from the review that stands out
+
+Good examples:
+"Chat Avenue (2026): mIRC Vibes, Modern Expectations"
+"Chat Avenue Review: Free Comes With a Cost"
+"We Tested Chat Avenue — Arousr Won by 17 Points"
+"Chat Avenue: Great for 2003, Clunky for 2026"
+"Chat Avenue vs Arousr — Not Even Close"
+
+Bad examples (never produce these):
+"Exploring Chat Avenue: A Deep-Dive into a 51/80 Rating Experience"
+"Chat Avenue: A Firsthand Test of Its 51/80 Performance"
+"Testing Chat Avenue: A 51/80 Experience Compared to Arousr"
+"Chat Avenue's 51/80: What Works and What Doesn't?"
+"Will Chat Avenue Survive Against Emerging Rivals in 2026?"
+"Chat Avenue vs Arousr — One Wasn't Close"
+"Chat Avenue Review: Suitable for Casual Chatters"
+"Chat Avenue in 2026: Is It Worth Joining"
+
+Output: one title only, no explanation, no quotes, no punctuation 
+outside the title itself.`
 
     try {
       const res = await fetch("/api/generate", {
@@ -467,38 +675,6 @@ RULES:
       if (!res.ok) throw new Error(data.error ?? "Generation failed")
 
       const updated = await updateGeneratedContent(record.id, { blogPostTitle: data.content.trim() })
-      if (updated) setRecord(updated)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error")
-    } finally {
-      setLoading(null)
-    }
-  }
-
-  async function generateVideoTitle() {
-    setError(null)
-    setLoading("videoTitle")
-    const settings = await getSettings()
-    if (!settings.openaiApiKey) {
-      setError("No OpenAI API key found. Please add it in Settings.")
-      setLoading(null)
-      return
-    }
-
-    try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          type: "custom", 
-          prompt: `Generate a YouTube/video-optimized title for a review of ${record.formData.competitorName}. Must be under 70 characters, include the competitor name, "Review", and "2026". Output only the title, nothing else.`,
-          apiKey: settings.openaiApiKey 
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Generation failed")
-
-      const updated = await updateGeneratedContent(record.id, { videoTitle: data.content.trim() })
       if (updated) setRecord(updated)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
@@ -954,7 +1130,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       return null
     }
 
-    const videoTitle = record.generated.videoTitle || record.generated.blogPostYouTubeTitle || `Review: ${record.formData.competitorName || "Competitor"}`
+    const thumbnailTitle = record.generated.blogPostTitle || `Review: ${record.formData.competitorName || "Competitor"}`
     const reviewerName = record.formData.reviewerName || "Reviewer"
     const settings = await getSettings()
 
@@ -997,9 +1173,9 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
       
-      // Word wrap the video title if needed
+      // Word wrap the thumbnail title if needed
       const maxWidth = canvas.width * 0.85
-      const words = videoTitle.split(" ")
+      const words = thumbnailTitle.split(" ")
       const lines: string[] = []
       let currentLine = ""
       
@@ -1048,10 +1224,12 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     setThumbnailUrlVertical(null)
 
     try {
-      const horizontalUrl = await generateThumbnailWithFormat(1280, 720)
+      // WordPress recommended featured image size: 1200x628
+      const horizontalUrl = await generateThumbnailWithFormat(1200, 628)
       if (horizontalUrl) setThumbnailUrl(horizontalUrl)
 
-      const verticalUrl = await generateThumbnailWithFormat(720, 1280)
+      // Vertical for social media stories
+      const verticalUrl = await generateThumbnailWithFormat(628, 1200)
       if (verticalUrl) setThumbnailUrlVertical(verticalUrl)
 
       const updated = await updateGeneratedContent(record.id, {
@@ -1667,7 +1845,6 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             reviewerName: record.formData.reviewerName,
             competitorName: record.formData.competitorName,
             competitorUrl: record.formData.competitorUrl,
-            oneLineVerdict: record.formData.oneLineVerdict,
             scores: record.formData.scores,
           },
         }),
@@ -1760,7 +1937,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             URL.revokeObjectURL(url)
           }}
         />
-        
+
         {/* Blog Post Title */}
         <div className="mt-6">
           <EditableBlock
@@ -1769,6 +1946,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             onGenerate={generateBlogTitle}
             isGenerating={loading === "blogTitle"}
             generateLabel="Generate"
+            rows={1}
             onSave={async (v) => {
               const updated = await updateGeneratedContent(record.id, { blogPostTitle: v })
               if (updated) setRecord(updated)
@@ -1829,31 +2007,6 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         </button>
         {!collapsed.video && (
         <div className="px-5 pb-5">
-        
-        {/* Video Title */}
-        <div className="mb-6">
-          <EditableBlock
-            label="Video Title"
-            content={record.generated.videoTitle || record.generated.blogPostYouTubeTitle || ""}
-            onGenerate={generateVideoTitle}
-            isGenerating={loading === "videoTitle"}
-            generateLabel="Generate"
-            onSave={async (v) => {
-              const updated = await updateGeneratedContent(record.id, { videoTitle: v })
-              if (updated) setRecord(updated)
-            }}
-          />
-          {(record.generated.videoTitle || record.generated.blogPostYouTubeTitle) && (
-            <p className={cn(
-              "mt-1 text-xs",
-              (record.generated.videoTitle || record.generated.blogPostYouTubeTitle || "").length <= 70
-                ? "text-green-500"
-                : "text-red-500"
-            )}>
-              {(record.generated.videoTitle || record.generated.blogPostYouTubeTitle || "").length}/70 characters
-            </p>
-          )}
-        </div>
         
         <EditableBlock
           label="Video Script"
@@ -1948,10 +2101,10 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         {!collapsed.thumbnails && (
         <div className="px-5 pb-5">
 
-        {/* Video title requirement notice */}
-        {!record.generated.videoTitle && !record.generated.blogPostYouTubeTitle && (
+        {/* Blog title requirement notice */}
+        {!record.generated.blogPostTitle && (
           <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
-            Please generate a Video Title in the Video section first. The title will appear on the thumbnails.
+            Please generate a Blog Post Title first. The title will appear on the thumbnails.
           </div>
         )}
 
@@ -1985,7 +2138,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         <button 
           type="button" 
           onClick={generateThumbnail} 
-          disabled={loading !== null || (!record.generated.videoTitle && !record.generated.blogPostYouTubeTitle)} 
+          disabled={loading !== null || !record.generated.blogPostTitle} 
           className={btnClass}
         >
           {loading === "thumbnail" ? <Loader2 size={12} className="animate-spin" /> : <ImageIcon size={12} />}
@@ -1998,10 +2151,10 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             {thumbnailUrl && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Horizontal (1280x720)</span>
+                  <span className="text-sm font-medium text-foreground">Horizontal (1200x628)</span>
                   <a
                     href={thumbnailUrl}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.jpg`}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.png`}
                     className={btnClass}
                   >
                     <Download size={12} />
@@ -2014,10 +2167,10 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             {thumbnailUrlVertical && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Vertical (720x1280)</span>
+                  <span className="text-sm font-medium text-foreground">Vertical (628x1200)</span>
                   <a
                     href={thumbnailUrlVertical}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.jpg`}
+                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.png`}
                     className={btnClass}
                   >
                     <Download size={12} />
@@ -2209,6 +2362,9 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         </div>
         </div>
         )}
+
+        {/* Distribution Tasks */}
+        <TasksSection record={record} setRecord={setRecord} />
       </div>
     </div>
   )
