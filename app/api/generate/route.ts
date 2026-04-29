@@ -64,6 +64,8 @@ Do not add a Performance section unless the reviewer specifically commented on p
 
 Output raw HTML only — no markdown, no code fences, no explanation before or after the HTML.
 
+DO NOT include any images, screenshots, or <img> tags in the blog post. We will add images manually in WordPress.
+
 The post title sent to WordPress should be: [Competitor Name] Review — Is It Worth It? (2026)
 
 At the end of your response, after all HTML content, add a clearly delimited section formatted exactly like this:

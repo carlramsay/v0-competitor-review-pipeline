@@ -93,7 +93,7 @@ function buildRtfQuestionnaire(): string {
 
     for (const q of section.questions) {
       rtf.push(`\\b ${questionNumber}.\\b0  ${escapeRtf(q.label)}\\par`)
-      if (q.type === "number") {
+      if ("type" in q && q.type === "number") {
         rtf.push("\\par\\tab Answer: ____________________\\par")
       } else {
         rtf.push("\\par\\tab Answer:\\par")
