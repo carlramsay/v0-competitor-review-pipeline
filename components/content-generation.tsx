@@ -1207,23 +1207,20 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
 
     const images: HTMLImageElement[] = []
     const reviewScreenshots = record.formData.reviewScreenshots || []
-    const imageSources = reviewScreenshots.length > 0
-      ? reviewScreenshots.map((dataUrl, i) => ({ id: `review-${i}`, dataUrl }))
-      : backgroundLibrary
 
-    for (const bgImg of imageSources) {
+    if (reviewScreenshots.length === 0) {
+      throw new Error("No review screenshots available. Please add screenshots in the review form first.")
+    }
+
+    for (const dataUrl of reviewScreenshots) {
       const img = new Image()
       img.crossOrigin = "anonymous"
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve()
-        img.onerror = () => reject(new Error("Failed to load background image"))
-        img.src = bgImg.dataUrl
+        img.onerror = () => reject(new Error("Failed to load review screenshot"))
+        img.src = dataUrl
       })
       images.push(img)
-    }
-
-    if (images.length === 0) {
-      throw new Error("No background images available")
     }
 
     let logoVideo: HTMLVideoElement | null = null
