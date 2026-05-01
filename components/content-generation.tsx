@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react"
-import { ReviewRecord, ThumbnailImage, TaskStatus } from "@/lib/types"
-import { getSettings, updateGeneratedContent, updatePipelineStatus, updateTaskStatus, updateQueueItemStatusByUrl, getThumbnailLibrary, getVideoAsset, saveVideoAsset } from "@/lib/store"
-import { buildAnswersString } from "@/lib/review-utils"
+import { ReviewRecord, TaskStatus } from "@/lib/types"
+import { getSettings, updateGeneratedContent, updatePipelineStatus, updateTaskStatus, updateQueueItemStatusByUrl, getVideoAsset, saveVideoAsset } from "@/lib/store"
+import { buildAnswersString, buildScoresTableHTML } from "@/lib/review-utils"
 import { convertMarkdownToStyledHTML } from "@/lib/markdown-converter"
 import { generateHeyGenTTS, generateHeyGenAudioTTS } from "@/lib/heygen-actions"
 import { cn } from "@/lib/utils"
 import { Download, ImageIcon, Save, Check, RefreshCw } from "lucide-react"
 import { CopyButton } from "./copy-button"
-import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Eye, EyeOff, Linkedin, Facebook, Twitter, Instagram, MessageSquare, ChevronDown, Copy } from "lucide-react"
+import { FileText, Video, Share2, Globe, ExternalLink, Loader2, Eye, EyeOff, Linkedin, Facebook, Twitter, MessageSquare, ChevronDown, Copy } from "lucide-react"
 
 // Reusable editable text block with Copy and Save buttons
 interface EditableBlockProps {
@@ -112,14 +112,18 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   const [loadingTasks, setLoadingTasks] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Always fetch fresh tasks from database on mount
+  // Always fetch fresh tasks from database on mount using getReviewById
   useEffect(() => {
     async function fetchTasks() {
       setLoadingTasks(true)
       try {
-        const { getTasks } = await import("@/app/actions/tasks")
-        const tasks = await getTasks(record.id)
-        setLocalTasks(tasks || DEFAULT_TASKS)
+        const { getReviewById } = await import("@/lib/store")
+        const freshRecord = await getReviewById(record.id)
+        if (freshRecord?.tasks) {
+          setLocalTasks(freshRecord.tasks)
+        } else {
+          setLocalTasks(DEFAULT_TASKS)
+        }
       } catch (err) {
         console.error("Fetch tasks error:", err)
         setLocalTasks(DEFAULT_TASKS)
@@ -130,33 +134,35 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
     fetchTasks()
   }, [record.id])
 
-  const handleToggle = (key: keyof TaskStatus) => {
-    setLocalTasks(prev => {
-      if (!prev) return prev
-      const updated: TaskStatus = { ...prev, [key]: !prev[key] }
-      setHasChanges(true)
-      return updated
-    })
-  }
-
-  const handleSave = async () => {
+  const handleToggle = async (key: keyof TaskStatus) => {
     if (!localTasks) return
     
+    const updated: TaskStatus = { ...localTasks, [key]: !localTasks[key] }
+    setLocalTasks(updated)
+    
+    // Auto-save to database
     setSaving(true)
     setError(null)
     try {
-      const { saveTasks } = await import("@/app/actions/tasks")
-      const result = await saveTasks(record.id, { ...localTasks })
+      const { updateTaskStatus } = await import("@/lib/store")
+      const result = await updateTaskStatus(record.id, updated)
       
-      if (!result.success) {
-        setError(result.error || "Save failed")
+      if (!result) {
+        // Revert on error
+        setLocalTasks(localTasks)
+        setError("Save failed")
         return
       }
       
+      // Update the parent record with the new tasks
+      setRecord(result)
+      
       setSaved(true)
       setHasChanges(false)
-      setTimeout(() => setSaved(false), 2000)
+      setTimeout(() => setSaved(false), 1500)
     } catch (err) {
+      // Revert on error
+      setLocalTasks(localTasks)
       console.error("Error saving tasks:", err)
       setError(err instanceof Error ? err.message : "Unknown error")
     } finally {
@@ -217,54 +223,41 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
           )
         })}
       </div>
-      <div className="flex items-center justify-between border-t border-border bg-secondary/20 px-5 py-3">
+      {(saving || saved || error) && (
+      <div className="flex items-center justify-end border-t border-border bg-secondary/20 px-5 py-3">
         <div className="flex items-center gap-2">
-          {saved && <span className="text-xs text-green-500">Saved!</span>}
-          {hasChanges && !saved && <span className="text-xs text-amber-400">Unsaved changes</span>}
+          {saving && (
+            <>
+              <Loader2 size={14} className="animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Saving...</span>
+            </>
+          )}
+          {saved && !saving && <span className="text-xs text-green-500">Saved!</span>}
           {error && <span className="text-xs text-red-500">Error: {error}</span>}
         </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving || !hasChanges}
-          className={cn(
-            "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
-            hasChanges
-              ? "bg-primary text-primary-foreground hover:opacity-90"
-              : "bg-secondary text-muted-foreground cursor-not-allowed"
-          )}
-        >
-          {saving ? (
-            <>
-              <Loader2 size={14} className="animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save size={14} />
-              Save Progress
-            </>
-          )}
-        </button>
       </div>
+      )}
     </div>
   )
 }
 
-// HTML preview block with View Markdown toggle
+// HTML preview block with View Markdown toggle and optional Plain Text view
+type ViewMode = "html" | "markdown" | "plaintext"
+
 interface HTMLPreviewBlockProps {
   label: string
   htmlContent: string
   markdownContent: string
-  viewAsHtml: boolean
-  onToggleView: (asHtml: boolean) => void
+  plainTextContent?: string
+  viewMode: ViewMode
+  onChangeViewMode: (mode: ViewMode) => void
   onDownload: () => void
   onSave: (markdown: string) => void
   onGenerate?: () => void
   isGenerating?: boolean
 }
 
-function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onToggleView, onDownload, onSave, onGenerate, isGenerating }: HTMLPreviewBlockProps) {
+function HTMLPreviewBlock({ label, htmlContent, markdownContent, plainTextContent, viewMode, onChangeViewMode, onDownload, onSave, onGenerate, isGenerating }: HTMLPreviewBlockProps) {
   const [value, setValue] = useState(markdownContent)
   const [saved, setSaved] = useState(false)
   const isDirty = value !== markdownContent
@@ -282,6 +275,10 @@ function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onT
 
   const currentHtmlContent = isDirty ? convertMarkdownToStyledHTML(value) : htmlContent
   const btnClass = "flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-40"
+  const activeBtnClass = "flex items-center gap-1.5 rounded-md border border-primary bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors"
+
+  // Determine what text to copy based on view mode
+  const copyText = viewMode === "html" ? currentHtmlContent : viewMode === "plaintext" ? (plainTextContent || "") : value
 
   return (
     <div className="flex flex-col gap-2">
@@ -299,11 +296,25 @@ function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onT
               Generate
             </button>
           )}
-          <CopyButton text={viewAsHtml ? currentHtmlContent : value} />
-          <button type="button" onClick={() => onToggleView(!viewAsHtml)} className={btnClass}>
-            {viewAsHtml ? <EyeOff size={12} /> : <Eye size={12} />}
-            {viewAsHtml ? "View Markdown" : "View Styled Preview"}
+          <CopyButton text={copyText} />
+          <button 
+            type="button" 
+            onClick={() => onChangeViewMode(viewMode === "html" ? "markdown" : "html")} 
+            className={viewMode === "html" ? activeBtnClass : btnClass}
+          >
+            {viewMode === "html" ? <EyeOff size={12} /> : <Eye size={12} />}
+            {viewMode === "html" ? "View Markdown" : "View Styled Preview"}
           </button>
+          {plainTextContent !== undefined && (
+            <button 
+              type="button" 
+              onClick={() => onChangeViewMode(viewMode === "plaintext" ? "markdown" : "plaintext")} 
+              className={viewMode === "plaintext" ? activeBtnClass : btnClass}
+            >
+              <FileText size={12} />
+              Plain Text
+            </button>
+          )}
           <button type="button" onClick={onDownload} className={btnClass}>
             <Download size={12} />
             Download HTML
@@ -314,11 +325,15 @@ function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onT
           </button>
         </div>
       </div>
-      {viewAsHtml ? (
+      {viewMode === "html" ? (
         <div
           className="min-h-[160px] max-h-[500px] overflow-y-auto w-full rounded-md border border-border bg-[#1a1a1a] px-4 py-3 text-sm leading-relaxed"
           dangerouslySetInnerHTML={{ __html: currentHtmlContent }}
         />
+      ) : viewMode === "plaintext" ? (
+        <div className="min-h-[160px] max-h-[500px] overflow-y-auto w-full rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground font-mono whitespace-pre-wrap">
+          {plainTextContent}
+        </div>
       ) : (
         <textarea
           value={value}
@@ -341,14 +356,9 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   const [wpStatus, setWpStatus] = useState<{ url?: string; editUrl?: string } | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
-  const [thumbnailUrlVertical, setThumbnailUrlVertical] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  const [videoUrlVertical, setVideoUrlVertical] = useState<string | null>(null)
   const [videoProgress, setVideoProgress] = useState<string | null>(null)
-  const [blogPostViewAsHtml, setBlogPostViewAsHtml] = useState(true)
-  const [backgroundLibrary, setBackgroundLibrary] = useState<ThumbnailImage[]>([])
-  const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null)
+  const [blogPostViewMode, setBlogPostViewMode] = useState<ViewMode>("html")
   
   // Collapsible section states (collapsed by default)
   const [collapsed, setCollapsed] = useState({
@@ -361,6 +371,11 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   
   // Track which item was copied (for copy button feedback)
   const [copiedItem, setCopiedItem] = useState<string | null>(null)
+  
+  // Local meta description state for editing
+  const [localMetaDescription, setLocalMetaDescription] = useState(record.generated.blogPostMeta || "")
+  const [metaSaving, setMetaSaving] = useState(false)
+  const [metaSaved, setMetaSaved] = useState(false)
   
   const copyToClipboard = async (text: string, itemId: string) => {
     await navigator.clipboard.writeText(text)
@@ -376,33 +391,23 @@ export function ContentGeneration({ record: initialRecord }: Props) {
     videoScriptRef.current = record.generated.videoScript || ""
   }, [record.generated.videoScript])
 
-  // Load background image library on mount
+  // Sync localMetaDescription when record updates from server
   useEffect(() => {
-    getThumbnailLibrary().then(setBackgroundLibrary)
-  }, [])
-
-  // Hydrate saved thumbnails from record on mount
-  useEffect(() => {
-    if (initialRecord.generated.thumbnailDataUrl) {
-      setThumbnailUrl(initialRecord.generated.thumbnailDataUrl)
+    if (record.generated.blogPostMeta && record.generated.blogPostMeta !== localMetaDescription) {
+      setLocalMetaDescription(record.generated.blogPostMeta)
     }
-    if (initialRecord.generated.thumbnailVerticalDataUrl) {
-      setThumbnailUrlVertical(initialRecord.generated.thumbnailVerticalDataUrl)
-    }
-  }, [initialRecord.generated.thumbnailDataUrl, initialRecord.generated.thumbnailVerticalDataUrl])
+  }, [record.generated.blogPostMeta])
 
-  // Hydrate saved videos from storage on mount
+  // Hydrate saved video from storage on mount
   useEffect(() => {
-    async function loadVideos() {
-      console.log("[v0] Loading videos, videoDataUrl:", initialRecord.generated.videoDataUrl)
-      console.log("[v0] Loading videos, videoVerticalDataUrl:", initialRecord.generated.videoVerticalDataUrl)
-      // Load horizontal video
+    async function loadVideo() {
+      console.log("[v0] Loading video, videoDataUrl:", initialRecord.generated.videoDataUrl)
       if (initialRecord.generated.videoDataUrl) {
         try {
           const videoKey = initialRecord.generated.videoDataUrl
-          console.log("[v0] Fetching horizontal video with key:", videoKey)
+          console.log("[v0] Fetching video with key:", videoKey)
           const base64 = await getVideoAsset(videoKey)
-          console.log("[v0] Got horizontal video base64, length:", base64?.length)
+          console.log("[v0] Got video base64, length:", base64?.length)
           if (base64) {
             const binary = atob(base64)
             const bytes = new Uint8Array(binary.length)
@@ -412,29 +417,12 @@ export function ContentGeneration({ record: initialRecord }: Props) {
             setVideoUrl(url)
           }
         } catch (err) {
-          console.error("Failed to load horizontal video:", err)
-        }
-      }
-      // Load vertical video
-      if (initialRecord.generated.videoVerticalDataUrl) {
-        try {
-          const videoKey = initialRecord.generated.videoVerticalDataUrl
-          const base64 = await getVideoAsset(videoKey)
-          if (base64) {
-            const binary = atob(base64)
-            const bytes = new Uint8Array(binary.length)
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-            const blob = new Blob([bytes], { type: "video/mp4" })
-            const url = URL.createObjectURL(blob)
-            setVideoUrlVertical(url)
-          }
-        } catch (err) {
-          console.error("Failed to load vertical video:", err)
+          console.error("Failed to load video:", err)
         }
       }
     }
-    loadVideos()
-  }, [initialRecord.generated.videoDataUrl, initialRecord.generated.videoVerticalDataUrl])
+    loadVideo()
+  }, [initialRecord.generated.videoDataUrl])
 
   // Hydrate saved voiceover from Supabase on mount
   useEffect(() => {
@@ -510,6 +498,21 @@ export function ContentGeneration({ record: initialRecord }: Props) {
         blogPostMeta = metaLine?.[1]?.trim() || ""
       }
 
+      // Build scores table in JavaScript code (not GPT-4o) and insert before conclusion
+      const scoresTable = buildScoresTableHTML(
+        record.formData.competitorName || "Competitor",
+        record.formData.scores
+      )
+      
+      // Find the Conclusion section and insert scores table before it
+      const conclusionMatch = blogPost.match(/<h2[^>]*>.*?Conclusion.*?<\/h2>/i)
+      if (conclusionMatch && conclusionMatch.index !== undefined) {
+        blogPost = blogPost.slice(0, conclusionMatch.index) + scoresTable + "\n\n" + blogPost.slice(conclusionMatch.index)
+      } else {
+        // Fallback: append at the end if no conclusion found
+        blogPost = blogPost + "\n\n" + scoresTable
+      }
+
       const updated = await updateGeneratedContent(record.id, { 
         blogPost,
         blogPostTitle,
@@ -534,83 +537,75 @@ export function ContentGeneration({ record: initialRecord }: Props) {
       return
     }
 
-    // Calculate competitor total score from form_data.scores
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
     const competitorTotal = record.formData.scores.reduce(
       (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
     )
-    // Get Arousr total from app_settings
-    const arousrTotal = settings.arousrScores?.total || 0
-    // Calculate gap
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
     const gap = arousrTotal - competitorTotal
 
-    // Track previous hook style to ensure variety
-    const existingTitle = record.generated.blogPostTitle || ""
-    const usedScoreHook = existingTitle.includes("/80") || /\d{2}\/80/.test(existingTitle)
-    const usedGapHook = existingTitle.toLowerCase().includes("point") || existingTitle.toLowerCase().includes("vs")
+    const competitorName = record.formData.competitorName || "Competitor"
+    const oneLineVerdict = record.formData.q24 || ""
     
-    let hookGuidance = ""
-    if (usedScoreHook) {
-      hookGuidance = "The previous title used a score hook. Use verdict-led, gap-led, or user-fit style instead."
-    } else if (usedGapHook) {
-      hookGuidance = "The previous title used a gap/comparison hook. Use score-led (if surprising), verdict-led, or user-fit style instead."
-    }
+    const prompt = `You generate one blog post title per call for a competitor review site.
 
-    const prompt = `blog post title for this competitor review.
-
-COMPETITOR: ${record.formData.competitorName}
+INPUTS:
+COMPETITOR: ${competitorName}
 COMPETITOR SCORE: ${competitorTotal}/80
 AROUSR SCORE: ${arousrTotal}/80
-SCORE GAP: ${gap} points (pre-calculated — never recalculate this yourself)
+SCORE GAP: ${gap} points
+KEY FINDINGS: ${oneLineVerdict}
 
-Rules:
-- Competitor name must appear in every title, ideally near the front
+STRICT RULES:
+- Competitor name must appear in every title
 - Maximum 50 characters
-- Present-tense, hands-on review framing — never speculative or future-facing
 - Never use exclamation marks
-- Never wrap the title in quotes — output plain text only
-- Never start with "Exploring" or "Testing"
-- Never use: "deep-dive", "firsthand", "in-depth", "iconic", 
-  "emerging rivals", "survive", "dominating", "relevant", "hold up",
-  "experience" as a noun, "suitable for", "worth joining", "a good option"
-- Never reference age, age verification, legal issues, or compliance
-- Never use provocative or potentially defamatory words like:
-  fake, scam, fraud, dangerous, illegal
-- Score must NOT appear in every title — only use it when it is 
-  surprisingly low or high
-- Each regeneration must use a different hook style — if the previous 
-  title used the score, use verdict or gap next time
-- Use specific details and observations from KEY FINDINGS — 
-  avoid generic descriptors
-- Aim for wit and personality — a title someone would actually 
-  want to click, not a product label
-${hookGuidance ? `\n${hookGuidance}` : ""}
+- Never wrap output in quotes
+- Never use: "open chats", "exploring", "testing", "navigating", 
+  "deep-dive", "firsthand", "in-depth", "is it worth it", 
+  "digital age", "emerging rivals", "iconic", "survive", 
+  "dominating", "relevant", "hold up", "suitable for"
+- Never reference age, verification bypass, legal issues, 
+  or compliance
+- Never use: fake, scam, fraud, dangerous, illegal
+- Tone is neutral and observational — not an attack
+- Never use: "struggles", "fails", "frustration"
 
-Choose the strongest hook for this specific review:
-- Score-led: only if the score is surprisingly low or high
-- Gap-led: use the Arousr vs competitor gap if it is significant
-- Verdict-led: capture the overall tone or feeling of the review
-- User-fit: describe who this platform is or is not for
-- Detail-led: use a specific observation from the review that stands out
+HOOK ROTATION — each call must use a different hook:
+Pick the hook that has NOT been used most recently:
+- VERDICT: overall tone or feeling ("clunky but charming")
+- SCORE: use the exact score if surprisingly low or high
+- GAP: reference the point difference vs Arousr
+- DETAIL: one specific observation from KEY FINDINGS
+- RETRO: the nostalgic/mIRC angle specific to this review
 
-Good examples:
-"Chat Avenue (2026): mIRC Vibes, Modern Expectations"
-"Chat Avenue Review: Free Comes With a Cost"
-"We Tested Chat Avenue — Arousr Won by 17 Points"
-"Chat Avenue: Great for 2003, Clunky for 2026"
-"Chat Avenue vs Arousr — Not Even Close"
+BANNED HOOKS (used too often — do not use):
+- "open chats" in any form
+- Security or privacy as the primary hook
+- Anonymous chat as the hook
 
-Bad examples (never produce these):
-"Exploring Chat Avenue: A Deep-Dive into a 51/80 Rating Experience"
-"Chat Avenue: A Firsthand Test of Its 51/80 Performance"
-"Testing Chat Avenue: A 51/80 Experience Compared to Arousr"
-"Chat Avenue's 51/80: What Works and What Doesn't?"
-"Will Chat Avenue Survive Against Emerging Rivals in 2026?"
-"Chat Avenue vs Arousr — One Wasn't Close"
-"Chat Avenue Review: Suitable for Casual Chatters"
-"Chat Avenue in 2026: Is It Worth Joining"
+GOOD EXAMPLES:
+Chat Avenue (2026): mIRC Vibes, Modern Gaps
+Chat Avenue Review: Free, But at What Cost
+Chat Avenue vs Arousr — 16 Points Apart
+Chat Avenue: Great for 2003, Clunky for 2026
+Chat Avenue (2026): Retro Charm, Real Limitations
+Chat Avenue Review: 51/80 and Showing Its Age
 
-Output: one title only, no explanation, no quotes, no punctuation 
-outside the title itself.`
+BAD EXAMPLES — never produce these:
+Chat Avenue: Open Chats, But Questionable Privacy
+Chat Avenue: Open Chats with Questionable Security
+Chat Avenue: Anonymous Chats Amid Privacy Concerns
+Chat Avenue: Privacy Concerns and Easy Access
+Chat Avenue's Open Chats: Casual Yet Convenient
+Chat Avenue Review: Open Chats, Security Lapses
+Chat Avenue: Nostalgic Charm Meets Digital Age
+Chat Avenue: Navigating Retro Charm and Limitations
+Will Chat Avenue Survive Against Emerging Rivals in 2026?
+
+OUTPUT: one title only — no explanation, no quotes, no extra punctuation.`
 
     try {
       const res = await fetch("/api/generate", {
@@ -634,6 +629,98 @@ outside the title itself.`
     }
   }
 
+  async function generateMetaDescription() {
+    setError(null)
+    setLoading("meta")
+    const settings = await getSettings()
+    if (!settings.openaiApiKey) {
+      setError("No OpenAI API key found. Please add it in Settings.")
+      setLoading(null)
+      return
+    }
+
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
+
+    const competitorName = record.formData.competitorName || "Competitor"
+    const oneLineVerdict = record.formData.q24 || ""
+
+    const prompt = `Write one meta description for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+KEY FINDINGS: ${oneLineVerdict}
+
+Rules:
+- Length: 150-160 characters exactly — count carefully
+- Must mention the competitor name
+- Must include the exact score (e.g. ${competitorTotal}/80)
+- Must feel factual and observational — not promotional
+- Never use: "Discover", "Find out", "Learn why", "might be", 
+  "could be", "perhaps"
+- Never use clickbait or call-to-action language
+- May mention Arousr but only as a factual comparison, 
+  not as a recommendation
+- No age, legal, or compliance references
+- Include one specific finding from KEY FINDINGS
+
+Good example:
+"Chat Avenue scores 51/80 in our hands-on test. Free access 
+and retro charm, but limited safety features and unmoderated 
+chats. Here's how it compares to Arousr."
+
+Output: one meta description only, no explanation, no quotes.`
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: "You generate SEO meta descriptions for blog posts." },
+            { role: "user", content: prompt },
+          ],
+          max_tokens: 200,
+          temperature: 0.7,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error?.message ?? "Generation failed")
+
+      const metaDescription = data.choices[0].message.content.trim().replace(/^["']|["']$/g, "")
+      setLocalMetaDescription(metaDescription)
+      setMetaSaved(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function saveMetaDescription() {
+    setMetaSaving(true)
+    try {
+      const updated = await updateGeneratedContent(record.id, { blogPostMeta: localMetaDescription })
+      if (updated) setRecord(updated)
+      setMetaSaved(true)
+      setTimeout(() => setMetaSaved(false), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save meta description")
+    } finally {
+      setMetaSaving(false)
+    }
+  }
+
   async function generateVideoScript() {
     setError(null)
     setLoading("video")
@@ -644,20 +731,89 @@ outside the title itself.`
       return
     }
 
-    // Build answers with Arousr benchmark scores from settings
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
+    const gap = arousrTotal - competitorTotal
+
+    const competitorName = record.formData.competitorName || "Competitor"
+    const oneLineVerdict = record.formData.q24 || ""
+    const reviewerName = record.formData.reviewerName || "Reviewer"
+
+    // Build answers with form data for context
     const answers = buildAnswersString(record.formData, settings.arousrScores)
 
+    const prompt = `Write a video script for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+SCORE GAP: ${gap} points
+KEY FINDINGS: ${oneLineVerdict}
+REVIEWER: ${reviewerName}
+
+Rules:
+- Length: 150-180 words maximum — count carefully, do not exceed
+- Podcast monologue style — conversational, first person, spoken word
+- One point per section maximum — do not over-explain
+- Use specific observations and details from the review
+- Never invent statistics, ratios, or numbers the reviewer did not provide
+- Never use generic sign-offs like "That's a wrap", "Stay safe", 
+  "Until next time", or "See you next time"
+- Never reference age, age verification, legal issues, or compliance
+- Never use provocative or defamatory words: fake, scam, fraud, dangerous
+- Tone is neutral and observational — not an attack on the competitor
+- Arousr must be spelled "Arouser" throughout — this is a video script 
+  for audio, phonetic spelling is intentional
+- The closing line must include the exact score gap and feel punchy 
+  and specific — never vague or generic
+
+Structure (follow this order):
+1. One sentence intro — what the platform is
+2. Signup — one key observation only
+3. Interface — one key observation only
+4. Pricing — one key observation only
+5. Chat quality — one key observation; if the reviewer provided a 
+   direct quote or specific example of a message they received, 
+   use it verbatim or near-verbatim — do not sanitize or generalize; 
+   a raw, specific observation is more valuable than a polished summary
+6. Privacy/safety — one key observation only
+7. Closing — score gap vs Arouser, punchy final line
+
+Good closing example:
+"Chat Avenue scores 51/80 versus Arouser's 67. Free and accessible 
+— but if safety and quality matter, the gap tells the story."
+
+Output: script only, no section headers, no explanation.
+
+REVIEW DATA:
+${answers}`
+
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "video", answers, apiKey: settings.openaiApiKey }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: "You write video scripts for competitor review videos." },
+            { role: "user", content: prompt },
+          ],
+          max_tokens: 500,
+          temperature: 0.7,
+        }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Generation failed")
+      if (!res.ok) throw new Error(data.error?.message ?? "Generation failed")
 
-      // Replace Arousr with Arouser for voice script pronunciation
-      const videoScript = (data.content as string).replace(/Arousr/g, "Arouser")
+      const videoScript = data.choices[0].message.content.trim()
       const updated = await updateGeneratedContent(record.id, { videoScript })
       if (updated) setRecord(updated)
       await updatePipelineStatus(record.id, { videoScriptGenerated: true })
@@ -763,24 +919,50 @@ outside the title itself.`
       return
     }
 
-    // Build answers with Arousr benchmark scores from settings
-    const answers = buildAnswersString(record.formData, settings.arousrScores)
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
+    const gap = arousrTotal - competitorTotal
 
     const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write a tweet based on this competitor review of ${competitorName}. Follow these rules:
-TONE: Direct and factual. No fluff. State the finding, back it with a specific detail, mention Arousr.
-STRUCTURE:
-- One sentence stating the core finding about the competitor with a specific score or detail
-- One sentence with a specific observation from the review
-- One sentence mentioning Arousr by name with its score as contrast
-- Two to three hashtags
-LENGTH: Under 280 characters total including hashtags.
-DO NOT use: vague phrases like "users might want to look elsewhere", "worth considering", or any soft language.
-DO NOT skip: the Arousr mention with its score.
-DO NOT mention: age policies or age verification concerns.
-ALWAYS include: at least one specific number or score from the review.`
+    const oneLineVerdict = record.formData.q24 || ""
 
-    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+    const prompt = `Write a tweet for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+SCORE GAP: ${gap} points
+KEY FINDINGS: ${oneLineVerdict}
+
+Rules:
+- Maximum 240 characters including hashtags — count every 
+  character carefully before outputting
+- Direct and factual — no fluff, no filler words
+- Must include the exact competitor score
+- Must include Arousr with its exact score
+- Must include one specific detail from the review — 
+  a price, a feature, or a specific observation
+- Never use exclamation marks
+- Never use promotional language about Arousr
+- No age, legal, or compliance references
+- Never use #Arousr as a hashtag — it looks promotional
+
+Format: one or two punchy sentences followed by hashtags.
+
+Hashtags — always end with exactly these:
+#ChatReview #PrivacyMatters
+
+Good example:
+"Chat Avenue scores 51/80 — free anonymous chats, 90s 
+interface, but weak privacy and no block/report options. 
+Arousr scores 67/80 in the same test. #ChatReview #PrivacyMatters"
+
+Output: tweet text only, no explanation, no extra commentary.`
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -792,10 +974,11 @@ ALWAYS include: at least one specific number or score from the review.`
         body: JSON.stringify({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
+            { role: "system", content: "You write tweets for competitor review content." },
+            { role: "user", content: prompt },
           ],
           max_tokens: 300,
+          temperature: 0.7,
         }),
       })
 
@@ -815,73 +998,6 @@ ALWAYS include: at least one specific number or score from the review.`
     }
   }
 
-  async function generateInstagramCaption() {
-    setError(null)
-    setLoading("instagram")
-    const settings = await getSettings()
-    if (!settings.openaiApiKey) {
-      setError("No OpenAI API key found. Please add it in Settings.")
-      setLoading(null)
-      return
-    }
-
-    // Build answers with Arousr benchmark scores from settings
-    const answers = buildAnswersString(record.formData, settings.arousrScores)
-
-    const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write an Instagram caption based on this competitor review of ${competitorName}. Follow these rules:
-TONE: Casual, direct, written from a brand perspective — not first person singular. No "I found myself" or "if you're like me." Write as if the Arousr brand account is sharing a genuine platform review with their audience.
-STRUCTURE:
-- One hook sentence that states the core finding or creates curiosity
-- Two to three sentences covering the most interesting specific findings from the review — use real details from the reviewer's answers, not vague summaries
-- One sentence mentioning Arousr naturally as the alternative — not salesy, just factual
-- One engagement question to drive comments
-- Three to five relevant hashtags at the end
-LENGTH: 130-180 words.
-SPECIFIC DETAILS: Always include at least one concrete observation from the reviewer — a specific number, a specific moment, or a specific quote (cleaned up if needed for the platform). Vague phrases like "lack of safety features" should be replaced with what specifically was missing.
-MANDATORY REQUIREMENTS (every caption must have ALL of these):
-- Must include "Arousr" by name as an alternative — every single caption, no exceptions
-- Must end with 3-5 hashtags — never skip hashtags
-- Must include at least one specific number or detail from the reviewer's answers — never be vague
-DO NOT use: "here's the tea", "I found myself", "if you're like me", "might want to explore other options", or any other vague sign-offs.
-DO NOT mention: age policies, age verification bypass, or any age-related concerns.
-DO NOT end with: "stay safe", "chat wisely", "choose wisely", or any generic sign-off phrase.`
-
-    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
-
-    try {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${settings.openaiApiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
-          ],
-          max_tokens: 500,
-        }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error?.message ?? "Instagram caption generation failed")
-      }
-
-      const data = await res.json()
-      const content = data.choices?.[0]?.message?.content?.trim() || ""
-      const updated = await updateGeneratedContent(record.id, { instagramSnippet: content })
-      if (updated) setRecord(updated)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error")
-    } finally {
-      setLoading(null)
-    }
-  }
-
   async function generateRedditComment() {
     setError(null)
     setLoading("reddit")
@@ -892,23 +1008,61 @@ DO NOT end with: "stay safe", "chat wisely", "choose wisely", or any generic sig
       return
     }
 
-    // Build answers with Arousr benchmark scores from settings
-    const answers = buildAnswersString(record.formData, settings.arousrScores)
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
 
     const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write a Reddit comment based on this competitor review of ${competitorName}. Follow these rules:
-TONE: Genuine, first-person, like a real user sharing their experience. Conversational and unpolished. No brand voice. No promotional language whatsoever.
-STRUCTURE:
-- One sentence establishing that you personally tested the platform
-- Two to three sentences covering the most specific and interesting findings — use real numbers and real observations from the reviewer's answers
-- One honest closing sentence summarizing the experience without pushing an alternative
-LENGTH: 80-120 words maximum.
-DO NOT mention Arousr at all. Reddit users immediately recognize unprompted brand mentions as shilling and will downvote or report the comment. Arousr should only be mentioned if someone specifically asks for an alternative in a reply thread — never in the initial comment.
-DO NOT use: corporate language, "in contrast", "reflected in their score", "for those prioritizing", or any phrasing that sounds like marketing copy.
-DO NOT mention: age policies, age verification bypass, or any age-related concerns.
-DO write: like a real person who tested the platform and is sharing an honest take with no agenda.`
+    const oneLineVerdict = record.formData.q24 || ""
+    
+    // Extract reviewer quotes from relevant form fields
+    const reviewerQuotes = [
+      record.formData.q14, // Chat quality observations
+      record.formData.q15, // Specific chat examples
+      record.formData.q24, // One-line verdict
+    ].filter(Boolean).join(" | ")
 
-    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+    const prompt = `Generate a Reddit comment for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+KEY FINDINGS: ${oneLineVerdict}
+REVIEWER QUOTES: ${reviewerQuotes}
+
+Rules:
+- Length: 80-120 words
+- Tone: genuine first-person user voice — write like a real 
+  person sharing their experience on Reddit, not a reviewer
+- Never mention Arousr — this must feel like an independent 
+  user post, not a comparison review
+- Never use marketing language, promotional phrases, or 
+  corporate tone
+- Never use clichés like "hit-and-miss", "worth a look", 
+  "at the end of the day"
+- No age, legal, or compliance references
+- No exclamation marks
+- No score unless it fits naturally in the flow — Reddit 
+  users don't typically cite formal scores
+- Be direct and honest — Reddit users appreciate blunt, 
+  specific observations
+
+If the reviewer provided a specific crude or memorable quote 
+about chat quality, include it near-verbatim — Reddit 
+audiences respond well to raw, unfiltered observations. 
+This makes the post feel authentic.
+
+Opening: start with what you did, not a general statement 
+about the platform.
+Example: "Tried ${competitorName} last week out of curiosity..."
+
+Closing: a direct honest opinion about who this platform 
+is or isn't for — specific, not vague.
+Example: "Fine for a quick anonymous chat but don't expect 
+much in terms of privacy or safety features."
+
+Output: comment text only, no explanation, no hashtags, 
+no extra commentary.`
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -920,10 +1074,11 @@ DO write: like a real person who tested the platform and is sharing an honest ta
         body: JSON.stringify({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
+            { role: "system", content: "You write Reddit comments that sound like genuine user posts." },
+            { role: "user", content: prompt },
           ],
           max_tokens: 400,
+          temperature: 0.7,
         }),
       })
 
@@ -954,28 +1109,82 @@ DO write: like a real person who tested the platform and is sharing an honest ta
       return
     }
 
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
+    const gap = arousrTotal - competitorTotal
+
     const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write a LinkedIn post based on this competitor review of ${competitorName}. Follow these rules strictly:
-
-TONE: Conversational and opinion-led, like an industry professional sharing a genuine observation. Not corporate. Not formal. Not a press release. Write the way a real person posts on LinkedIn — direct, specific, a little opinionated.
-
-STRUCTURE:
-- One short opening hook that states the core finding immediately — no throat-clearing, no "the landscape continually evolves" type openers
-- Two or three short paragraphs covering the most interesting specific findings from the review — use real details, real numbers, real observations
-- One paragraph positioning what a better platform does differently — mention Arousr naturally, not as an ad
-- Three to five hashtags that are professional and platform-safe — avoid #AdultEntertainment or any tag likely to trigger LinkedIn content suppression. Use tags like #UserExperience #DigitalTrust #OnlineSafety #PlatformReview #DigitalWellness
-
-LENGTH: 200-280 words maximum.
-
-DO NOT mention: age policies, minimum age requirements, underage access, or any age-related safety concerns.
-DO NOT use: corporate filler phrases like "the landscape continually evolves", "it is crucial", "paramount", "highlighting room for improvement"
-DO NOT mention: the Arousr privacy score or any specific Arousr metrics — just mention it naturally as a platform that does things differently
-DO NOT use: #AdultEntertainment or similar hashtags that could trigger content suppression on LinkedIn`
+    const oneLineVerdict = record.formData.q24 || ""
+    const reviewerName = record.formData.reviewerName || "Reviewer"
 
     // Build answers with Arousr benchmark scores from settings
     const answers = buildAnswersString(record.formData, settings.arousrScores)
 
-    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+    const prompt = `Write a LinkedIn post for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+SCORE GAP: ${gap} points
+KEY FINDINGS: ${oneLineVerdict}
+REVIEWER: ${reviewerName}
+
+Rules:
+- Length: 200-280 words
+- Tone: conversational and opinion-led — write like a real person 
+  sharing a professional observation, not a press release
+- Never repeat the same noun phrase twice in one sentence
+- Never use corporate language like: "critical safety protocols", 
+  "absence of", "in contrast", "it is worth noting", "it should 
+  be mentioned", "raises several concerns", "deep dive", "deep-dive"
+- Must include the exact scores: competitor score and Arousr score
+- Must include one specific detail from the review — a price, 
+  a feature, a specific observation from the reviewer
+- Arousr mention must feel like a natural factual comparison, 
+  not a sales pitch or advertisement
+- Never use #AdultEntertainment
+- No legal or compliance references
+- No generic sign-offs
+- BANNED WORDS that must NEVER appear anywhere in the post: 
+  "birthday", "birthdays", "age", "age verification", "underage", "minor"
+- If the review notes weak verification, use ONLY this exact phrase: 
+  "the signup process has minimal verification"
+  Do not elaborate. Do not explain what can be manipulated. 
+  Stop after that phrase.
+
+Opening: 
+- Never open with a general statement about privacy, safety, 
+  or the importance of choosing the right platform
+- First line must reference the score, the reviewer, or a 
+  specific finding — nothing generic
+- Never open with "[Competitor] offers..." or "[Competitor] is 
+  a platform that..."
+
+Arousr: must appear EXACTLY ONCE in the entire post — only in 
+the factual score comparison sentence. Never mention Arousr again 
+after that sentence.
+Example: "For context, Arousr scored ${arousrTotal}/80 in the same test — 
+${gap} points higher, mostly on safety and host quality."
+
+Closing: must be about ${competitorName} — an honest final observation 
+about the platform itself. Never redirect to Arousr in the closing. 
+Not a call to action, not a sales line.
+
+Hashtags — always include exactly these, on a new line at the end:
+#UserExperience #DigitalTrust #OnlineSafety #PlatformReview #DigitalWellness
+
+Output: post text followed by hashtags on a new line. 
+No explanation, no extra commentary.
+
+REVIEW DATA:
+${answers}`
+
+    const userContent = record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -987,10 +1196,11 @@ DO NOT use: #AdultEntertainment or similar hashtags that could trigger content s
         body: JSON.stringify({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
+            { role: "system", content: "You write LinkedIn posts for competitor review content." },
+            { role: "user", content: prompt + (userContent ? `\n\n${userContent}` : "") },
           ],
           max_tokens: 1000,
+          temperature: 0.7,
         }),
       })
 
@@ -1021,25 +1231,82 @@ DO NOT use: #AdultEntertainment or similar hashtags that could trigger content s
       return
     }
 
+    // Calculate scores from form_data.scores - never let GPT-4o calculate
+    const competitorTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+    )
+    const arousrTotal = record.formData.scores.reduce(
+      (sum, row) => sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+    )
+    const gap = arousrTotal - competitorTotal
+
     const competitorName = record.formData.competitorName || "Competitor"
-    const systemPrompt = `Write a Facebook post based on this competitor review of ${competitorName}. Follow these rules strictly:
-
-TONE: Conversational, engaging, informative but not overly formal. Write from a brand voice perspective — do NOT use first person singular ("I", "me", "my", "if you're like me"). Use "we" or address the reader directly with "you".
-
-STRUCTURE:
-- Start with an attention-grabbing opening line or question
-- 2-3 paragraphs covering the main findings (what stood out, pricing insights, user experience observations)
-- End with a subtle mention of Arousr as an alternative worth checking out
-- Include a call-to-action at the end encouraging comments or engagement (e.g., "Have you tried this platform? Drop your experience in the comments!")
-
-DO NOT mention: age verification bypass, age policies, minimum age requirements, or any age-related concerns.
-
-LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook audience.`
+    const oneLineVerdict = record.formData.q24 || ""
+    const reviewerName = record.formData.reviewerName || "Reviewer"
 
     // Build answers with Arousr benchmark scores from settings
     const answers = buildAnswersString(record.formData, settings.arousrScores)
 
-    const userContent = `Form Answers:\n${answers}\n\n${record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""}`
+    const prompt = `Write a Facebook post for this competitor review.
+
+COMPETITOR: ${competitorName}
+COMPETITOR SCORE: ${competitorTotal}/80
+AROUSR SCORE: ${arousrTotal}/80
+SCORE GAP: ${gap} points
+KEY FINDINGS: ${oneLineVerdict}
+REVIEWER: ${reviewerName}
+
+Rules:
+- Length: 150-200 words
+- Tone: conversational and accessible — written for a general 
+  audience, not corporate professionals
+- Never use exclamation marks
+- Must include the exact competitor score and Arousr score
+- Must include at least one specific detail from the review — 
+  a price, a feature, a specific observation from the reviewer
+- Arousr must appear exactly once — one factual comparison 
+  sentence only, no promotion or description of Arousr's features
+- Never describe Arousr as "known for", "trusted", "reliable", 
+  or any other promotional language
+- Never use generic engagement bait like "Drop your thoughts 
+  in the comments", "We'd love to hear from you", or 
+  "Have you tried this platform?"
+- Never open with "Ever wondered", "Have you ever", or 
+  a question opener
+- Never use clickbait language
+- No legal or compliance references
+- No generic sign-offs
+- No hashtags
+- BANNED WORDS that must NEVER appear anywhere in the post: 
+  "birthday", "birthdays", "age", "age verification", "underage", "minor"
+- If the review notes weak verification, use ONLY this exact phrase: 
+  "the signup process has minimal verification"
+  Do not elaborate. Do not explain what can be manipulated. 
+  Stop after that phrase.
+
+Opening: must lead with a specific finding, the score, or 
+the reviewer's name and what they tested — never a question 
+or a vague teaser
+
+Structure:
+- Body paragraphs with findings about ${competitorName}
+- Second-to-last paragraph: the Arousr comparison sentence (exactly once)
+- Final paragraph: closing observation about ${competitorName}
+
+Arousr comparison: one sentence maximum, factual only, must appear 
+in the second-to-last paragraph — not in the middle of the post.
+Example: "For context, Arousr scored ${arousrTotal}/80 in the same 
+test — ${gap} points higher on safety and host quality."
+
+Closing: a genuine observation about ${competitorName} — not a 
+redirect to Arousr, not engagement bait.
+
+Output: post text only. No explanation, no extra commentary.
+
+REVIEW DATA:
+${answers}`
+
+    const userContent = record.generated.blogPost ? `Blog Post Content:\n${record.generated.blogPost}` : ""
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -1051,10 +1318,11 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         body: JSON.stringify({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
+            { role: "system", content: "You write Facebook posts for competitor review content." },
+            { role: "user", content: prompt + (userContent ? `\n\n${userContent}` : "") },
           ],
           max_tokens: 800,
+          temperature: 0.7,
         }),
       })
 
@@ -1065,11 +1333,9 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
 
       const data = await res.json()
       const content = data.choices?.[0]?.message?.content?.trim() || ""
-      const imageUrl = record.generated.thumbnailDataUrl || ""
 
       const updated = await updateGeneratedContent(record.id, {
         facebookPost: content,
-        facebookImageUrl: imageUrl,
       })
       if (updated) setRecord(updated)
     } catch (err) {
@@ -1079,127 +1345,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     }
   }
 
-  async function generateThumbnailWithFormat(width: number, height: number) {
-    const selectedImage = backgroundLibrary.find((img) => img.id === selectedBackgroundId)
-
-    if (!selectedImage) {
-      setError("Please select a background image first.")
-      return null
-    }
-
-    const thumbnailTitle = record.generated.blogPostTitle || `Review: ${record.formData.competitorName || "Competitor"}`
-    const reviewerName = record.formData.reviewerName || "Reviewer"
-    const settings = await getSettings()
-
-    try {
-      const canvas = document.createElement("canvas")
-      canvas.width = width
-      canvas.height = height
-      const ctx = canvas.getContext("2d")
-      if (!ctx) throw new Error("Failed to create canvas context")
-
-      if (selectedImage) {
-        const img = new Image()
-        img.crossOrigin = "anonymous"
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve()
-          img.onerror = () => reject(new Error("Failed to load background image"))
-          img.src = selectedImage.dataUrl
-        })
-        const scale = Math.max(canvas.width / img.width, canvas.height / img.height)
-        const x = (canvas.width - img.width * scale) / 2
-        const y = (canvas.height - img.height * scale) / 2
-        ctx.drawImage(img, x, y, img.width * scale, img.height * scale)
-      } else {
-        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-        gradient.addColorStop(0, "#1a1a2e")
-        gradient.addColorStop(1, "#16213e")
-        ctx.fillStyle = gradient
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-      }
-
-      ctx.fillStyle = "rgba(0, 0, 0, 0.55)"
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-      const titleSize = Math.round(width * 0.045)
-      const subtitleSize = Math.round(width * 0.028)
-      const siteNameSize = Math.round(width * 0.022)
-
-      ctx.fillStyle = "#ffffff"
-      ctx.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      
-      // Word wrap the thumbnail title if needed
-      const maxWidth = canvas.width * 0.85
-      const words = thumbnailTitle.split(" ")
-      const lines: string[] = []
-      let currentLine = ""
-      
-      for (const word of words) {
-        const testLine = currentLine ? `${currentLine} ${word}` : word
-        const metrics = ctx.measureText(testLine)
-        if (metrics.width > maxWidth && currentLine) {
-          lines.push(currentLine)
-          currentLine = word
-        } else {
-          currentLine = testLine
-        }
-      }
-      if (currentLine) lines.push(currentLine)
-      
-      // Draw title lines centered
-      const lineHeight = titleSize * 1.2
-      const totalHeight = lines.length * lineHeight
-      const startY = canvas.height / 2 - totalHeight / 2 - subtitleSize * 0.5
-      
-      lines.forEach((line, idx) => {
-        ctx.fillText(line, canvas.width / 2, startY + idx * lineHeight)
-      })
-
-      ctx.font = `${subtitleSize}px system-ui, -apple-system, sans-serif`
-      ctx.fillStyle = "#cccccc"
-      ctx.fillText(`Tested by ${reviewerName}`, canvas.width / 2, startY + totalHeight + subtitleSize * 0.8)
-
-      const siteName = settings.thumbnailSiteName || "Arousr"
-      ctx.font = `bold ${siteNameSize}px system-ui, -apple-system, sans-serif`
-      ctx.fillStyle = "#ffffff"
-      ctx.fillText(siteName, canvas.width / 2, canvas.height - siteNameSize * 2.3)
-
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.92)
-      return dataUrl
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error")
-      return null
-    }
-  }
-
-  async function generateThumbnail() {
-    setError(null)
-    setLoading("thumbnail")
-    setThumbnailUrl(null)
-    setThumbnailUrlVertical(null)
-
-    try {
-      // WordPress recommended featured image size: 1200x628
-      const horizontalUrl = await generateThumbnailWithFormat(1200, 628)
-      if (horizontalUrl) setThumbnailUrl(horizontalUrl)
-
-      // Vertical for social media stories
-      const verticalUrl = await generateThumbnailWithFormat(628, 1200)
-      if (verticalUrl) setThumbnailUrlVertical(verticalUrl)
-
-      const updated = await updateGeneratedContent(record.id, {
-        thumbnailDataUrl: horizontalUrl || undefined,
-        thumbnailVerticalDataUrl: verticalUrl || undefined,
-      })
-      if (updated) setRecord(updated)
-    } finally {
-      setLoading(null)
-    }
-  }
-
-  // Video generation functions (keeping existing implementation)
+  // Video generation functions
   interface WhisperWord { word: string; start: number; end: number }
 
   async function fetchWhisperCaptions(blob: Blob): Promise<WhisperWord[]> {
@@ -1250,28 +1396,24 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     const settings = await getSettings()
     const isVertical = height > width // Derive from dimensions
     const CROSSFADE_DURATION = 0.5
-    const IMAGE_CYCLE_INTERVAL = 6
     const LOGO_DURATION = 3
 
     const images: HTMLImageElement[] = []
     const reviewScreenshots = record.formData.reviewScreenshots || []
-    const imageSources = reviewScreenshots.length > 0
-      ? reviewScreenshots.map((dataUrl, i) => ({ id: `review-${i}`, dataUrl }))
-      : backgroundLibrary
 
-    for (const bgImg of imageSources) {
+    if (reviewScreenshots.length === 0) {
+      throw new Error("No review screenshots available. Please add screenshots in the review form first.")
+    }
+
+    for (const dataUrl of reviewScreenshots) {
       const img = new Image()
       img.crossOrigin = "anonymous"
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve()
-        img.onerror = () => reject(new Error("Failed to load background image"))
-        img.src = bgImg.dataUrl
+        img.onerror = () => reject(new Error("Failed to load review screenshot"))
+        img.src = dataUrl
       })
       images.push(img)
-    }
-
-    if (images.length === 0) {
-      throw new Error("No background images available")
     }
 
     let logoVideo: HTMLVideoElement | null = null
@@ -1304,6 +1446,11 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
     const audioDuration = audioBuffer.duration
     const totalDuration = audioDuration + LOGO_DURATION
+    
+    // Calculate duration per image so ALL images are shown exactly once during the audio
+    // Each image gets equal time: audioDuration / number of images
+    const IMAGE_DURATION = audioDuration / images.length
+    console.log(`[v0] Video: ${images.length} images, audio ${audioDuration.toFixed(1)}s, ${IMAGE_DURATION.toFixed(1)}s per image`)
 
     const audioDestination = audioContext.createMediaStreamDestination()
     const audioSource = audioContext.createBufferSource()
@@ -1537,16 +1684,21 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           ctx!.globalAlpha = 1
         }
       } else {
-        const cycleTime = elapsed % (IMAGE_CYCLE_INTERVAL * images.length)
-        const currentImageIndex = Math.floor(cycleTime / IMAGE_CYCLE_INTERVAL) % images.length
-        const timeInCurrentImage = cycleTime % IMAGE_CYCLE_INTERVAL
+        // Calculate which image to show based on elapsed time
+        // Each image gets IMAGE_DURATION seconds, showing all images exactly once
+        const currentImageIndex = Math.min(
+          Math.floor(elapsed / IMAGE_DURATION),
+          images.length - 1
+        )
+        const timeInCurrentImage = elapsed - (currentImageIndex * IMAGE_DURATION)
 
         // Draw screenshot with blurred background
         drawImageWithBlurredBg(images[currentImageIndex])
 
-        if (images.length > 1 && timeInCurrentImage >= IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION) {
-          const nextImageIndex = (currentImageIndex + 1) % images.length
-          const crossAlpha = (timeInCurrentImage - (IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION)) / CROSSFADE_DURATION
+        // Crossfade to next image (if not on last image)
+        if (currentImageIndex < images.length - 1 && timeInCurrentImage >= IMAGE_DURATION - CROSSFADE_DURATION) {
+          const nextImageIndex = currentImageIndex + 1
+          const crossAlpha = (timeInCurrentImage - (IMAGE_DURATION - CROSSFADE_DURATION)) / CROSSFADE_DURATION
           drawImageWithBlurredBg(images[nextImageIndex], crossAlpha)
         }
 
@@ -1597,19 +1749,13 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       const words = await fetchWhisperCaptions(audioBlob!)
       const captionGroups = buildCaptionGroups(words)
 
-      setVideoProgress("Generating horizontal video...")
+      setVideoProgress("Generating video...")
       const horizontalBlob = await generateVideoWithFormat(1920, 1080, "Horizontal", captionGroups, audioBlob!)
       const horizontalUrl = URL.createObjectURL(horizontalBlob)
       setVideoUrl(horizontalUrl)
 
-      setVideoProgress("Generating vertical video...")
-      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups, audioBlob!)
-      const verticalUrl = URL.createObjectURL(verticalBlob)
-      setVideoUrlVertical(verticalUrl)
-
       const updated = await updateGeneratedContent(record.id, {
         videoDataUrl: horizontalUrl,
-        videoVerticalDataUrl: verticalUrl,
       })
       if (updated) setRecord(updated)
 
@@ -1722,7 +1868,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       setVideoUrl(horizontalUrl)
       
       // Save horizontal video to storage
-      setVideoProgress("Saving horizontal video...")
+      setVideoProgress("Saving video...")
       const horizontalArrayBuffer = await horizontalBlob.arrayBuffer()
       const horizontalBytes = new Uint8Array(horizontalArrayBuffer)
       let horizontalBinary = ""
@@ -1733,29 +1879,9 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
       const horizontalKey = `video-horizontal-${record.id}`
       await saveVideoAsset(horizontalKey, horizontalBase64)
       
-      // Generate vertical slideshow video
-      const vStep = scriptChanged ? "Step 4/4" : "Step 3/3"
-      setVideoProgress(`${vStep}: Generating vertical video...`)
-      const verticalBlob = await generateVideoWithFormat(1080, 1920, "Vertical", captionGroups, currentAudioBlob!)
-      const verticalUrl = URL.createObjectURL(verticalBlob)
-      setVideoUrlVertical(verticalUrl)
-      
-      // Save vertical video to storage
-      setVideoProgress("Saving vertical video...")
-      const verticalArrayBuffer = await verticalBlob.arrayBuffer()
-      const verticalBytes = new Uint8Array(verticalArrayBuffer)
-      let verticalBinary = ""
-      for (let i = 0; i < verticalBytes.length; i++) {
-        verticalBinary += String.fromCharCode(verticalBytes[i])
-      }
-      const verticalBase64 = btoa(verticalBinary)
-      const verticalKey = `video-vertical-${record.id}`
-      await saveVideoAsset(verticalKey, verticalBase64)
-      
-      // Save keys to record (not blob URLs)
+      // Save key to record (not blob URL)
       const updatedRecord = await updateGeneratedContent(record.id, {
         videoDataUrl: horizontalKey,
-        videoVerticalDataUrl: verticalKey,
       })
       if (updatedRecord) setRecord(updatedRecord)
       
@@ -1818,12 +1944,336 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
     }
   }
 
-  const btnClass = "flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-40"
+  function convertBlogPostToPlainText(html: string, reviewerName?: string): string {
+    if (!html) return ""
+    
+    let text = html
+    
+    // Sections that should have [INSERT SCREENSHOT HERE] after them
+    const screenshotSections = ["signup", "interface", "pricing", "chat quality", "privacy"]
+    
+    // Convert h2 headings - only add screenshot marker for specific sections
+    text = text.replace(/<h2[^>]*>(.*?)<\/h2>/gi, (match, heading) => {
+      const headingLower = heading.toLowerCase().trim()
+      // Skip "Final Scores" or "Final Scores Comparison" sections entirely
+      if (headingLower.includes("final scores")) {
+        return "___REMOVE_SECTION___"
+      }
+      const needsScreenshot = screenshotSections.some(s => headingLower.includes(s))
+      return needsScreenshot 
+        ? `\n## ${heading}\n\n[INSERT SCREENSHOT HERE]\n`
+        : `\n## ${heading}\n`
+    })
+    
+    text = text.replace(/<h3[^>]*>(.*?)<\/h3>/gi, "\n### $1\n")
+    
+    // Convert blockquotes
+    text = text.replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, "> $1\n")
+    
+    // Convert bold and italic
+    text = text.replace(/<(b|strong)[^>]*>(.*?)<\/(b|strong)>/gi, "**$2**")
+    text = text.replace(/<(i|em)[^>]*>(.*?)<\/(i|em)>/gi, "*$2*")
+    
+    // Remove tables entirely (scores handled separately at the bottom)
+    text = text.replace(/<table[\s\S]*?<\/table>/gi, "")
+    
+    // Remove all inline styles
+    text = text.replace(/\s*style="[^"]*"/gi, "")
+    
+    // Convert paragraphs and line breaks
+    text = text.replace(/<\/p>/gi, "\n\n")
+    text = text.replace(/<br\s*\/?>/gi, "\n")
+    
+    // Remove remaining HTML tags
+    text = text.replace(/<[^>]+>/g, "")
+    
+    // Remove the "Final Scores" section and everything after the marker
+    text = text.replace(/___REMOVE_SECTION___[\s\S]*?(?=\n## |$)/gi, "")
+    
+    // Remove repeated reviewer credit line from body (e.g., "Reviewed by X for Arousr.com")
+    if (reviewerName) {
+      const creditPattern = new RegExp(`Reviewed by ${reviewerName}[^\\n]*`, "gi")
+      text = text.replace(creditPattern, "")
+    }
+    // Also remove generic reviewer credit patterns
+    text = text.replace(/Reviewed by [A-Za-z\s]+ for Arousr\.com[^\n]*/gi, "")
+    
+    // Clean up extra whitespace
+    text = text.replace(/\n{3,}/g, "\n\n")
+    text = text.trim()
+    
+  return text
+  }
 
+  function downloadClaudeDesignPrompt() {
+    const competitorName = record.formData.competitorName || "Competitor"
+    const reviewerName = record.formData.reviewerName || "Anonymous"
+    const date = record.formData.date || new Date().toISOString().split("T")[0]
+    const scores = record.formData.scores || []
+    
+    const competitorTotal = scores.reduce((sum, row) => sum + (Number(row.competitorScore) || 0), 0)
+    const arousrTotal = scores.reduce((sum, row) => sum + (Number(row.arousrScore) || 0), 0)
+    const gap = arousrTotal - competitorTotal
+
+    // Build scores table for the prompt
+    const scoresTable = scores.map(row => 
+      `| ${row.feature} | ${row.competitorScore}/10 | ${row.arousrScore}/10 |`
+    ).join("\n")
+
+    // Find top and bottom scorers for At a Glance slide
+    const sortedByCompetitor = [...scores].sort((a, b) => (Number(b.competitorScore) || 0) - (Number(a.competitorScore) || 0))
+    const topCompetitor = sortedByCompetitor.slice(0, 2).map(s => `${s.feature}: ${s.competitorScore}/10`).join(", ")
+    const bottomCompetitor = sortedByCompetitor.slice(-1).map(s => `${s.feature}: ${s.competitorScore}/10`).join(", ")
+    
+    const sortedByArousr = [...scores].sort((a, b) => (Number(b.arousrScore) || 0) - (Number(a.arousrScore) || 0))
+    const topArousr = sortedByArousr.slice(0, 2).map(s => `${s.feature}: ${s.arousrScore}/10`).join(", ")
+    const bottomArousr = sortedByArousr.slice(-1).map(s => `${s.feature}: ${s.arousrScore}/10`).join(", ")
+
+    // Extract key findings from review questions
+    const findings = [
+      record.formData.q5 ? { label: "Signup", text: record.formData.q5 } : null,
+      record.formData.q10 ? { label: "Interface", text: record.formData.q10 } : null,
+      record.formData.q15 ? { label: "Chat Quality", text: record.formData.q15 } : null,
+      record.formData.q20 ? { label: "Pricing", text: record.formData.q20 } : null,
+    ].filter(Boolean).slice(0, 4)
+
+    // Pull quote fallback chain:
+    // 1. Use review.generated.pull_quote if not null/empty
+    // 2. Find first clean <blockquote> tag in blogPost (skip any with restricted words)
+    // 3. Find first clean line starting with > in raw text
+    // 4. If still empty, use the constructed verdict as fallback
+    const restrictedWords = ["age", "birthday", "underage", "minor", "bypass", "verification", "legal", "compliance"]
+    const containsRestrictedWord = (text: string) => restrictedWords.some(word => text.toLowerCase().includes(word))
+    
+    let pullQuote = ""
+    if (record.generated.pull_quote && record.generated.pull_quote.trim() && !containsRestrictedWord(record.generated.pull_quote)) {
+      pullQuote = record.generated.pull_quote.trim()
+    } else if (record.generated.blogPost) {
+      // Try to extract first clean <blockquote> tag inner text
+      const blockquoteMatches = record.generated.blogPost.matchAll(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi)
+      for (const match of blockquoteMatches) {
+        const innerText = match[1].replace(/<[^>]+>/g, "").trim()
+        if (innerText && !containsRestrictedWord(innerText)) {
+          pullQuote = innerText
+          break
+        }
+      }
+      // If no clean blockquote found, try markdown-style quotes (> lines)
+      if (!pullQuote) {
+        const mdQuoteMatches = record.generated.blogPost.matchAll(/^>\s*(.+)$/gm)
+        for (const match of mdQuoteMatches) {
+          const quoteText = match[1].trim()
+          if (quoteText && !containsRestrictedWord(quoteText)) {
+            pullQuote = quoteText
+            break
+          }
+        }
+      }
+    }
+    // If still no clean pull quote, use constructed verdict as fallback
+    if (!pullQuote) {
+      pullQuote = `${competitorName} scored ${competitorTotal}/80 against Arousr's ${arousrTotal}/80 — a ${gap}-point gap across all categories.`
+    }
+    const includePullQuoteSlide = pullQuote.length > 0
+
+    // Verdict fallback:
+    // 1. Use review.generated.one_line_verdict if not null/empty
+    // 2. Otherwise construct a default verdict string - never output empty
+    let verdict = ""
+    if (record.generated.one_line_verdict && record.generated.one_line_verdict.trim()) {
+      verdict = record.generated.one_line_verdict.trim()
+    } else {
+      verdict = `${competitorName} scored ${competitorTotal}/80 against Arousr's ${arousrTotal}/80 — a ${gap}-point gap across all categories.`
+    }
+
+    const totalSlides = includePullQuoteSlide ? 10 : 9
+    const promptText = `Generate a ${totalSlides}-slide presentation for this competitor review. Follow the structure exactly.
+
+---
+
+## CONTENT BLOCK
+
+Competitor: ${competitorName}
+Reviewer: ${reviewerName}
+Date: ${date}
+
+### Scores Table
+| Category | ${competitorName} | Arousr |
+|----------|-----------|--------|
+${scoresTable}
+| **TOTAL** | **${competitorTotal}/80** | **${arousrTotal}/80** |
+
+Gap: Arousr leads by ${gap} points
+
+### At a Glance Facts
+${competitorName} strengths: ${topCompetitor}
+${competitorName} weakness: ${bottomCompetitor}
+Arousr strengths: ${topArousr}
+Arousr area to watch: ${bottomArousr}
+
+### Findings
+${findings.map((f, i) => `Finding ${i + 1} (${f?.label}): ${f?.text}`).join("\n")}
+
+### Pull Quote
+"${pullQuote}"
+— ${reviewerName}
+
+### Verdict
+${verdict}
+
+---
+
+## SLIDE STRUCTURE — ${totalSlides} slides, each 1200×630px:
+
+1. TITLE SLIDE (Cover)
+   Full-bleed cover photo from the Arousr Design System
+   70% dark overlay (#0D0D0D at 0.7 opacity) so text is legible
+   Headline: "${competitorName} vs Arousr" — Archivo Black, white, large
+   Sub: "An Independent Review — ${date}" — Inter, #999999, smaller
+   Red rule line (2px, #E63946) between headline and sub
+   Arousr logo placeholder bottom-left, small
+
+2. AT A GLANCE
+   Two columns: competitor specs left, Arousr right
+   Pull 3 facts per side from the scores table (top scorers and lowest scorers)
+
+3. COMPOSITE SCORE DIAL
+   Two arc gauges side by side — ${competitorName} ${competitorTotal}/80, Arousr ${arousrTotal}/80
+   Label the gap (${gap} points) in red between them
+
+4. SCORECARD BARS
+   Horizontal bar chart, all 8 categories
+   Competitor bar: #555, Arousr bar: #E63946 (red)
+   Category labels left-aligned, scores right-aligned
+
+5. FINDING #1
+   Left column (vertically centered within the column):
+     - Score number large, red, top of column
+     - Headline directly below score, no gap
+     - Body text immediately below headline
+     - If space remains, fill with the score as a large faded background number at 8% opacity
+   Right column: Half-width photo from the Arousr Design System
+   Red accent bar, left edge, full column height
+
+6. FINDING #2
+   Full width, content vertically centered on slide (not top-anchored):
+     - Score number large, red, top
+     - Headline directly below score, no gap
+     - Body text immediately below headline
+     - If space remains below body text, fill with the score as a large faded background number at 8% opacity
+   Red accent bar, left edge
+
+7. FINDING #3
+   Full width, content vertically centered on slide (not top-anchored):
+     - Score number large, red, top
+     - Headline directly below score, no gap
+     - Body text immediately below headline
+     - If space remains below body text, fill with the score as a large faded background number at 8% opacity
+   Red accent bar, left edge
+
+8. FINDING #4
+   Full width, content vertically centered on slide (not top-anchored):
+     - Score number large, red, top
+     - Headline directly below score, no gap
+     - Body text immediately below headline
+     - If space remains below body text, fill with the score as a large faded background number at 8% opacity
+   Red accent bar, left edge
+${includePullQuoteSlide ? `
+9. PULL QUOTE SLIDE
+   Full-bleed background photo at 20% opacity
+   Oversized opening quote mark in red
+   Quote text: "${pullQuote}"
+   Quote text in Lora italic, 28–32px, white
+   Reviewer credit: ${reviewerName}, bottom right
+` : `
+(Slide 9 omitted — no pull quote available)
+`}
+${includePullQuoteSlide ? "10" : "9"}. BOTTOM LINE SLIDE
+  Headline: "Arousr leads by ${gap} points"
+  Verdict: "${verdict}"
+  Arousr logo placeholder bottom right
+  CTA: "arousr.com"
+
+---
+
+## DESIGN SYSTEM
+
+Typography:
+  Headlines: Archivo Black, uppercase, tracked +2px
+  Body: Inter or system sans, 16px, #CCCCCC
+  Pull quotes: Lora italic, #FFFFFF
+  Labels/scores: Archivo Black, #E63946
+
+Colors:
+  Background: #0D0D0D
+  Surface cards: #1A1A1A
+  Accent red: #E63946
+  Text primary: #FFFFFF
+  Text secondary: #999999
+  Competitor bar: #444444
+  Arousr bar: #E63946
+
+Layout:
+  Padding: 64px all sides
+  Column gutter: 40px
+  Slide ratio: exactly 1200×630px
+
+Brand:
+  Follow the Arousr Design System where applicable — use Arousr's established
+  type scale, spacing rhythm, and red/dark color palette as the base.
+  Do not introduce colors or typefaces that conflict with the Arousr brand.
+  Arousr logo placeholder appears on slides 1 and 10.
+
+Photography:
+  Use photos from the Arousr Design System — do not source from Unsplash or any external library.
+  Apply photos in exactly 3 slides:
+  - Slide 1 (Title): Full-bleed cover photo from the Arousr Design System.
+    Dark-toned lifestyle/connection scene. Overlay with 70% dark gradient (#0D0D0D at 0.7 opacity)
+    so text reads clearly. Photo fills the entire 1200×630 frame.
+  - Slide 5 (Finding #1): Half-width photo from the Arousr Design System, right column.
+    Select an image that fits an editorial/tech context.
+  - Slide 9 (Pull Quote): Full-bleed background photo from the Arousr Design System at 20% opacity.
+    Select a moody or atmospheric image from the available assets.
+  All photos must come from the Arousr Design System assets already loaded in this session.
+
+---
+
+## CONSTRAINTS
+- Do not reference age, age verification, minors, or legal compliance anywhere
+- Do not invent statistics not present in the content block above
+- Scores must match the content block exactly — never recalculate
+- Pull quote must be used verbatim — never paraphrase
+- Verdict and gap figure must match the content block
+
+---
+
+## EXPORT
+Generate a render.html file.
+Each slide renders as a fixed 1200×630px div.
+
+Include a button: "Export all slides as PNG (1200×630)"
+On click, open a new browser tab.
+In that new tab, render all slides stacked vertically with a download link below each one.
+Each download link triggers a PNG save of that slide at exactly 1200×630px.
+Use html2canvas or equivalent to capture each slide div.
+File naming: ${competitorName.toLowerCase().replace(/\s+/g, "-")}-slide-01.png through ${competitorName.toLowerCase().replace(/\s+/g, "-")}-slide-${String(totalSlides).padStart(2, "0")}.png
+`
+
+    const blob = new Blob([promptText], { type: "text/plain;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${competitorName.toLowerCase().replace(/\s+/g, "-")}-claude-design-prompt.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+  
+  const btnClass = "flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-40"
+  
   return (
-    <div className="flex flex-col gap-6">
-      {/* Error display */}
-      {error && (
+  <div className="flex flex-col gap-6">
+  {/* Error display */}
+  {error && (
         <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400">
           {error}
         </div>
@@ -1873,8 +2323,9 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           label="Blog Post"
           htmlContent={convertMarkdownToStyledHTML(record.generated.blogPost || "")}
           markdownContent={record.generated.blogPost || ""}
-          viewAsHtml={blogPostViewAsHtml}
-          onToggleView={setBlogPostViewAsHtml}
+          plainTextContent={convertBlogPostToPlainText(record.generated.blogPost || "", record.formData.reviewerName)}
+          viewMode={blogPostViewMode}
+          onChangeViewMode={setBlogPostViewMode}
           onGenerate={generateBlogPost}
           isGenerating={loading === "blog"}
           onSave={async (v) => {
@@ -1912,38 +2363,53 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         </div>
         
         {/* Meta Description */}
-        {record.generated.blogPostMeta && (
-          <div className="mt-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Meta Description</h3>
-              <span className={cn(
-                "text-xs",
-                record.generated.blogPostMeta.length >= 150 && record.generated.blogPostMeta.length <= 160
-                  ? "text-green-500"
-                  : "text-yellow-500"
-              )}>
-                {record.generated.blogPostMeta.length} characters
-              </span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
-              <span className="flex-1 text-sm text-foreground">{record.generated.blogPostMeta}</span>
+        <div className="mt-6 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Meta Description</h3>
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => copyToClipboard(record.generated.blogPostMeta!, "meta")}
-                className="flex-shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                title="Copy to clipboard"
+                onClick={generateMetaDescription}
+                disabled={loading === "meta"}
+                className={btnClass}
               >
-                {copiedItem === "meta" ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                {loading === "meta" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                Generate
+              </button>
+              <button
+                type="button"
+                onClick={saveMetaDescription}
+                disabled={metaSaving || !localMetaDescription}
+                className={btnClass}
+              >
+                {metaSaved ? <Check size={12} className="text-green-400" /> : <Save size={12} />}
+                {metaSaved ? "Saved" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(localMetaDescription, "meta")}
+                disabled={!localMetaDescription}
+                className={btnClass}
+              >
+                {copiedItem === "meta" ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                {copiedItem === "meta" ? "Copied!" : "Copy"}
               </button>
             </div>
           </div>
-        )}
+          <textarea
+            value={localMetaDescription}
+            onChange={(e) => { setLocalMetaDescription(e.target.value); setMetaSaved(false) }}
+            rows={3}
+            placeholder="Generate or type a meta description..."
+            className="w-full resize-y rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
         
-        <div className="mt-6 flex gap-2">
-          <button type="button" onClick={pushToWordPress} disabled={loading !== null} className={btnClass}>
-            {loading === "wp" ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
-            Push to WordPress
-          </button>
+        <div className="mt-6 flex flex-wrap gap-2">
+        <button type="button" onClick={pushToWordPress} disabled={loading !== null} className={btnClass}>
+          {loading === "wp" ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
+        Push to WordPress
+        </button>
         </div>
         </div>
         )}
@@ -1978,7 +2444,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             if (updated) setRecord(updated)
           }}
         />
-        {(record.generated.videoScript || videoScriptRef.current) && audioBlob && (
+        {(record.generated.videoScript || videoScriptRef.current) && (
           <div className="mt-4">
             <button type="button" onClick={generateFullVideo} disabled={loading !== null} className={btnClass}>
               {loading === "fullVideo" ? (
@@ -1998,43 +2464,23 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
           <div className="mt-4 text-sm text-muted-foreground">{videoProgress}</div>
         )}
 
-        {/* Slideshow Videos */}
-        {(videoUrl || videoUrlVertical) && (
+        {/* Slideshow Video */}
+        {videoUrl && (
           <div className="mt-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Slideshow Videos</h3>
-          <div className="mt-4 grid gap-6 lg:grid-cols-2">
-            {videoUrl && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Horizontal (1920x1080)</span>
-                  <a
-                    href={videoUrl}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-horizontal.webm`}
-                    className={btnClass}
-                  >
-                    <Download size={12} />
-                    Download
-                  </a>
-                </div>
-                <video controls src={videoUrl} className="w-full rounded-md" />
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Slideshow Video</h3>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">Horizontal (1920x1080)</span>
+                <a
+                  href={videoUrl}
+                  download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-horizontal.webm`}
+                  className={btnClass}
+                >
+                  <Download size={12} />
+                  Download
+                </a>
               </div>
-            )}
-            {videoUrlVertical && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Vertical (1080x1920)</span>
-                  <a
-                    href={videoUrlVertical}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-review-vertical.webm`}
-                    className={btnClass}
-                  >
-                    <Download size={12} />
-                    Download
-                  </a>
-                </div>
-                <video controls src={videoUrlVertical} className="aspect-[9/16] max-h-[400px] w-auto self-center rounded-md" />
-              </div>
-            )}
+              <video controls src={videoUrl} className="w-full rounded-md" />
             </div>
           </div>
         )}
@@ -2042,7 +2488,7 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         )}
       </div>
 
-      {/* 3. Thumbnails */}
+      {/* 3. Images */}
       <div className="rounded-lg border border-border bg-card">
         <button
           type="button"
@@ -2051,94 +2497,84 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
         >
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <ImageIcon size={16} />
-            3. Thumbnails
+            3. Images
           </h2>
           <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", collapsed.thumbnails && "-rotate-90")} />
         </button>
         {!collapsed.thumbnails && (
         <div className="px-5 pb-5">
-
-        {/* Blog title requirement notice */}
-        {!record.generated.blogPostTitle && (
-          <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
-            Please generate a Blog Post Title first. The title will appear on the thumbnails.
-          </div>
-        )}
-
-        {/* Background image picker */}
-        {backgroundLibrary.length > 0 && (
-          <div className="mb-4">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">Select Background Image</p>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {backgroundLibrary.map((img) => (
+          {record.formData.reviewScreenshots && record.formData.reviewScreenshots.length > 0 ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              {record.formData.reviewScreenshots.map((dataUrl, index) => (
                 <button
-                  key={img.id}
+                  key={index}
                   type="button"
-                  onClick={() => setSelectedBackgroundId(img.id)}
-                  className={cn(
-                    "group relative overflow-hidden rounded-md border-2 transition-all",
-                    selectedBackgroundId === img.id
-                      ? "border-primary ring-2 ring-primary/30"
-                      : "border-border hover:border-muted-foreground"
-                  )}
+                  onClick={() => {
+                    // Create a canvas to resize to WordPress featured image size (1200x628)
+                    const img = new window.Image()
+                    img.crossOrigin = "anonymous"
+                    img.onload = () => {
+                      const canvas = document.createElement("canvas")
+                      canvas.width = 1200
+                      canvas.height = 628
+                      const ctx = canvas.getContext("2d")
+                      if (!ctx) return
+                      
+                      // Calculate crop to fit 1200x628 aspect ratio
+                      const targetAspect = 1200 / 628
+                      const imgAspect = img.width / img.height
+                      let sx = 0, sy = 0, sw = img.width, sh = img.height
+                      
+                      if (imgAspect > targetAspect) {
+                        // Image is wider - crop sides
+                        sw = img.height * targetAspect
+                        sx = (img.width - sw) / 2
+                      } else {
+                        // Image is taller - crop top/bottom
+                        sh = img.width / targetAspect
+                        sy = (img.height - sh) / 2
+                      }
+                      
+                      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, 1200, 628)
+                      
+                      // Download as PNG
+                      const link = document.createElement("a")
+                      link.download = `${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-image-${index + 1}.png`
+                      link.href = canvas.toDataURL("image/png")
+                      link.click()
+                    }
+                    img.src = dataUrl
+                  }}
+                  className="group relative overflow-hidden rounded-md border border-border hover:border-primary transition-colors cursor-pointer"
                 >
-                  <img src={img.dataUrl} alt={img.label} className="aspect-video w-full object-cover" />
-                  <span className="absolute bottom-0 left-0 right-0 truncate bg-black/60 px-1 py-0.5 text-center text-xs text-white">
-                    {img.label}
+                  <img 
+                    src={dataUrl} 
+                    alt={`Review screenshot ${index + 1}`} 
+                    className="aspect-video w-full object-cover"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 text-xs text-white font-medium">
+                      <Download size={14} />
+                      Download PNG
+                    </div>
+                  </div>
+                  <span className="absolute top-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white font-medium">
+                    #{index + 1}
                   </span>
                 </button>
               ))}
             </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              No images uploaded. Add screenshots in the review form to see them here.
+            </div>
+          )}
+          <div className="mt-4">
+            <button type="button" onClick={downloadClaudeDesignPrompt} className="flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60">
+              <Download size={12} />
+              Claude Design Prompt
+            </button>
           </div>
-        )}
-
-        <button 
-          type="button" 
-          onClick={generateThumbnail} 
-          disabled={loading !== null || !record.generated.blogPostTitle} 
-          className={btnClass}
-        >
-          {loading === "thumbnail" ? <Loader2 size={12} className="animate-spin" /> : <ImageIcon size={12} />}
-          Generate Thumbnails
-        </button>
-
-        {/* Generated Thumbnails */}
-        {(thumbnailUrl || thumbnailUrlVertical) && (
-          <div className="mt-4 grid gap-6 lg:grid-cols-2">
-            {thumbnailUrl && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Horizontal (1200x628)</span>
-                  <a
-                    href={thumbnailUrl}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-horizontal.png`}
-                    className={btnClass}
-                  >
-                    <Download size={12} />
-                    Download
-                  </a>
-                </div>
-                <img src={thumbnailUrl} alt="Horizontal thumbnail" className="w-full rounded-md" />
-              </div>
-            )}
-            {thumbnailUrlVertical && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">Vertical (628x1200)</span>
-                  <a
-                    href={thumbnailUrlVertical}
-                    download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "competitor"}-thumbnail-vertical.png`}
-                    className={btnClass}
-                  >
-                    <Download size={12} />
-                    Download
-                  </a>
-                </div>
-                <img src={thumbnailUrlVertical} alt="Vertical thumbnail" className="aspect-[9/16] max-h-[400px] w-auto self-center rounded-md" />
-              </div>
-            )}
-          </div>
-        )}
         </div>
         )}
       </div>
@@ -2235,19 +2671,6 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             <Facebook size={14} />
             Facebook Post
           </h3>
-          {record.generated.facebookImageUrl && (
-            <div className="relative mb-4 rounded-lg overflow-hidden border border-border">
-              <img src={record.generated.facebookImageUrl} alt="Facebook post image" className="w-full h-auto object-cover" />
-              <a
-                href={record.generated.facebookImageUrl}
-                download={`${record.formData.competitorName?.toLowerCase().replace(/\s+/g, "-") || "review"}-facebook-image.jpg`}
-                className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-md bg-black/70 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-black/90"
-              >
-                <Download size={12} />
-                Download Image
-              </a>
-            </div>
-          )}
           <EditableBlock
             label="Facebook Post"
             content={record.generated.facebookPost || ""}
@@ -2275,25 +2698,6 @@ LENGTH: 150-250 words. Make it shareable and engaging for a general Facebook aud
             generateLabel="Generate"
             onSave={async (v) => {
               const updated = await updateGeneratedContent(record.id, { tweetSnippet: v })
-              if (updated) setRecord(updated)
-            }}
-          />
-        </div>
-
-        {/* Instagram Caption */}
-        <div>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-            <Instagram size={14} />
-            Instagram Caption
-          </h3>
-          <EditableBlock
-            label="Instagram Caption"
-            content={record.generated.instagramSnippet || ""}
-            onGenerate={generateInstagramCaption}
-            isGenerating={loading === "instagram"}
-            generateLabel="Generate"
-            onSave={async (v) => {
-              const updated = await updateGeneratedContent(record.id, { instagramSnippet: v })
               if (updated) setRecord(updated)
             }}
           />

@@ -92,9 +92,9 @@ export interface GeneratedContent {
   facebookImageUrl?: string
   wordpressDraftUrl?: string
   thumbnailDataUrl?: string
-  thumbnailVerticalDataUrl?: string
   videoDataUrl?: string
-  videoVerticalDataUrl?: string
+  pull_quote?: string // extracted pull quote for slides
+  one_line_verdict?: string // one-line verdict for slide 10
 }
 
 export interface PipelineStatus {

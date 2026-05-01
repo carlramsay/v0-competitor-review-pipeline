@@ -20,7 +20,7 @@ export default function GeneratePage() {
   useEffect(() => {
     getReviewById(id).then((r) => {
       if (!r) {
-        router.replace("/")
+        router.replace("/queue")
         return
       }
       setRecord(r)
@@ -29,11 +29,8 @@ export default function GeneratePage() {
 
   if (!record) {
     return (
-      <div className="min-h-screen bg-background">
-        <TopNav />
-        <div className="flex h-64 items-center justify-center">
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
   }

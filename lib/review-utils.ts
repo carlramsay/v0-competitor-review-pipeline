@@ -78,8 +78,8 @@ export function buildAnswersString(formData: ReviewFormData, arousrBenchmark?: A
     sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
   )
   
-  // Use Arousr benchmark from settings if provided, otherwise fall back to per-review scores
-  const arousrTotal = arousrBenchmark?.total ?? formData.scores.reduce((sum, row) => 
+  // Always calculate arousrTotal from the review's scores array
+  const arousrTotal = formData.scores.reduce((sum, row) => 
     sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
   )
   
@@ -122,6 +122,33 @@ export function buildAnswersString(formData: ReviewFormData, arousrBenchmark?: A
   lines.push(`Score Gap: Arousr leads by ${scoreGap} points`)
 
   return lines.join("\n")
+}
+
+export function buildScoresTableHTML(competitorName: string, scores: ScoreRow[]): string {
+  // Calculate totals from raw scores - never hardcoded
+  const competitorTotal = scores.reduce((sum, row) => 
+    sum + (typeof row.competitorScore === "number" ? row.competitorScore : 0), 0
+  )
+  const arousrTotal = scores.reduce((sum, row) => 
+    sum + (typeof row.arousrScore === "number" ? row.arousrScore : 0), 0
+  )
+
+  // Build rows from raw data
+  const rows = scores.map((row, index) => {
+    const bgStyle = index % 2 === 1 ? ' style="background: #2a2a2a;"' : ''
+    const compScore = typeof row.competitorScore === "number" ? row.competitorScore : "N/A"
+    const arousrScore = typeof row.arousrScore === "number" ? row.arousrScore : "N/A"
+    return `<tr${bgStyle}><td style="border: 1px solid #555; padding: 10px;">${row.feature}</td><td style="border: 1px solid #555; padding: 10px;">${compScore}/10</td><td style="border: 1px solid #555; padding: 10px;">${arousrScore}/10</td></tr>`
+  }).join("\n")
+
+  return `
+<h2 style="margin: 1.2em 0 .4em; line-height: 1.25; font-size: 1.4rem;">Final Scores Comparison</h2>
+<table style="border-collapse: collapse; width: 100%; background: #222; color: #fff; margin: 1em 0;">
+<tr style="background: #333;"><th style="border: 1px solid #555; padding: 10px;">Category</th><th style="border: 1px solid #555; padding: 10px;">${competitorName}</th><th style="border: 1px solid #555; padding: 10px;">Arousr</th></tr>
+${rows}
+<tr style="background: #444; font-weight: bold;"><td style="border: 1px solid #555; padding: 10px;">Total</td><td style="border: 1px solid #555; padding: 10px;">${competitorTotal}/80</td><td style="border: 1px solid #555; padding: 10px;">${arousrTotal}/80</td></tr>
+</table>
+`.trim()
 }
 
 export function calcTotalScore(scores: ScoreRow[]): { competitor: number; arousr: number } {

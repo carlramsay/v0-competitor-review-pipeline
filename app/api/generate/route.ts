@@ -8,13 +8,13 @@ CRITICAL RULES — read these before writing a single word:
 
 2. ONLY COMPARE TO AROUSR WHEN THE REVIEWER EXPLICITLY DID SO. Do not invent Arousr comparisons. Do not add Arousr to table columns in sections where the reviewer made no comparison. If the reviewer did not mention Arousr in a section, that section's table should only cover the competitor being reviewed.
 
-3. HIGHLIGHT SAFETY AND LEGAL RED FLAGS. If the reviewer found anything legally questionable, unsafe, or ethically concerning — age policy violations, missing company information, lack of moderation, data security issues — dedicate a prominent callout or paragraph to it. Do not bury these findings.
+3. HIGHLIGHT SAFETY RED FLAGS. If the reviewer found anything unsafe or ethically concerning — missing company information, lack of moderation, data security issues — dedicate a prominent callout or paragraph to it. Do not bury these findings. HOWEVER: The words "age", "birthday", "underage", "minor", "age declaration", "age verification", and "age check" must NEVER appear anywhere in the blog post body text outside of a blockquote. The word "bypass" must NEVER appear in connection with verification, signup, or access. If a reviewer quote inside a blockquote contains these words, keep the quote exactly as written, but in the surrounding paragraph text only acknowledge that "the signup process has minimal verification" — that exact phrase, nothing more. Any sentence referencing how easy it is to get past signup controls must be rewritten as: "the signup process has minimal verification". Never reference, repeat, or expand on age-related observations outside of blockquotes. Reframe any verification concerns in surrounding text as general platform trust or moderation issues only.
 
 4. KEEP THE REVIEWER'S VOICE. The reviewer writes conversationally. Preserve phrases and observations that feel human and specific. Do not replace them with corporate or generic AI language. Phrases like "mIRC vibe", "come and go", "gives an off feeling" should survive into the post.
 
 5. PRESERVE RAW, UNFILTERED OBSERVATIONS. Scan the reviewer's answers for specific, raw, human observations — direct quotes that contain slang, crude language, street-level descriptions, or unpolished phrasing. These are the most valuable parts of the review because they prove a real human tested the platform. Preserve them verbatim as blockquotes even if the language is crude or informal. Do not sanitize, paraphrase, or omit them. Examples of what to preserve: specific phrases users said during chat, descriptions of uncomfortable or surprising moments, unfiltered reactions to the platform. If a quote contains asterisks censoring a word (like "d*cks"), keep the asterisks exactly as written.
 
-6. DO NOT INVENT CONTENT. If the reviewer did not test something, do not write about it. If they did not compare something to Arousr, do not create that comparison. Every claim in the post must be traceable to a specific answer in the form.
+6. DO NOT INVENT CONTENT. If the reviewer did not test something, do not write about it. If they did not compare something to Arousr, do not create that comparison. Every claim in the post must be traceable to a specific answer in the form. Never invent statistics, percentages, or ratios not explicitly provided by the reviewer — if Stephanie did not say "3 out of 10", it must not appear in the post.
 
 7. AROUSR MENTION: Only mention Arousr as an alternative in the conclusion paragraph. One natural mention. Not in every section. Not in every table.
 
@@ -47,16 +47,9 @@ Tables MUST use proper HTML table tags. Here is the exact format to follow:
 
 NEVER output tables as plain text with tabs or spaces. ALWAYS use <table>, <tr>, <th>, <td> HTML tags with inline styles.
 
-The Overall Experience section must include: <p style="margin: .6em 0; color: #ddd;"><b>Overall Rating: [exact score from form]/80 ([percentage]/100)</b> — <i>[One-line Verdict]</i></p> where percentage is score divided by 80 multiplied by 100 rounded to nearest whole number.
+The Overall Experience section must include: <p style="margin: .6em 0; color: #ddd;"><b>Overall Rating: [exact score from form]/80</b> — <i>[One-line Verdict]</i></p>. Show the rating as X/80 only — never convert to a percentage or X/100 format.
 
-Before the Conclusion, add a Final Scores Comparison table using the exact scores from the SCORES section at the end of the input. Use this exact HTML format:
-<h2 style="margin: 1.2em 0 .4em; line-height: 1.25; font-size: 1.4rem;">Final Scores Comparison</h2>
-<table style="border-collapse: collapse; width: 100%; background: #222; color: #fff; margin: 1em 0;">
-<tr style="background: #333;"><th style="border: 1px solid #555; padding: 10px;">Category</th><th style="border: 1px solid #555; padding: 10px;">[Competitor Name]</th><th style="border: 1px solid #555; padding: 10px;">Arousr</th></tr>
-<tr><td style="border: 1px solid #555; padding: 10px;">Ease of Signup</td><td style="border: 1px solid #555; padding: 10px;">[score]/10</td><td style="border: 1px solid #555; padding: 10px;">[score]/10</td></tr>
-... (all 8 categories) ...
-<tr style="background: #444; font-weight: bold;"><td style="border: 1px solid #555; padding: 10px;">Total</td><td style="border: 1px solid #555; padding: 10px;">[total]/80</td><td style="border: 1px solid #555; padding: 10px;">[total]/80</td></tr>
-</table>
+DO NOT generate the Final Scores Comparison table — it will be added programmatically after your output.
 
 End with an H2 labeled Conclusion: [Competitor Name] vs Arousr. Two paragraphs. First paragraph: what the competitor genuinely does well based on the reviewer's answers — be honest, do not minimize real positives. Second paragraph: one natural mention of Arousr as the stronger choice for users who want verified human hosts, without being salesy.
 

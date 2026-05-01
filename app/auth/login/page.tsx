@@ -1,112 +1,105 @@
-'use client'
+"use client"
 
-import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, Suspense } from 'react'
+import { useState, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 
 function LoginForm() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const next = searchParams.get('next') ?? '/reviews'
+  const next = searchParams.get("next") || "/queue"
+  
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleLogin = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const supabase = createClient()
-    setIsLoading(true)
+    setLoading(true)
     setError(null)
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (error) throw error
-      router.push(next)
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'An error occurred')
-    } finally {
-      setIsLoading(false)
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
     }
+
+    router.push(next)
+    router.refresh()
   }
 
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10 bg-background">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col gap-6">
-          <Card className="border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-2xl text-foreground">Login</CardTitle>
-              <CardDescription className="text-muted-foreground">
-                Enter your email below to login to your account
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleLogin}>
-                <div className="flex flex-col gap-6">
-                  <div className="grid gap-2">
-                    <Label htmlFor="email" className="text-foreground">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="m@example.com"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="bg-muted border-border text-foreground"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="password" className="text-foreground">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="bg-muted border-border text-foreground"
-                    />
-                  </div>
-                  {error && <p className="text-sm text-red-500">{error}</p>}
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Logging in...' : 'Login'}
-                  </Button>
-                </div>
-                <div className="mt-4 text-center text-sm text-muted-foreground">
-                  Don&apos;t have an account?{' '}
-                  <Link
-                    href="/auth/sign-up"
-                    className="underline underline-offset-4 text-foreground hover:text-primary"
-                  >
-                    Sign up
-                  </Link>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-sm space-y-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Enter your credentials to access the dashboard
+          </p>
         </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="email" className="text-sm font-medium">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="password" className="text-sm font-medium">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              placeholder="Your password"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-500">{error}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            {loading ? "Signing in..." : "Sign in"}
+          </button>
+        </form>
       </div>
     </div>
   )
 }
 
-export default function Page() {
+export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-svh items-center justify-center bg-background"><p className="text-muted-foreground">Loading...</p></div>}>
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    }>
       <LoginForm />
     </Suspense>
   )

@@ -1,41 +1,36 @@
+import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
 import Link from "next/link"
 
-export const dynamic = "force-dynamic"
+export default async function HomePage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (user) {
+    redirect("/queue")
+  }
 
-export default function Home() {
   return (
-    <main className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
-      <div className="flex flex-col items-center gap-8">
-        {/* Logo */}
-        <div className="w-32 h-32 rounded-2xl overflow-hidden shadow-lg">
-          <img
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-ad-glJJvyaXrD5KoylEleVYC12hDTkUL8.jpg"
-            alt="Arousr Logo"
-            className="w-full h-full object-cover"
-          />
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <div className="w-24 h-24 rounded-2xl overflow-hidden shadow-lg mb-4">
+            <img
+              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-ad-glJJvyaXrD5KoylEleVYC12hDTkUL8.jpg"
+              alt="Arousr Logo"
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">Reviews Platform</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Sign in to continue</p>
         </div>
-
-        {/* Title */}
-        <h1 className="text-3xl font-bold text-foreground tracking-tight">
-          Reviews Platform
-        </h1>
-
-        {/* Navigation buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 mt-4">
-          <Link
-            href="/queue"
-            className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium text-center transition-colors hover:bg-primary/90"
-          >
-            Queue
-          </Link>
-          <Link
-            href="/admin"
-            className="px-6 py-3 rounded-lg border border-border text-foreground font-medium text-center transition-colors hover:bg-secondary"
-          >
-            Admin
-          </Link>
-        </div>
+        <Link
+          href="/auth/login"
+          className="block w-full rounded-md bg-primary px-4 py-2 text-center text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          Sign in
+        </Link>
       </div>
-    </main>
+    </div>
   )
 }

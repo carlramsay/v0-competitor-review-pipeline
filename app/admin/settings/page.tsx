@@ -3,7 +3,6 @@
 export const dynamic = "force-dynamic"
 
 import { useEffect, useState } from "react"
-import { AdminGuard } from "@/components/admin-guard"
 import { AdminNav } from "@/components/admin-nav"
 import { AppSettings, ThumbnailImage, ArousrScores } from "@/lib/types"
 import { getSettings, saveSettings, getThumbnailLibrary, saveThumbnailLibrary, saveVideoAsset, getVideoAsset, deleteVideoAsset } from "@/lib/store"
@@ -767,9 +766,5 @@ function AdminSettingsContent() {
 }
 
 export default function AdminSettingsPage() {
-  return (
-    <AdminGuard>
-      <AdminSettingsContent />
-    </AdminGuard>
-  )
+  return <AdminSettingsContent />
 }

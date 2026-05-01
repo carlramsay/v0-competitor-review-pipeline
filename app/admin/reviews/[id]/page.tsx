@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic"
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminGuard } from "@/components/admin-guard"
 import { AdminNav } from "@/components/admin-nav"
 import { ReviewRecord } from "@/lib/types"
 import { getReviewById } from "@/lib/store"
@@ -50,7 +49,7 @@ function AdminReviewDetailContent() {
   useEffect(() => {
     getReviewById(id).then((r) => {
       if (!r) {
-        router.replace("/admin/reviews")
+        router.replace("/reviews")
         return
       }
       setRecord(r)
@@ -82,7 +81,7 @@ function AdminReviewDetailContent() {
       <main className="mx-auto max-w-3xl px-4 py-8">
         {/* Back */}
         <Link
-          href="/admin/reviews"
+          href="/reviews"
           className="mb-5 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft size={13} />
@@ -280,9 +279,5 @@ function AdminReviewDetailContent() {
 }
 
 export default function AdminReviewDetailPage() {
-  return (
-    <AdminGuard>
-      <AdminReviewDetailContent />
-    </AdminGuard>
-  )
+  return <AdminReviewDetailContent />
 }

@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS draft (
 -- Video assets table (for large video files that were in IndexedDB)
 CREATE TABLE IF NOT EXISTS video_assets (
   key TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   base64_data TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

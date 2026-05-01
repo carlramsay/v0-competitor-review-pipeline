@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic"
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { AdminGuard } from "@/components/admin-guard"
 import { AdminNav } from "@/components/admin-nav"
 import { QueueItem, QueueStatus } from "@/lib/types"
 import {
@@ -42,14 +41,12 @@ type SortDir = "asc" | "desc"
 
 export default function AdminQueuePage() {
   return (
-    <AdminGuard>
-      <div className="min-h-screen bg-background">
-        <AdminNav />
-        <main className="mx-auto max-w-4xl px-4 py-8">
-          <QueueManager />
-        </main>
-      </div>
-    </AdminGuard>
+    <div className="min-h-screen bg-background">
+      <AdminNav />
+      <main className="mx-auto max-w-4xl px-4 py-8">
+        <QueueManager />
+      </main>
+    </div>
   )
 }
 
@@ -82,7 +79,7 @@ function QueueManager() {
     const existingReview = await getReviewByCompetitorName(item.name || "", item.url)
     if (existingReview) {
       // Navigate to the existing review
-      router.push(`/admin/reviews/${existingReview.id}`)
+      router.push(`/reviews/${existingReview.id}`)
       return
     }
     

@@ -14,7 +14,17 @@ export class RLSError extends Error {
 }
 
 function handleSupabaseError(error: unknown, operation: string): never {
-  const errMsg = error instanceof Error ? error.message : String(error)
+  // Handle Supabase error objects which have { message, code, details, hint }
+  let errMsg: string
+  if (error && typeof error === 'object' && 'message' in error) {
+    errMsg = (error as { message: string }).message
+  } else if (error instanceof Error) {
+    errMsg = error.message
+  } else {
+    errMsg = JSON.stringify(error)
+  }
+  
+  console.error(`[v0] Supabase ${operation} error:`, error)
   
   // Check for common RLS/permission errors
   if (errMsg.includes("new row violates row-level security") ||
@@ -63,17 +73,10 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 export async function getReviews(): Promise<ReviewRecord[]> {
   const supabase = createClient()
-  const userId = await getCurrentUserId()
-  
-  if (!userId) {
-    console.warn("[v0] No authenticated user, returning empty reviews")
-    return []
-  }
 
   const { data, error } = await supabase
     .from("reviews")
     .select("*")
-    .eq("user_id", userId)
     .order("submitted_at", { ascending: false })
 
   if (error) {
@@ -99,7 +102,7 @@ export async function saveReview(record: ReviewRecord): Promise<void> {
   try {
     const { error } = await supabase.from("reviews").upsert({
       id: record.id,
-      user_id: userId, // Always set to current authenticated user
+      user_id: userId,
       submitted_at: record.submittedAt,
       form_data: record.formData,
       generated: record.generated,
@@ -119,17 +122,10 @@ export async function saveReview(record: ReviewRecord): Promise<void> {
 
 export async function getReviewByCompetitorName(name: string, url?: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
-  const userId = await getCurrentUserId()
-  
-  if (!userId) {
-    console.warn("[v0] No authenticated user for getReviewByCompetitorName")
-    return null
-  }
 
   const { data, error } = await supabase
     .from("reviews")
     .select("*")
-    .eq("user_id", userId)
     .order("submitted_at", { ascending: false })
 
   if (error || !data) {
@@ -160,20 +156,12 @@ export async function getReviewByCompetitorName(name: string, url?: string): Pro
 
 export async function getReviewById(id: string): Promise<ReviewRecord | null> {
   const supabase = createClient()
-  const userId = await getCurrentUserId()
   
-  // RLS will automatically filter by user_id, but we add explicit check for clarity
-  const query = supabase
+  const { data, error } = await supabase
     .from("reviews")
     .select("*")
     .eq("id", id)
-  
-  // Only filter by user_id if user is authenticated
-  if (userId) {
-    query.eq("user_id", userId)
-  }
-  
-  const { data, error } = await query.single()
+    .single()
 
   if (error || !data) {
     return null
@@ -197,7 +185,7 @@ export async function updateGeneratedContent(
   const userId = await requireAuth()
   const supabase = createClient()
   
-  // First get the current record to preserve existing data (filtered by user_id via RLS)
+  // First get the current record to preserve existing data
   const { data: current, error: fetchError } = await supabase
     .from("reviews")
     .select("*")
@@ -211,18 +199,11 @@ export async function updateGeneratedContent(
   }
 
   // Safely merge the generated content, preserving all existing fields
-  // Handle case where current.generated might be null/undefined
   const existingGenerated = (current.generated || {}) as GeneratedContent
   const updatedGenerated: GeneratedContent = {
     ...existingGenerated,
     ...content,
   }
-  
-  // Log what we're updating for debugging
-  console.log("[v0] Updating generated content for review:", id)
-  console.log("[v0] Existing keys:", Object.keys(existingGenerated))
-  console.log("[v0] New keys being added/updated:", Object.keys(content))
-  console.log("[v0] Final keys:", Object.keys(updatedGenerated))
 
   try {
     const { data, error } = await supabase
@@ -232,7 +213,7 @@ export async function updateGeneratedContent(
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
-      .eq("user_id", userId) // Ensure we only update own reviews
+      .eq("user_id", userId)
       .select()
       .single()
 
@@ -250,6 +231,8 @@ export async function updateGeneratedContent(
       submittedAt: data.submitted_at,
       formData: data.form_data as ReviewFormData,
       generated: data.generated as GeneratedContent,
+      pipelineStatus: data.pipeline_status as PipelineStatus | undefined,
+      tasks: data.tasks as TaskStatus | undefined,
     }
   } catch (err) {
     if (err instanceof RLSError) throw err
@@ -680,9 +663,20 @@ export async function getSortedQueue(): Promise<QueueItem[]> {
 // ============ VIDEO ASSETS ============
 
 export async function saveVideoAsset(key: string, base64Data: string): Promise<void> {
+  const userId = await requireAuth()
   const supabase = createClient()
-  const { error } = await supabase.from("video_assets").upsert({
+  
+  // Delete existing asset first (if any), then insert new one
+  // This avoids upsert issues with RLS and composite keys
+  await supabase
+    .from("video_assets")
+    .delete()
+    .eq("key", key)
+    .eq("user_id", userId)
+  
+  const { error } = await supabase.from("video_assets").insert({
     key,
+    user_id: userId,
     base64_data: base64Data,
     updated_at: new Date().toISOString(),
   })
@@ -694,11 +688,15 @@ export async function saveVideoAsset(key: string, base64Data: string): Promise<v
 }
 
 export async function getVideoAsset(key: string): Promise<string | null> {
+  const userId = await getCurrentUserId()
+  if (!userId) return null
+  
   const supabase = createClient()
   const { data, error } = await supabase
     .from("video_assets")
     .select("base64_data")
     .eq("key", key)
+    .eq("user_id", userId)
     .single()
 
   if (error || !data) {
@@ -709,8 +707,15 @@ export async function getVideoAsset(key: string): Promise<string | null> {
 }
 
 export async function deleteVideoAsset(key: string): Promise<void> {
+  const userId = await getCurrentUserId()
+  if (!userId) return
+  
   const supabase = createClient()
-  const { error } = await supabase.from("video_assets").delete().eq("key", key)
+  const { error } = await supabase
+    .from("video_assets")
+    .delete()
+    .eq("key", key)
+    .eq("user_id", userId)
 
   if (error) {
     console.error("[v0] Error deleting video asset:", error)
