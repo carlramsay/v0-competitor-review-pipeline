@@ -2094,7 +2094,7 @@ ${answers}`
             if (updated) setRecord(updated)
           }}
         />
-        {(record.generated.videoScript || videoScriptRef.current) && audioBlob && (
+        {(record.generated.videoScript || videoScriptRef.current) && (
           <div className="mt-4">
             <button type="button" onClick={generateFullVideo} disabled={loading !== null} className={btnClass}>
               {loading === "fullVideo" ? (
