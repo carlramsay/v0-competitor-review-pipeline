@@ -2147,25 +2147,37 @@ ${verdict}
    Category labels left-aligned, scores right-aligned
 
 5. FINDING #1
-   Large pull stat or label top-left
-   2–3 sentence finding body
-   Small red accent bar left edge
-   Half-width photo from the Arousr Design System, right column
+   Left column (vertically centered within the column):
+     - Score number large, red, top of column
+     - Headline directly below score, no gap
+     - Body text immediately below headline
+     - If space remains, fill with the score as a large faded background number at 8% opacity
+   Right column: Half-width photo from the Arousr Design System
+   Red accent bar, left edge, full column height
 
 6. FINDING #2
-   Large pull stat or label top-left
-   2–3 sentence finding body
-   Small red accent bar left edge
+   Full width, content vertically centered on slide (not top-anchored):
+     - Score number large, red, top
+     - Headline directly below score, no gap
+     - Body text immediately below headline
+     - If space remains below body text, fill with the score as a large faded background number at 8% opacity
+   Red accent bar, left edge
 
 7. FINDING #3
-   Large pull stat or label top-left
-   2–3 sentence finding body
-   Small red accent bar left edge
+   Full width, content vertically centered on slide (not top-anchored):
+     - Score number large, red, top
+     - Headline directly below score, no gap
+     - Body text immediately below headline
+     - If space remains below body text, fill with the score as a large faded background number at 8% opacity
+   Red accent bar, left edge
 
 8. FINDING #4
-   Large pull stat or label top-left
-   2–3 sentence finding body
-   Small red accent bar left edge
+   Full width, content vertically centered on slide (not top-anchored):
+     - Score number large, red, top
+     - Headline directly below score, no gap
+     - Body text immediately below headline
+     - If space remains below body text, fill with the score as a large faded background number at 8% opacity
+   Red accent bar, left edge
 ${includePullQuoteSlide ? `
 9. PULL QUOTE SLIDE
    Full-bleed background photo at 20% opacity
