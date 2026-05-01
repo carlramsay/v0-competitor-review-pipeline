@@ -1371,7 +1371,6 @@ ${answers}`
     const settings = await getSettings()
     const isVertical = height > width // Derive from dimensions
     const CROSSFADE_DURATION = 0.5
-    const IMAGE_CYCLE_INTERVAL = 6
     const LOGO_DURATION = 3
 
     const images: HTMLImageElement[] = []
@@ -1422,6 +1421,11 @@ ${answers}`
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
     const audioDuration = audioBuffer.duration
     const totalDuration = audioDuration + LOGO_DURATION
+    
+    // Calculate duration per image so ALL images are shown exactly once during the audio
+    // Each image gets equal time: audioDuration / number of images
+    const IMAGE_DURATION = audioDuration / images.length
+    console.log(`[v0] Video: ${images.length} images, audio ${audioDuration.toFixed(1)}s, ${IMAGE_DURATION.toFixed(1)}s per image`)
 
     const audioDestination = audioContext.createMediaStreamDestination()
     const audioSource = audioContext.createBufferSource()
@@ -1655,16 +1659,21 @@ ${answers}`
           ctx!.globalAlpha = 1
         }
       } else {
-        const cycleTime = elapsed % (IMAGE_CYCLE_INTERVAL * images.length)
-        const currentImageIndex = Math.floor(cycleTime / IMAGE_CYCLE_INTERVAL) % images.length
-        const timeInCurrentImage = cycleTime % IMAGE_CYCLE_INTERVAL
+        // Calculate which image to show based on elapsed time
+        // Each image gets IMAGE_DURATION seconds, showing all images exactly once
+        const currentImageIndex = Math.min(
+          Math.floor(elapsed / IMAGE_DURATION),
+          images.length - 1
+        )
+        const timeInCurrentImage = elapsed - (currentImageIndex * IMAGE_DURATION)
 
         // Draw screenshot with blurred background
         drawImageWithBlurredBg(images[currentImageIndex])
 
-        if (images.length > 1 && timeInCurrentImage >= IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION) {
-          const nextImageIndex = (currentImageIndex + 1) % images.length
-          const crossAlpha = (timeInCurrentImage - (IMAGE_CYCLE_INTERVAL - CROSSFADE_DURATION)) / CROSSFADE_DURATION
+        // Crossfade to next image (if not on last image)
+        if (currentImageIndex < images.length - 1 && timeInCurrentImage >= IMAGE_DURATION - CROSSFADE_DURATION) {
+          const nextImageIndex = currentImageIndex + 1
+          const crossAlpha = (timeInCurrentImage - (IMAGE_DURATION - CROSSFADE_DURATION)) / CROSSFADE_DURATION
           drawImageWithBlurredBg(images[nextImageIndex], crossAlpha)
         }
 
