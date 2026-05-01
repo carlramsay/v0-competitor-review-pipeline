@@ -665,7 +665,16 @@ export async function getSortedQueue(): Promise<QueueItem[]> {
 export async function saveVideoAsset(key: string, base64Data: string): Promise<void> {
   const userId = await requireAuth()
   const supabase = createClient()
-  const { error } = await supabase.from("video_assets").upsert({
+  
+  // Delete existing asset first (if any), then insert new one
+  // This avoids upsert issues with RLS and composite keys
+  await supabase
+    .from("video_assets")
+    .delete()
+    .eq("key", key)
+    .eq("user_id", userId)
+  
+  const { error } = await supabase.from("video_assets").insert({
     key,
     user_id: userId,
     base64_data: base64Data,
