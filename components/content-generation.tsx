@@ -241,20 +241,23 @@ function TasksSection({ record, setRecord }: { record: ReviewRecord; setRecord: 
   )
 }
 
-// HTML preview block with View Markdown toggle
+// HTML preview block with View Markdown toggle and optional Plain Text view
+type ViewMode = "html" | "markdown" | "plaintext"
+
 interface HTMLPreviewBlockProps {
   label: string
   htmlContent: string
   markdownContent: string
-  viewAsHtml: boolean
-  onToggleView: (asHtml: boolean) => void
+  plainTextContent?: string
+  viewMode: ViewMode
+  onChangeViewMode: (mode: ViewMode) => void
   onDownload: () => void
   onSave: (markdown: string) => void
   onGenerate?: () => void
   isGenerating?: boolean
 }
 
-function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onToggleView, onDownload, onSave, onGenerate, isGenerating }: HTMLPreviewBlockProps) {
+function HTMLPreviewBlock({ label, htmlContent, markdownContent, plainTextContent, viewMode, onChangeViewMode, onDownload, onSave, onGenerate, isGenerating }: HTMLPreviewBlockProps) {
   const [value, setValue] = useState(markdownContent)
   const [saved, setSaved] = useState(false)
   const isDirty = value !== markdownContent
@@ -272,6 +275,10 @@ function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onT
 
   const currentHtmlContent = isDirty ? convertMarkdownToStyledHTML(value) : htmlContent
   const btnClass = "flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-40"
+  const activeBtnClass = "flex items-center gap-1.5 rounded-md border border-primary bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors"
+
+  // Determine what text to copy based on view mode
+  const copyText = viewMode === "html" ? currentHtmlContent : viewMode === "plaintext" ? (plainTextContent || "") : value
 
   return (
     <div className="flex flex-col gap-2">
@@ -289,11 +296,25 @@ function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onT
               Generate
             </button>
           )}
-          <CopyButton text={viewAsHtml ? currentHtmlContent : value} />
-          <button type="button" onClick={() => onToggleView(!viewAsHtml)} className={btnClass}>
-            {viewAsHtml ? <EyeOff size={12} /> : <Eye size={12} />}
-            {viewAsHtml ? "View Markdown" : "View Styled Preview"}
+          <CopyButton text={copyText} />
+          <button 
+            type="button" 
+            onClick={() => onChangeViewMode(viewMode === "html" ? "markdown" : "html")} 
+            className={viewMode === "html" ? activeBtnClass : btnClass}
+          >
+            {viewMode === "html" ? <EyeOff size={12} /> : <Eye size={12} />}
+            {viewMode === "html" ? "View Markdown" : "View Styled Preview"}
           </button>
+          {plainTextContent !== undefined && (
+            <button 
+              type="button" 
+              onClick={() => onChangeViewMode(viewMode === "plaintext" ? "markdown" : "plaintext")} 
+              className={viewMode === "plaintext" ? activeBtnClass : btnClass}
+            >
+              <FileText size={12} />
+              Plain Text
+            </button>
+          )}
           <button type="button" onClick={onDownload} className={btnClass}>
             <Download size={12} />
             Download HTML
@@ -304,11 +325,15 @@ function HTMLPreviewBlock({ label, htmlContent, markdownContent, viewAsHtml, onT
           </button>
         </div>
       </div>
-      {viewAsHtml ? (
+      {viewMode === "html" ? (
         <div
           className="min-h-[160px] max-h-[500px] overflow-y-auto w-full rounded-md border border-border bg-[#1a1a1a] px-4 py-3 text-sm leading-relaxed"
           dangerouslySetInnerHTML={{ __html: currentHtmlContent }}
         />
+      ) : viewMode === "plaintext" ? (
+        <div className="min-h-[160px] max-h-[500px] overflow-y-auto w-full rounded-md border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground font-mono whitespace-pre-wrap">
+          {plainTextContent}
+        </div>
       ) : (
         <textarea
           value={value}
@@ -333,7 +358,7 @@ export function ContentGeneration({ record: initialRecord }: Props) {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [videoProgress, setVideoProgress] = useState<string | null>(null)
-  const [blogPostViewAsHtml, setBlogPostViewAsHtml] = useState(true)
+  const [blogPostViewMode, setBlogPostViewMode] = useState<ViewMode>("html")
   
   // Collapsible section states (collapsed by default)
   const [collapsed, setCollapsed] = useState({
@@ -1980,56 +2005,6 @@ ${answers}`
     return text
   }
 
-  function downloadMediumVersion() {
-    if (!record.generated.blogPost) {
-      setError("Generate a blog post first before downloading Medium version.")
-      return
-    }
-
-    const scores = record.formData.scores || []
-    const competitorName = record.formData.competitorName || "Competitor"
-    const competitorTotal = scores.reduce((sum, row) => sum + (Number(row.competitorScore) || 0), 0)
-    const arousrTotal = scores.reduce((sum, row) => sum + (Number(row.arousrScore) || 0), 0)
-
-    // Build scores as bullet list
-    const scoresText = scores.map(row => 
-      `- ${row.feature}: ${row.competitorScore}/10 (Arousr: ${row.arousrScore}/10)`
-    ).join("\n")
-
-    const mediumText = `# ${competitorName} Review (2026)
-
-*Reviewed by ${record.formData.reviewerName || "Anonymous"} for Arousr.com — ${record.formData.date || new Date().toISOString().split("T")[0]}*
-
----
-
-[INSERT THUMBNAIL IMAGE HERE]
-
----
-
-${convertBlogPostToPlainText(record.generated.blogPost, record.formData.reviewerName)}
-
----
-
-## Final Scores
-
-${scoresText}
-
-**Total: ${competitorTotal}/80 (Arousr: ${arousrTotal}/80)**
-
----
-
-*This review was conducted independently. ${competitorName} is not affiliated with Arousr.*
-`
-
-    const blob = new Blob([mediumText], { type: "text/markdown" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${competitorName.toLowerCase().replace(/\s+/g, "-")}-medium-version.md`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   const btnClass = "flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-40"
 
   return (
@@ -2085,8 +2060,9 @@ ${scoresText}
           label="Blog Post"
           htmlContent={convertMarkdownToStyledHTML(record.generated.blogPost || "")}
           markdownContent={record.generated.blogPost || ""}
-          viewAsHtml={blogPostViewAsHtml}
-          onToggleView={setBlogPostViewAsHtml}
+          plainTextContent={convertBlogPostToPlainText(record.generated.blogPost || "", record.formData.reviewerName)}
+          viewMode={blogPostViewMode}
+          onChangeViewMode={setBlogPostViewMode}
           onGenerate={generateBlogPost}
           isGenerating={loading === "blog"}
           onSave={async (v) => {
@@ -2170,10 +2146,6 @@ ${scoresText}
         <button type="button" onClick={pushToWordPress} disabled={loading !== null} className={btnClass}>
           {loading === "wp" ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
         Push to WordPress
-        </button>
-        <button type="button" onClick={downloadMediumVersion} disabled={loading !== null} className={btnClass}>
-          <Download size={12} />
-          Download Medium Version
         </button>
         </div>
         </div>
