@@ -2011,43 +2011,172 @@ ${answers}`
     const date = record.formData.date || new Date().toISOString().split("T")[0]
     const scores = record.formData.scores || []
     
-    const scoresText = scores.map(row => 
-      `- ${row.feature}: ${competitorName} ${row.competitorScore}/10, Arousr ${row.arousrScore}/10${row.notes ? ` (${row.notes})` : ""}`
-    ).join("\n")
-    
     const competitorTotal = scores.reduce((sum, row) => sum + (Number(row.competitorScore) || 0), 0)
     const arousrTotal = scores.reduce((sum, row) => sum + (Number(row.arousrScore) || 0), 0)
+    const gap = arousrTotal - competitorTotal
 
-    const promptText = `Create a visually engaging blog post thumbnail/featured image for the following competitor review:
+    // Build scores table for the prompt
+    const scoresTable = scores.map(row => 
+      `| ${row.feature} | ${row.competitorScore}/10 | ${row.arousrScore}/10 |`
+    ).join("\n")
 
-## Review Details
-- Competitor: ${competitorName}
-- Reviewer: ${reviewerName}
-- Date: ${date}
-- Device Used: ${record.formData.deviceUsed || "Not specified"}
+    // Find top and bottom scorers for At a Glance slide
+    const sortedByCompetitor = [...scores].sort((a, b) => (Number(b.competitorScore) || 0) - (Number(a.competitorScore) || 0))
+    const topCompetitor = sortedByCompetitor.slice(0, 2).map(s => `${s.feature}: ${s.competitorScore}/10`).join(", ")
+    const bottomCompetitor = sortedByCompetitor.slice(-1).map(s => `${s.feature}: ${s.competitorScore}/10`).join(", ")
+    
+    const sortedByArousr = [...scores].sort((a, b) => (Number(b.arousrScore) || 0) - (Number(a.arousrScore) || 0))
+    const topArousr = sortedByArousr.slice(0, 2).map(s => `${s.feature}: ${s.arousrScore}/10`).join(", ")
+    const bottomArousr = sortedByArousr.slice(-1).map(s => `${s.feature}: ${s.arousrScore}/10`).join(", ")
 
-## Scores Comparison
-${scoresText}
+    // Extract key findings from review questions
+    const findings = [
+      record.formData.q5 ? { label: "Signup", text: record.formData.q5 } : null,
+      record.formData.q10 ? { label: "Interface", text: record.formData.q10 } : null,
+      record.formData.q15 ? { label: "Chat Quality", text: record.formData.q15 } : null,
+      record.formData.q20 ? { label: "Pricing", text: record.formData.q20 } : null,
+    ].filter(Boolean).slice(0, 4)
 
-**Total Scores:**
-- ${competitorName}: ${competitorTotal}/80
-- Arousr: ${arousrTotal}/80
+    // Pull quote from overall verdict
+    const pullQuote = record.formData.q30 || "Arousr delivers a superior experience across all key metrics."
 
-## Key Points from Review
-${record.formData.q1 ? `First Impressions: ${record.formData.q1}` : ""}
-${record.formData.q5 ? `Signup Experience: ${record.formData.q5}` : ""}
-${record.formData.q10 ? `Interface/Navigation: ${record.formData.q10}` : ""}
-${record.formData.q15 ? `Chat Quality: ${record.formData.q15}` : ""}
-${record.formData.q20 ? `Pricing: ${record.formData.q20}` : ""}
-${record.formData.q25 ? `Privacy/Security: ${record.formData.q25}` : ""}
-${record.formData.q30 ? `Overall Verdict: ${record.formData.q30}` : ""}
+    const promptText = `Generate a 10-slide presentation for this competitor review. Follow the structure exactly.
 
-## Design Requirements
-- Style: Modern, professional, tech-focused
-- Dimensions: 1200x630px (social media optimized)
-- Include: Competitor name, score comparison visual, "Review" badge
-- Color scheme: Dark theme with accent colors
-- Brand: Arousr.com logo placement in corner
+---
+
+## CONTENT BLOCK
+
+Competitor: ${competitorName}
+Reviewer: ${reviewerName}
+Date: ${date}
+
+### Scores Table
+| Category | ${competitorName} | Arousr |
+|----------|-----------|--------|
+${scoresTable}
+| **TOTAL** | **${competitorTotal}/80** | **${arousrTotal}/80** |
+
+Gap: Arousr leads by ${gap} points
+
+### At a Glance Facts
+${competitorName} strengths: ${topCompetitor}
+${competitorName} weakness: ${bottomCompetitor}
+Arousr strengths: ${topArousr}
+Arousr area to watch: ${bottomArousr}
+
+### Findings
+${findings.map((f, i) => `Finding ${i + 1} (${f?.label}): ${f?.text}`).join("\n")}
+
+### Pull Quote
+"${pullQuote}"
+— ${reviewerName}
+
+### Verdict
+Arousr leads by ${gap} points. ${record.formData.q30 || "The clear winner in this comparison."}
+
+---
+
+## SLIDE STRUCTURE — 10 slides, each 1200×630px:
+
+1. TITLE SLIDE (Cover)
+   Full-bleed cover photo from the Arousr Design System
+   70% dark overlay (#0D0D0D at 0.7 opacity) so text is legible
+   Headline: "${competitorName} vs Arousr" — Archivo Black, white, large
+   Sub: "An Independent Review — ${date}" — Inter, #999999, smaller
+   Red rule line (2px, #E63946) between headline and sub
+   Arousr logo placeholder bottom-left, small
+
+2. AT A GLANCE
+   Two columns: competitor specs left, Arousr right
+   Pull 3 facts per side from the scores table (top scorers and lowest scorers)
+
+3. COMPOSITE SCORE DIAL
+   Two arc gauges side by side — ${competitorName} ${competitorTotal}/80, Arousr ${arousrTotal}/80
+   Label the gap (${gap} points) in red between them
+
+4. SCORECARD BARS
+   Horizontal bar chart, all 8 categories
+   Competitor bar: #555, Arousr bar: #E63946 (red)
+   Category labels left-aligned, scores right-aligned
+
+5. FINDING #1
+   Large pull stat or label top-left
+   2–3 sentence finding body
+   Small red accent bar left edge
+   Half-width photo from the Arousr Design System, right column
+
+6. FINDING #2
+   Large pull stat or label top-left
+   2–3 sentence finding body
+   Small red accent bar left edge
+
+7. FINDING #3
+   Large pull stat or label top-left
+   2–3 sentence finding body
+   Small red accent bar left edge
+
+8. FINDING #4
+   Large pull stat or label top-left
+   2–3 sentence finding body
+   Small red accent bar left edge
+
+9. PULL QUOTE SLIDE
+   Full-bleed background photo at 20% opacity
+   Oversized opening quote mark in red
+   Quote text in Lora italic, 28–32px, white
+   Reviewer credit bottom right
+
+10. BOTTOM LINE SLIDE
+    Headline: "Arousr leads by ${gap} points"
+    One sentence verdict
+    Arousr logo placeholder bottom right
+    CTA: "arousr.com"
+
+---
+
+## DESIGN SYSTEM
+
+Typography:
+  Headlines: Archivo Black, uppercase, tracked +2px
+  Body: Inter or system sans, 16px, #CCCCCC
+  Pull quotes: Lora italic, #FFFFFF
+  Labels/scores: Archivo Black, #E63946
+
+Colors:
+  Background: #0D0D0D
+  Surface cards: #1A1A1A
+  Accent red: #E63946
+  Text primary: #FFFFFF
+  Text secondary: #999999
+  Competitor bar: #444444
+  Arousr bar: #E63946
+
+Layout:
+  Padding: 64px all sides
+  Column gutter: 40px
+  Slide ratio: exactly 1200×630px
+
+---
+
+## CONSTRAINTS
+- Do not reference age, age verification, minors, or legal compliance anywhere
+- Do not invent statistics not present in the content block above
+- Scores must match the content block exactly — never recalculate
+- Pull quote must be used verbatim — never paraphrase
+- Verdict and gap figure must match the content block
+
+---
+
+## EXPORT
+Generate a render.html file.
+Each slide renders as a fixed 1200×630px div.
+
+Include a button: "Export all slides as PNG (1200×630)"
+On click, open a new browser tab.
+In that new tab, render all slides stacked vertically with a download link below each one.
+Each download link triggers a PNG save of that slide at exactly 1200×630px.
+Use html2canvas or equivalent to capture each slide div.
+File naming: ${competitorName.toLowerCase().replace(/\s+/g, "-")}-slide-01.png through ${competitorName.toLowerCase().replace(/\s+/g, "-")}-slide-10.png
 `
 
     const blob = new Blob([promptText], { type: "text/plain;charset=utf-8" })
