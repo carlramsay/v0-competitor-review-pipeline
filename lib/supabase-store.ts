@@ -663,9 +663,11 @@ export async function getSortedQueue(): Promise<QueueItem[]> {
 // ============ VIDEO ASSETS ============
 
 export async function saveVideoAsset(key: string, base64Data: string): Promise<void> {
+  const userId = await requireAuth()
   const supabase = createClient()
   const { error } = await supabase.from("video_assets").upsert({
     key,
+    user_id: userId,
     base64_data: base64Data,
     updated_at: new Date().toISOString(),
   })
@@ -677,11 +679,15 @@ export async function saveVideoAsset(key: string, base64Data: string): Promise<v
 }
 
 export async function getVideoAsset(key: string): Promise<string | null> {
+  const userId = await getCurrentUserId()
+  if (!userId) return null
+  
   const supabase = createClient()
   const { data, error } = await supabase
     .from("video_assets")
     .select("base64_data")
     .eq("key", key)
+    .eq("user_id", userId)
     .single()
 
   if (error || !data) {
@@ -692,8 +698,15 @@ export async function getVideoAsset(key: string): Promise<string | null> {
 }
 
 export async function deleteVideoAsset(key: string): Promise<void> {
+  const userId = await getCurrentUserId()
+  if (!userId) return
+  
   const supabase = createClient()
-  const { error } = await supabase.from("video_assets").delete().eq("key", key)
+  const { error } = await supabase
+    .from("video_assets")
+    .delete()
+    .eq("key", key)
+    .eq("user_id", userId)
 
   if (error) {
     console.error("[v0] Error deleting video asset:", error)
