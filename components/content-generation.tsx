@@ -2039,26 +2039,40 @@ ${answers}`
 
     // Pull quote fallback chain:
     // 1. Use review.generated.pull_quote if not null/empty
-    // 2. Find first <blockquote> tag in blogPost and extract inner text
-    // 3. Find first line starting with > in raw text
-    // 4. If still empty, omit slide 9 entirely
+    // 2. Find first clean <blockquote> tag in blogPost (skip any with restricted words)
+    // 3. Find first clean line starting with > in raw text
+    // 4. If still empty, use the constructed verdict as fallback
+    const restrictedWords = ["age", "birthday", "underage", "minor", "bypass", "verification", "legal", "compliance"]
+    const containsRestrictedWord = (text: string) => restrictedWords.some(word => text.toLowerCase().includes(word))
+    
     let pullQuote = ""
-    if (record.generated.pull_quote && record.generated.pull_quote.trim()) {
+    if (record.generated.pull_quote && record.generated.pull_quote.trim() && !containsRestrictedWord(record.generated.pull_quote)) {
       pullQuote = record.generated.pull_quote.trim()
     } else if (record.generated.blogPost) {
-      // Try to extract first <blockquote> tag inner text
-      const blockquoteMatch = record.generated.blogPost.match(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/i)
-      if (blockquoteMatch) {
-        // Strip any HTML tags from the inner text
-        pullQuote = blockquoteMatch[1].replace(/<[^>]+>/g, "").trim()
-      }
-      // If no blockquote found, try markdown-style quote (> line)
-      if (!pullQuote) {
-        const mdQuoteMatch = record.generated.blogPost.match(/^>\s*(.+)$/m)
-        if (mdQuoteMatch) {
-          pullQuote = mdQuoteMatch[1].trim()
+      // Try to extract first clean <blockquote> tag inner text
+      const blockquoteMatches = record.generated.blogPost.matchAll(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi)
+      for (const match of blockquoteMatches) {
+        const innerText = match[1].replace(/<[^>]+>/g, "").trim()
+        if (innerText && !containsRestrictedWord(innerText)) {
+          pullQuote = innerText
+          break
         }
       }
+      // If no clean blockquote found, try markdown-style quotes (> lines)
+      if (!pullQuote) {
+        const mdQuoteMatches = record.generated.blogPost.matchAll(/^>\s*(.+)$/gm)
+        for (const match of mdQuoteMatches) {
+          const quoteText = match[1].trim()
+          if (quoteText && !containsRestrictedWord(quoteText)) {
+            pullQuote = quoteText
+            break
+          }
+        }
+      }
+    }
+    // If still no clean pull quote, use constructed verdict as fallback
+    if (!pullQuote) {
+      pullQuote = `${competitorName} scored ${competitorTotal}/80 against Arousr's ${arousrTotal}/80 — a ${gap}-point gap across all categories.`
     }
     const includePullQuoteSlide = pullQuote.length > 0
 
