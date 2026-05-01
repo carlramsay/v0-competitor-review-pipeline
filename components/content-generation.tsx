@@ -2002,15 +2002,69 @@ ${answers}`
     text = text.replace(/\n{3,}/g, "\n\n")
     text = text.trim()
     
-    return text
+  return text
   }
 
-  const btnClass = "flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-40"
+  function downloadClaudeDesignPrompt() {
+    const competitorName = record.formData.competitorName || "Competitor"
+    const reviewerName = record.formData.reviewerName || "Anonymous"
+    const date = record.formData.date || new Date().toISOString().split("T")[0]
+    const scores = record.formData.scores || []
+    
+    const scoresText = scores.map(row => 
+      `- ${row.feature}: ${competitorName} ${row.competitorScore}/10, Arousr ${row.arousrScore}/10${row.notes ? ` (${row.notes})` : ""}`
+    ).join("\n")
+    
+    const competitorTotal = scores.reduce((sum, row) => sum + (Number(row.competitorScore) || 0), 0)
+    const arousrTotal = scores.reduce((sum, row) => sum + (Number(row.arousrScore) || 0), 0)
 
+    const promptText = `Create a visually engaging blog post thumbnail/featured image for the following competitor review:
+
+## Review Details
+- Competitor: ${competitorName}
+- Reviewer: ${reviewerName}
+- Date: ${date}
+- Device Used: ${record.formData.deviceUsed || "Not specified"}
+
+## Scores Comparison
+${scoresText}
+
+**Total Scores:**
+- ${competitorName}: ${competitorTotal}/80
+- Arousr: ${arousrTotal}/80
+
+## Key Points from Review
+${record.formData.q1 ? `First Impressions: ${record.formData.q1}` : ""}
+${record.formData.q5 ? `Signup Experience: ${record.formData.q5}` : ""}
+${record.formData.q10 ? `Interface/Navigation: ${record.formData.q10}` : ""}
+${record.formData.q15 ? `Chat Quality: ${record.formData.q15}` : ""}
+${record.formData.q20 ? `Pricing: ${record.formData.q20}` : ""}
+${record.formData.q25 ? `Privacy/Security: ${record.formData.q25}` : ""}
+${record.formData.q30 ? `Overall Verdict: ${record.formData.q30}` : ""}
+
+## Design Requirements
+- Style: Modern, professional, tech-focused
+- Dimensions: 1200x630px (social media optimized)
+- Include: Competitor name, score comparison visual, "Review" badge
+- Color scheme: Dark theme with accent colors
+- Brand: Arousr.com logo placement in corner
+`
+
+    const blob = new Blob([promptText], { type: "text/plain;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${competitorName.toLowerCase().replace(/\s+/g, "-")}-claude-design-prompt.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+  
+  const btnClass = "flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-40"
+  
   return (
-    <div className="flex flex-col gap-6">
-      {/* Error display */}
-      {error && (
+  <div className="flex flex-col gap-6">
+  {/* Error display */}
+  {error && (
         <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400">
           {error}
         </div>
@@ -2146,6 +2200,10 @@ ${answers}`
         <button type="button" onClick={pushToWordPress} disabled={loading !== null} className={btnClass}>
           {loading === "wp" ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
         Push to WordPress
+        </button>
+        <button type="button" onClick={downloadClaudeDesignPrompt} className={btnClass}>
+          <Download size={12} />
+          Claude Design Prompt
         </button>
         </div>
         </div>
