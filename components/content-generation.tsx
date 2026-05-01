@@ -2037,8 +2037,27 @@ ${answers}`
       record.formData.q20 ? { label: "Pricing", text: record.formData.q20 } : null,
     ].filter(Boolean).slice(0, 4)
 
-    // Pull quote from overall verdict
-    const pullQuote = record.formData.q30 || "Arousr delivers a superior experience across all key metrics."
+    // Pull quote - extract from blogPost blockquote if no explicit quote exists
+    let pullQuote = ""
+    if (record.formData.q30) {
+      pullQuote = record.formData.q30
+    } else if (record.generated.blogPost) {
+      // Try to extract first blockquote from blog post HTML
+      const blockquoteMatch = record.generated.blogPost.match(/<blockquote[^>]*>(.*?)<\/blockquote>/i)
+      if (blockquoteMatch) {
+        pullQuote = blockquoteMatch[1].replace(/<[^>]+>/g, "").trim()
+      } else {
+        // Try markdown-style quote (> line)
+        const mdQuoteMatch = record.generated.blogPost.match(/^>\s*(.+)$/m)
+        if (mdQuoteMatch) {
+          pullQuote = mdQuoteMatch[1].trim()
+        }
+      }
+    }
+    // Only use a fallback if we still have nothing - never use system instruction text
+    if (!pullQuote) {
+      pullQuote = `${competitorName} falls short compared to Arousr in this head-to-head review.`
+    }
 
     const promptText = `Generate a 10-slide presentation for this competitor review. Follow the structure exactly.
 
@@ -2155,6 +2174,24 @@ Layout:
   Padding: 64px all sides
   Column gutter: 40px
   Slide ratio: exactly 1200×630px
+
+Brand:
+  Follow the Arousr Design System where applicable — use Arousr's established
+  type scale, spacing rhythm, and red/dark color palette as the base.
+  Do not introduce colors or typefaces that conflict with the Arousr brand.
+  Arousr logo placeholder appears on slides 1 and 10.
+
+Photography:
+  Use photos from the Arousr Design System — do not source from Unsplash or any external library.
+  Apply photos in exactly 3 slides:
+  - Slide 1 (Title): Full-bleed cover photo from the Arousr Design System.
+    Dark-toned lifestyle/connection scene. Overlay with 70% dark gradient (#0D0D0D at 0.7 opacity)
+    so text reads clearly. Photo fills the entire 1200×630 frame.
+  - Slide 5 (Finding #1): Half-width photo from the Arousr Design System, right column.
+    Select an image that fits an editorial/tech context.
+  - Slide 9 (Pull Quote): Full-bleed background photo from the Arousr Design System at 20% opacity.
+    Select a moody or atmospheric image from the available assets.
+  All photos must come from the Arousr Design System assets already loaded in this session.
 
 ---
 
