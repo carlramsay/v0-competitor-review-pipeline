@@ -93,6 +93,8 @@ export interface GeneratedContent {
   wordpressDraftUrl?: string
   thumbnailDataUrl?: string
   videoDataUrl?: string
+  pull_quote?: string // extracted pull quote for slides
+  one_line_verdict?: string // one-line verdict for slide 10
 }
 
 export interface PipelineStatus {
