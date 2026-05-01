@@ -1919,6 +1919,92 @@ ${answers}`
     }
   }
 
+  function convertBlogPostToPlainText(html: string): string {
+    if (!html) return ""
+    
+    let text = html
+    
+    // Convert headings
+    text = text.replace(/<h2[^>]*>(.*?)<\/h2>/gi, "\n## $1\n\n[INSERT SCREENSHOT HERE]\n")
+    text = text.replace(/<h3[^>]*>(.*?)<\/h3>/gi, "\n### $1\n")
+    
+    // Convert blockquotes
+    text = text.replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, "> $1\n")
+    
+    // Convert bold and italic
+    text = text.replace(/<(b|strong)[^>]*>(.*?)<\/(b|strong)>/gi, "**$2**")
+    text = text.replace(/<(i|em)[^>]*>(.*?)<\/(i|em)>/gi, "*$2*")
+    
+    // Remove tables entirely (scores handled separately)
+    text = text.replace(/<table[\s\S]*?<\/table>/gi, "")
+    
+    // Remove all inline styles
+    text = text.replace(/\s*style="[^"]*"/gi, "")
+    
+    // Convert paragraphs and line breaks
+    text = text.replace(/<\/p>/gi, "\n\n")
+    text = text.replace(/<br\s*\/?>/gi, "\n")
+    
+    // Remove remaining HTML tags
+    text = text.replace(/<[^>]+>/g, "")
+    
+    // Clean up extra whitespace
+    text = text.replace(/\n{3,}/g, "\n\n")
+    text = text.trim()
+    
+    return text
+  }
+
+  function downloadMediumVersion() {
+    if (!record.generated.blogPost) {
+      setError("Generate a blog post first before downloading Medium version.")
+      return
+    }
+
+    const scores = record.formData.scores || []
+    const competitorName = record.formData.competitorName || "Competitor"
+    const competitorTotal = scores.reduce((sum, row) => sum + (Number(row.competitorScore) || 0), 0)
+    const arousrTotal = scores.reduce((sum, row) => sum + (Number(row.arousrScore) || 0), 0)
+
+    // Build scores as bullet list
+    const scoresText = scores.map(row => 
+      `- ${row.feature}: ${row.competitorScore}/10 (Arousr: ${row.arousrScore}/10)`
+    ).join("\n")
+
+    const mediumText = `# ${competitorName} Review (2026)
+
+*Reviewed by ${record.formData.reviewerName || "Anonymous"} for Arousr.com — ${record.formData.date || new Date().toISOString().split("T")[0]}*
+
+---
+
+[INSERT THUMBNAIL IMAGE HERE]
+
+---
+
+${convertBlogPostToPlainText(record.generated.blogPost)}
+
+---
+
+## Final Scores
+
+${scoresText}
+
+**Total: ${competitorTotal}/80 (Arousr: ${arousrTotal}/80)**
+
+---
+
+*This review was conducted independently. ${competitorName} is not affiliated with Arousr.*
+`
+
+    const blob = new Blob([mediumText], { type: "text/markdown" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${competitorName.toLowerCase().replace(/\s+/g, "-")}-medium-version.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const btnClass = "flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-40"
 
   return (
@@ -2055,11 +2141,15 @@ ${answers}`
           />
         </div>
         
-        <div className="mt-6 flex gap-2">
-          <button type="button" onClick={pushToWordPress} disabled={loading !== null} className={btnClass}>
-            {loading === "wp" ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
-            Push to WordPress
-          </button>
+        <div className="mt-6 flex flex-wrap gap-2">
+        <button type="button" onClick={pushToWordPress} disabled={loading !== null} className={btnClass}>
+          {loading === "wp" ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
+        Push to WordPress
+        </button>
+        <button type="button" onClick={downloadMediumVersion} disabled={loading !== null} className={btnClass}>
+          <Download size={12} />
+          Download Medium Version
+        </button>
         </div>
         </div>
         )}
