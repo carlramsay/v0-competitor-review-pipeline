@@ -2037,23 +2037,43 @@ ${answers}`
       record.formData.q20 ? { label: "Pricing", text: record.formData.q20 } : null,
     ].filter(Boolean).slice(0, 4)
 
-    // Pull quote - first try generated.pull_quote, then scan blogPost for markdown blockquote
+    // Pull quote fallback chain:
+    // 1. Use review.generated.pull_quote if not null/empty
+    // 2. Find first <blockquote> tag in blogPost and extract inner text
+    // 3. Find first line starting with > in raw text
+    // 4. If still empty, omit slide 9 entirely
     let pullQuote = ""
     if (record.generated.pull_quote && record.generated.pull_quote.trim()) {
       pullQuote = record.generated.pull_quote.trim()
     } else if (record.generated.blogPost) {
-      // Scan for first line starting with > (markdown blockquote) and strip the > prefix
-      const mdQuoteMatch = record.generated.blogPost.match(/^>\s*(.+)$/m)
-      if (mdQuoteMatch) {
-        pullQuote = mdQuoteMatch[1].trim()
+      // Try to extract first <blockquote> tag inner text
+      const blockquoteMatch = record.generated.blogPost.match(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/i)
+      if (blockquoteMatch) {
+        // Strip any HTML tags from the inner text
+        pullQuote = blockquoteMatch[1].replace(/<[^>]+>/g, "").trim()
+      }
+      // If no blockquote found, try markdown-style quote (> line)
+      if (!pullQuote) {
+        const mdQuoteMatch = record.generated.blogPost.match(/^>\s*(.+)$/m)
+        if (mdQuoteMatch) {
+          pullQuote = mdQuoteMatch[1].trim()
+        }
       }
     }
-    // If still nothing found, leave blank - never fall back to any other field or system text
+    const includePullQuoteSlide = pullQuote.length > 0
 
-    // Verdict - only use one_line_verdict, nothing else
-    const verdict = record.generated.one_line_verdict?.trim() || ""
+    // Verdict fallback:
+    // 1. Use review.generated.one_line_verdict if not null/empty
+    // 2. Otherwise construct a default verdict string - never output empty
+    let verdict = ""
+    if (record.generated.one_line_verdict && record.generated.one_line_verdict.trim()) {
+      verdict = record.generated.one_line_verdict.trim()
+    } else {
+      verdict = `${competitorName} scored ${competitorTotal}/80 against Arousr's ${arousrTotal}/80 — a ${gap}-point gap across all categories.`
+    }
 
-    const promptText = `Generate a 10-slide presentation for this competitor review. Follow the structure exactly.
+    const totalSlides = includePullQuoteSlide ? 10 : 9
+    const promptText = `Generate a ${totalSlides}-slide presentation for this competitor review. Follow the structure exactly.
 
 ---
 
@@ -2089,7 +2109,7 @@ ${verdict}
 
 ---
 
-## SLIDE STRUCTURE — 10 slides, each 1200×630px:
+## SLIDE STRUCTURE — ${totalSlides} slides, each 1200×630px:
 
 1. TITLE SLIDE (Cover)
    Full-bleed cover photo from the Arousr Design System
@@ -2132,14 +2152,17 @@ ${verdict}
    Large pull stat or label top-left
    2–3 sentence finding body
    Small red accent bar left edge
-
+${includePullQuoteSlide ? `
 9. PULL QUOTE SLIDE
    Full-bleed background photo at 20% opacity
    Oversized opening quote mark in red
+   Quote text: "${pullQuote}"
    Quote text in Lora italic, 28–32px, white
-   Reviewer credit bottom right
-
-10. BOTTOM LINE SLIDE
+   Reviewer credit: ${reviewerName}, bottom right
+` : `
+(Slide 9 omitted — no pull quote available)
+`}
+${includePullQuoteSlide ? "10" : "9"}. BOTTOM LINE SLIDE
   Headline: "Arousr leads by ${gap} points"
   Verdict: "${verdict}"
   Arousr logo placeholder bottom right
@@ -2207,7 +2230,7 @@ On click, open a new browser tab.
 In that new tab, render all slides stacked vertically with a download link below each one.
 Each download link triggers a PNG save of that slide at exactly 1200×630px.
 Use html2canvas or equivalent to capture each slide div.
-File naming: ${competitorName.toLowerCase().replace(/\s+/g, "-")}-slide-01.png through ${competitorName.toLowerCase().replace(/\s+/g, "-")}-slide-10.png
+File naming: ${competitorName.toLowerCase().replace(/\s+/g, "-")}-slide-01.png through ${competitorName.toLowerCase().replace(/\s+/g, "-")}-slide-${String(totalSlides).padStart(2, "0")}.png
 `
 
     const blob = new Blob([promptText], { type: "text/plain;charset=utf-8" })
