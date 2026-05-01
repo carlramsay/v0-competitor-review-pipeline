@@ -1919,13 +1919,27 @@ ${answers}`
     }
   }
 
-  function convertBlogPostToPlainText(html: string): string {
+  function convertBlogPostToPlainText(html: string, reviewerName?: string): string {
     if (!html) return ""
     
     let text = html
     
-    // Convert headings
-    text = text.replace(/<h2[^>]*>(.*?)<\/h2>/gi, "\n## $1\n\n[INSERT SCREENSHOT HERE]\n")
+    // Sections that should have [INSERT SCREENSHOT HERE] after them
+    const screenshotSections = ["signup", "interface", "pricing", "chat quality", "privacy"]
+    
+    // Convert h2 headings - only add screenshot marker for specific sections
+    text = text.replace(/<h2[^>]*>(.*?)<\/h2>/gi, (match, heading) => {
+      const headingLower = heading.toLowerCase().trim()
+      // Skip "Final Scores" or "Final Scores Comparison" sections entirely
+      if (headingLower.includes("final scores")) {
+        return "___REMOVE_SECTION___"
+      }
+      const needsScreenshot = screenshotSections.some(s => headingLower.includes(s))
+      return needsScreenshot 
+        ? `\n## ${heading}\n\n[INSERT SCREENSHOT HERE]\n`
+        : `\n## ${heading}\n`
+    })
+    
     text = text.replace(/<h3[^>]*>(.*?)<\/h3>/gi, "\n### $1\n")
     
     // Convert blockquotes
@@ -1935,7 +1949,7 @@ ${answers}`
     text = text.replace(/<(b|strong)[^>]*>(.*?)<\/(b|strong)>/gi, "**$2**")
     text = text.replace(/<(i|em)[^>]*>(.*?)<\/(i|em)>/gi, "*$2*")
     
-    // Remove tables entirely (scores handled separately)
+    // Remove tables entirely (scores handled separately at the bottom)
     text = text.replace(/<table[\s\S]*?<\/table>/gi, "")
     
     // Remove all inline styles
@@ -1947,6 +1961,17 @@ ${answers}`
     
     // Remove remaining HTML tags
     text = text.replace(/<[^>]+>/g, "")
+    
+    // Remove the "Final Scores" section and everything after the marker
+    text = text.replace(/___REMOVE_SECTION___[\s\S]*?(?=\n## |$)/gi, "")
+    
+    // Remove repeated reviewer credit line from body (e.g., "Reviewed by X for Arousr.com")
+    if (reviewerName) {
+      const creditPattern = new RegExp(`Reviewed by ${reviewerName}[^\\n]*`, "gi")
+      text = text.replace(creditPattern, "")
+    }
+    // Also remove generic reviewer credit patterns
+    text = text.replace(/Reviewed by [A-Za-z\s]+ for Arousr\.com[^\n]*/gi, "")
     
     // Clean up extra whitespace
     text = text.replace(/\n{3,}/g, "\n\n")
@@ -1981,7 +2006,7 @@ ${answers}`
 
 ---
 
-${convertBlogPostToPlainText(record.generated.blogPost)}
+${convertBlogPostToPlainText(record.generated.blogPost, record.formData.reviewerName)}
 
 ---
 
