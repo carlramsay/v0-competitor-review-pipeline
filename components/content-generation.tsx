@@ -2037,27 +2037,21 @@ ${answers}`
       record.formData.q20 ? { label: "Pricing", text: record.formData.q20 } : null,
     ].filter(Boolean).slice(0, 4)
 
-    // Pull quote - extract from blogPost blockquote if no explicit quote exists
+    // Pull quote - first try generated.pull_quote, then scan blogPost for markdown blockquote
     let pullQuote = ""
-    if (record.formData.q30) {
-      pullQuote = record.formData.q30
+    if (record.generated.pull_quote && record.generated.pull_quote.trim()) {
+      pullQuote = record.generated.pull_quote.trim()
     } else if (record.generated.blogPost) {
-      // Try to extract first blockquote from blog post HTML
-      const blockquoteMatch = record.generated.blogPost.match(/<blockquote[^>]*>(.*?)<\/blockquote>/i)
-      if (blockquoteMatch) {
-        pullQuote = blockquoteMatch[1].replace(/<[^>]+>/g, "").trim()
-      } else {
-        // Try markdown-style quote (> line)
-        const mdQuoteMatch = record.generated.blogPost.match(/^>\s*(.+)$/m)
-        if (mdQuoteMatch) {
-          pullQuote = mdQuoteMatch[1].trim()
-        }
+      // Scan for first line starting with > (markdown blockquote) and strip the > prefix
+      const mdQuoteMatch = record.generated.blogPost.match(/^>\s*(.+)$/m)
+      if (mdQuoteMatch) {
+        pullQuote = mdQuoteMatch[1].trim()
       }
     }
-    // Only use a fallback if we still have nothing - never use system instruction text
-    if (!pullQuote) {
-      pullQuote = `${competitorName} falls short compared to Arousr in this head-to-head review.`
-    }
+    // If still nothing found, leave blank - never fall back to any other field or system text
+
+    // Verdict - only use one_line_verdict, nothing else
+    const verdict = record.generated.one_line_verdict?.trim() || ""
 
     const promptText = `Generate a 10-slide presentation for this competitor review. Follow the structure exactly.
 
@@ -2091,7 +2085,7 @@ ${findings.map((f, i) => `Finding ${i + 1} (${f?.label}): ${f?.text}`).join("\n"
 — ${reviewerName}
 
 ### Verdict
-Arousr leads by ${gap} points. ${record.formData.q30 || "The clear winner in this comparison."}
+${verdict}
 
 ---
 
@@ -2146,10 +2140,10 @@ Arousr leads by ${gap} points. ${record.formData.q30 || "The clear winner in thi
    Reviewer credit bottom right
 
 10. BOTTOM LINE SLIDE
-    Headline: "Arousr leads by ${gap} points"
-    One sentence verdict
-    Arousr logo placeholder bottom right
-    CTA: "arousr.com"
+  Headline: "Arousr leads by ${gap} points"
+  Verdict: "${verdict}"
+  Arousr logo placeholder bottom right
+  CTA: "arousr.com"
 
 ---
 
