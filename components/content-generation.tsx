@@ -2410,10 +2410,6 @@ File naming: ${competitorName.toLowerCase().replace(/\s+/g, "-")}-slide-01.png t
           {loading === "wp" ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
         Push to WordPress
         </button>
-        <button type="button" onClick={downloadClaudeDesignPrompt} className={btnClass}>
-          <Download size={12} />
-          Claude Design Prompt
-        </button>
         </div>
         </div>
         )}
@@ -2573,6 +2569,12 @@ File naming: ${competitorName.toLowerCase().replace(/\s+/g, "-")}-slide-01.png t
               No images uploaded. Add screenshots in the review form to see them here.
             </div>
           )}
+          <div className="mt-4">
+            <button type="button" onClick={downloadClaudeDesignPrompt} className="flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/60">
+              <Download size={12} />
+              Claude Design Prompt
+            </button>
+          </div>
         </div>
         )}
       </div>
